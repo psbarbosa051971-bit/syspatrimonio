@@ -22,6 +22,13 @@
       "when": 1791644960249,
       "tag": "0002_visualizador_salas",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791646063926,
+      "tag": "0003_observacao_defaults",
+      "breakpoints": true
     }
   ]
 }
