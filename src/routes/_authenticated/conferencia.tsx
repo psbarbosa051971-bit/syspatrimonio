@@ -93,8 +93,7 @@ function ConferenciaPage() {
           <CardHeader className="gap-3">
             <CardTitle>Conferência de bens</CardTitle>
             <div className="grid gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm sm:grid-cols-3">
-              <p><strong>Local:</strong> {sala?.nome ?? "—"}</p>
-              <p><strong>Endereço:</strong> {sala?.endereco ?? "—"}</p>
+              <p><strong>Local Físico:</strong> {sala?.nome ?? "—"}</p>
               <p><strong>Responsável pelo local:</strong> {sala?.responsavel ?? "—"}</p>
             </div>
           </CardHeader>
