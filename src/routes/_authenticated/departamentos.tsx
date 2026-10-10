@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { extrairBensDePdf } from "@/lib/pdf-parse";
+import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,6 +88,7 @@ function DepartamentosPage() {
   const [novaSala, setNovaSala] = useState({ nome: "", endereco: "" });
   // subformulário de bens
   const [novoBem, setNovoBem] = useState({ codigo_red: "", descricao: "", valor: "" });
+  const [cabecalho, setCabecalho] = useState({ historico: "", data: "", local: "", endereco: "" });
 
   const [dialogSala, setDialogSala] = useState<Sala | null>(null);
   const [bensDialogSala, setBensDialogSala] = useState<Bem[]>([]);
@@ -131,6 +132,15 @@ function DepartamentosPage() {
       .eq("sala_id", salaSel.id)
       .order("codigo_red")
       .then(({ data }) => setBens(data ?? []));
+  }, [salaSel]);
+
+  useEffect(() => {
+    setCabecalho({
+      historico: "",
+      data: "",
+      local: salaSel?.nome ?? "",
+      endereco: salaSel?.endereco ?? "",
+    });
   }, [salaSel]);
 
   const salasFiltradas = useMemo(() => {
@@ -259,7 +269,14 @@ function DepartamentosPage() {
     }
     setImportando(true);
     try {
-      const extraidos = await extrairBensDePdf(file);
+      const termo = await extrairTermoDePdf(file);
+      const extraidos = termo.bens;
+      setCabecalho({
+        historico: termo.cabecalho.historico,
+        data: termo.cabecalho.data,
+        local: termo.cabecalho.local || salaSel.nome,
+        endereco: termo.cabecalho.endereco || (salaSel.endereco ?? ""),
+      });
       if (extraidos.length === 0) {
         toast.error("Nenhum bem encontrado no PDF", {
           description:
@@ -503,6 +520,40 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
+              <div className="grid gap-3 rounded-md border border-border bg-muted/40 p-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <Label htmlFor="cabHistorico">Histórico</Label>
+                  <Input
+                    id="cabHistorico"
+                    value={cabecalho.historico}
+                    onChange={(e) => setCabecalho({ ...cabecalho, historico: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cabData">Data</Label>
+                  <Input
+                    id="cabData"
+                    value={cabecalho.data}
+                    onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cabLocal">Local</Label>
+                  <Input
+                    id="cabLocal"
+                    value={cabecalho.local}
+                    onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
+                  <Label htmlFor="cabEndereco">Endereço</Label>
+                  <Input
+                    id="cabEndereco"
+                    value={cabecalho.endereco}
+                    onChange={(e) => setCabecalho({ ...cabecalho, endereco: e.target.value })}
+                  />
+                </div>
+              </div>
               <form
                 onSubmit={adicionarBem}
                 className="grid gap-3 sm:grid-cols-[160px_1fr_140px_auto]"
@@ -569,7 +620,7 @@ function DepartamentosPage() {
                           {b.codigo_red}
                         </button>
                       </TableCell>
-                      <TableCell>{b.descricao}</TableCell>
+                      <TableCell>{limparDescricao(b.descricao)}</TableCell>
                       <TableCell className="text-right">
                         {formataMoeda(Number(b.valor))}
                       </TableCell>
@@ -704,7 +755,7 @@ function DepartamentosPage() {
               {bensDialogSala.map((b) => (
                 <TableRow key={b.id}>
                   <TableCell className="font-mono text-sm">{b.codigo_red}</TableCell>
-                  <TableCell>{b.descricao}</TableCell>
+                  <TableCell>{limparDescricao(b.descricao)}</TableCell>
                   <TableCell className="text-right">
                     {formataMoeda(Number(b.valor))}
                   </TableCell>
