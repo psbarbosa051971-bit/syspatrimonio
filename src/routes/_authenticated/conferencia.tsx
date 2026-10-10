@@ -243,7 +243,7 @@ function ConferenciaPage() {
         onSaved={(id, observacao) => {
           setBens((atuais) => atuais.map((bem) => bem.id === id ? { ...bem, observacao } : bem));
           setAtualizacaoRelatorios((valor) => valor + 1);
-        }} />
+        }} />}
     </div>
   );
 }
