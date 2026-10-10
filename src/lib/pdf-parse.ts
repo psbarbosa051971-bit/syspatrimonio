@@ -46,22 +46,33 @@ export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
         .map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : ""))
         .join("") + "\n";
   }
+  texto = texto.normalize("NFC").replace(/[ \t\u00a0]+/g, " ");
   const dataMatch =
-    texto.match(/Data\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i) ??
-    texto.match(/(\d{1,2}\/\d{1,2}\/\d{4})/) ??
+    texto.match(/Data\s*:?\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})/i) ??
+    texto.match(/(\d{1,2}[/.]\d{1,2}[/.]\d{4})/) ??
     texto.match(/(\d{1,2}\s+de\s+[A-Za-zçÇ]+\s+de\s+\d{4})/i);
   const historicoBruto =
-    texto.match(/Hist[óo]rico\s*:?\s*([\s\S]+?)(?=\s*\b(?:Data|Local|Endere[çc]o|C[óo]d)\b|$)/i)?.[1] ??
-    campo(texto, "Hist[óo]rico");
+    texto.match(
+      /HIST\S{0,2}RICO\s*:?\s*([\s\S]+?)(?=\s*\b(?:Data|Local|Endere\S{1,2}o|C\S{0,2}d(?:igo)?\.?\s*RED)\b|$)/i,
+    )?.[1] ?? "";
   const historico = historicoBruto
-    .replace(/\d{1,2}\/\d{1,2}\/\d{2,4}/g, "")
+    .replace(/\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}/g, "")
     .replace(/\s{2,}/g, " ")
-    .replace(/[\s,;\-–]+$/, "")
+    .replace(/[\s,;:\-–]+$/, "")
     .trim();
+  // Local: linha inteira após o rótulo (ex.: "12-SECRETARIA MUNICIPAL DE EDUCAÇÃO - SEMED")
+  let local =
+    texto.match(/\bLocal\s*:?\s*([^\n]+?)(?=\s+(?:Endere\S{1,2}o|Data|Hist\S{0,2}rico)\s*:|\n|$)/i)?.[1]?.trim() ??
+    campo(texto, "Local");
+  if (local) {
+    const esc = local.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const completo = texto.match(new RegExp(`(\\d+\\s*-\\s*)?${esc}(\\s*-\\s*[A-ZÇÃÕÁÉÍÓÚ]{2,})?`));
+    if (completo) local = completo[0].replace(/\s{2,}/g, " ").trim();
+  }
   const cabecalho: CabecalhoTermo = {
     historico,
     data: dataMatch?.[1]?.trim() ?? "",
-    local: campo(texto, "Local"),
+    local,
     endereco: campo(texto, "Endere[çc]o"),
   };
   return { cabecalho, bens: parsearBens(texto) };
