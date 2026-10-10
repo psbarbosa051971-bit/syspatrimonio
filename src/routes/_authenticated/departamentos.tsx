@@ -1,5 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { responsavelDoLocal } from "@/lib/usuarios.functions";
+import { formatarCpf } from "@/lib/cpf";
 import {
   Building2,
   CheckSquare,
@@ -85,7 +88,9 @@ function DepartamentosPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { role, loading: carregandoPapel } = useRole();
-  const [responsavel, setResponsavel] = useState("");
+  const consultarResponsavel = useServerFn(responsavelDoLocal);
+  const [perfilResponsavel, setPerfilResponsavel] = useState<{ salaId: string; nome: string | null; cpf: string | null } | null>(null);
+  const [excluindoSala, setExcluindoSala] = useState(false);
   useEffect(() => {
     if (!carregandoPapel && role !== "admin" && role !== "operador") {
       navigate({ to: "/conferencia" });
@@ -187,7 +192,6 @@ function DepartamentosPage() {
     if (cabecalhoPendente.current) {
       setCabecalho(cabecalhoPendente.current);
       cabecalhoPendente.current = null;
-      setResponsavel(salaSel?.responsavel ?? "");
       return;
     }
     setCabecalho({
@@ -196,8 +200,21 @@ function DepartamentosPage() {
       local: salaSel?.nome ?? "",
       endereco: salaSel?.endereco ?? "",
     });
-    setResponsavel(salaSel?.responsavel ?? "");
   }, [salaSel]);
+
+  useEffect(() => {
+    setPerfilResponsavel(null);
+    if (!salaSel) return;
+    let ativo = true;
+    consultarResponsavel({ data: { salaId: salaSel.id } })
+      .then((perfil) => {
+        if (ativo && perfil) setPerfilResponsavel({ salaId: salaSel.id, ...perfil });
+      })
+      .catch(() => { if (ativo) toast.error("Não foi possível carregar o responsável do local"); });
+    return () => { ativo = false; };
+  }, [salaSel, consultarResponsavel]);
+
+  const responsavelAtual = perfilResponsavel?.salaId === salaSel?.id ? perfilResponsavel : null;
 
   // resumo (quantidade e valor total) por sala
   const [resumo, setResumo] = useState<Record<string, { qtd: number; total: number }>>({});
@@ -247,19 +264,26 @@ function DepartamentosPage() {
     toast.success("Dados do local salvos");
   }
 
-  async function salvarResponsavel() {
-    if (!salaSel || responsavel === (salaSel.responsavel ?? "")) return;
-    const { data, error } = await supabase
-      .from("salas")
-      .update({ responsavel: responsavel || null })
-      .eq("id", salaSel.id)
-      .select()
-      .single();
-    if (error) { toast.error("Erro ao salvar responsável"); return; }
-    setSalas((prev) => prev.map((s) => (s.id === data.id ? data : s)));
-    cabecalhoPendente.current = { ...cabecalho };
-    setSalaSel(data);
-    toast.success("Responsável salvo");
+  async function excluirSalaVazia() {
+    if (!salaSel || importando || excluindoSala) return;
+    if (!confirm(`Excluir a sala “${salaSel.nome}”? A exclusão só será permitida se não houver nenhum bem. Os vínculos de usuários e o histórico de importações desse local também serão removidos.`)) return;
+    const alvo = salaSel;
+    setExcluindoSala(true);
+    try {
+      const { error } = await supabase.rpc("excluir_sala_vazia", { _sala_id: alvo.id });
+      if (error) throw error;
+      setSalas((prev) => prev.filter((s) => s.id !== alvo.id));
+      setSalaSel((atual) => atual?.id === alvo.id ? null : atual);
+      setDialogSala((atual) => atual?.id === alvo.id ? null : atual);
+      setBens([]);
+      setSelecionados([]);
+      setNovaSala({ nome: "", endereco: "" });
+      toast.success("Sala vazia excluída");
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : (erro as { message?: string })?.message || "Não foi possível excluir a sala");
+    } finally {
+      setExcluindoSala(false);
+    }
   }
 
   const salasFiltradas = useMemo(() => {
@@ -405,12 +429,13 @@ function DepartamentosPage() {
       const nomeLocal = termo.cabecalho.local.trim();
       if (!nomeLocal) throw new Error("Local Físico não encontrado no HTML. Envie o arquivo para conferir o layout.");
       const norm = (s: string) => s.normalize("NFC").replace(/\s+/g, " ").trim().toUpperCase()
+        .split(/\s*;\s*|\s*(?:SITUA[ÇC][ÃA]O\s+DO\s+BEM|PAR[ÂA]METRO\s+DE\s+ORDENA[ÇC][ÃA]O)\s*:/)[0]!.trim()
         .replace(/^(\d+)\s*[-–—]?\s*(?=[A-ZÀ-Ú])/, "$1-");
       const semCodigo = (s: string) => norm(s).replace(/^\d+\s*[-–—]?\s*/, "");
       let sala = salas.find((s) => norm(s.nome) === norm(nomeLocal)) ?? null;
-      if (!sala && /^\d+[-–—]/.test(nomeLocal)) {
-        // Reaproveita o cadastro antigo sem código, preservando bens e vínculos.
-        const candidatas = salas.filter((s) => !/^\d+\s*[-–—]/.test(s.nome) && semCodigo(s.nome) === semCodigo(nomeLocal));
+      if (!sala && /^\d+(?:\s|[-–—])/.test(nomeLocal)) {
+        // Reaproveita o cadastro antigo sem código e sem os filtros do relatório.
+        const candidatas = salas.filter((s) => !/^\d+[-–—]/.test(norm(s.nome)) && semCodigo(s.nome) === semCodigo(nomeLocal));
         if (candidatas.length > 1) throw new Error("Há mais de um local com esse nome. Corrija os cadastros antes de importar.");
         sala = candidatas[0] ?? null;
       }
@@ -599,7 +624,13 @@ function DepartamentosPage() {
                     Preenchido manualmente ou pela leitura do HTML exportado pelo Sonner. Confira a quantidade antes de confirmar.
                   </CardDescription>
                 </div>
-                <div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="destructive" size="sm"
+                    disabled={!salaSel || bens.length > 0 || importando || excluindoSala}
+                    onClick={excluirSalaVazia}>
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    {excluindoSala ? "Excluindo..." : "Excluir sala vazia"}
+                  </Button>
                   <input
                     ref={fileRef}
                     type="file"
@@ -620,8 +651,8 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
+              <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+                <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabData">Data da última importação</Label>
                   <Input
                     id="cabData"
@@ -631,7 +662,7 @@ function DepartamentosPage() {
                     onBlur={salvarCabecalho}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabLocal">Local Físico</Label>
                   <Input
                     id="cabLocal"
@@ -641,15 +672,17 @@ function DepartamentosPage() {
                     onBlur={salvarCabecalho}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cabResp">Nome do responsável pelo local</Label>
-                  <Input
-                    id="cabResp"
-                    disabled={!salaSel}
-                    value={responsavel}
-                    onChange={(e) => setResponsavel(e.target.value)}
-                    onBlur={salvarResponsavel}
-                  />
+                <div className="grid gap-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <Label htmlFor="cabResp">Nome do responsável pelo local</Label>
+                    <Input id="cabResp" readOnly value={responsavelAtual?.nome ?? salaSel?.responsavel ?? ""}
+                      placeholder="Preenchido pelo usuário vinculado ao local" />
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <Label htmlFor="cabCpf">CPF</Label>
+                    <Input id="cabCpf" readOnly value={responsavelAtual?.cpf ? formatarCpf(responsavelAtual.cpf) : ""}
+                      placeholder="CPF do responsável" />
+                  </div>
                 </div>
               </div>
               {bens.length > 0 && (

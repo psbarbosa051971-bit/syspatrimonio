@@ -2,7 +2,7 @@ import type { BemExtraido, TermoExtraido } from "@/lib/pdf-parse";
 
 const texto = (valor: string) => valor.normalize("NFC").replace(/\s+/g, " ").trim();
 const chave = (valor: string) => texto(valor).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const rotulos = /^(?:local(?:\s+fisico)?|endereco|data|emissao|historico|codigo|cod\.?\s*red|descricao|incorporacao|tipo|valor|total|pagina)\b/;
+const rotulos = /^(?:local(?:\s+fisico)?|situacao\s+do\s+bem|parametro\s+de\s+ordenacao|endereco|data|emissao|historico|codigo|cod\.?\s*red|descricao|incorporacao|tipo|valor|total|pagina)\b/;
 
 function moeda(valor: string): number | null {
   const s = texto(valor).replace(/^R\$\s*/, "");
@@ -11,7 +11,34 @@ function moeda(valor: string): number | null {
 }
 
 function nomeLocal(valor: string): string {
-  return texto(valor).replace(/^(\d+)\s*[-–—]?\s*(?=[A-Za-zÀ-ÿ])/, "$1-");
+  return texto(valor)
+    .replace(/^Local\s+F[ií]sico\s*:?\s*/i, "")
+    .split(/\s*;\s*|\s*(?:Situa[çc][ãa]o\s+do\s+Bem|Par[âa]metro\s+de\s+Ordena[çc][ãa]o)\s*:/i)[0]!
+    .replace(/^(\d+)\s*[-–—]?\s*(?=[A-Za-zÀ-ÿ])/, "$1 ").trim();
+}
+
+/** O título em negrito junto às colunas identifica o local, não os filtros do relatório. */
+function locaisEmNegrito(doc: Document): string[] {
+  const cabecalhos = Array.from(doc.querySelectorAll("td,th"))
+    .filter((el) => /^descricao(?:\s+do\s+bem)?$/.test(chave(el.textContent ?? "")));
+  const negritos = Array.from(doc.querySelectorAll("b,strong,[style]"))
+    .filter((el) => /^(B|STRONG)$/.test(el.tagName) || /font-weight\s*:\s*(?:bold|[6-9]00)/i.test(el.getAttribute("style") ?? ""));
+  const locais: string[] = [];
+  for (const cab of cabecalhos) {
+    const anteriores = negritos.filter((el) => Boolean(el.compareDocumentPosition(cab) & 4) && !el.contains(cab));
+    for (const el of anteriores.reverse()) {
+      const proprio = nomeLocal(el.textContent ?? "");
+      const contexto = el.closest("tr,p,div");
+      const conteudo = contexto?.tagName === "TR"
+        ? Array.from(contexto.children).map((celula) => celula.textContent ?? "").join(" ")
+        : contexto?.textContent ?? "";
+      const conjunto = contexto && !contexto.querySelector("table") ? nomeLocal(conteudo) : "";
+      const candidatos = [proprio, conjunto];
+      const local = candidatos.find((s) => /^\d+\s+[A-Za-zÀ-ÿ]/.test(s) && s.length < 400);
+      if (local) { locais.push(local); break; }
+    }
+  }
+  return [...new Set(locais)];
 }
 
 /** Lê o documento sem executar scripts nem inserir o HTML na página. */
@@ -50,8 +77,9 @@ export function parsearTermoHtml(html: string): TermoExtraido {
     }
     return "";
   }
-  const local = nomeLocal(campo(/^Local\s+F[ií]sico\s*:?/i) || campo(/^Local\s*:/i));
-  const codigosLocais = new Set<string>();
+  const titulosLocais = locaisEmNegrito(doc);
+  const local = titulosLocais[0] || nomeLocal(campo(/^Local\s+F[ií]sico\s*:?/i) || campo(/^Local\s*:/i));
+  const codigosLocais = new Set<string>(titulosLocais.map((s) => s.match(/^\d+/)![0]));
   for (const el of celulas) {
     const s = texto(el.textContent ?? "");
     if (!/^Local\s+F[ií]sico\s*:?/i.test(s)) continue;

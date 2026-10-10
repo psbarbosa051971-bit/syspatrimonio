@@ -13,7 +13,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
         email: z.string().email().max(255),
         senha: z.string().min(6).max(72),
         role: z.enum(["admin", "operador", "visualizador"]),
-        salas: z.array(z.string().uuid()).max(500),
+        salas: z.array(z.string().uuid()).length(1, "Selecione o Local Físico do usuário"),
       })
       .parse(d),
   )
@@ -42,14 +42,35 @@ export const criarUsuario = createServerFn({ method: "POST" })
       const { error: erroPapel } = await supabaseAdmin.from("user_roles")
         .upsert({ user_id: id, role: data.role }, { onConflict: "user_id" });
       if (erroPapel) throw erroPapel;
-      if (data.role === "visualizador" && data.salas.length) {
+      if (data.salas.length) {
         const { error: erroSalas } = await supabaseAdmin.from("user_salas")
           .insert(data.salas.map((sala_id) => ({ user_id: id, sala_id })));
         if (erroSalas) throw erroSalas;
+        const { error: erroResponsavel } = await supabaseAdmin.from("salas")
+          .update({ responsavel: data.nome }).eq("id", data.salas[0]!).select("id").single();
+        if (erroResponsavel) throw erroResponsavel;
       }
     } catch {
       await supabaseAdmin.auth.admin.deleteUser(id);
       throw new Error("Não foi possível salvar o cadastro e os locais. Confira o CPF e tente novamente.");
     }
     return { id };
+  });
+
+export const responsavelDoLocal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ salaId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: permitido, error: erroPermissao } = await context.supabase.rpc("can_edit", { _user_id: context.userId });
+    if (erroPermissao || !permitido) throw new Error("Acesso não autorizado");
+    const { data: sala, error: erroSala } = await context.supabase.from("salas").select("id").eq("id", data.salaId).single();
+    if (erroSala || !sala) throw new Error("Local não encontrado");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: vinculos, error } = await supabaseAdmin.from("user_salas").select("user_id").eq("sala_id", sala.id);
+    if (error) throw new Error("Não foi possível consultar o responsável");
+    if (!vinculos?.length) return null;
+    const { data: perfil, error: erroPerfil } = await supabaseAdmin.from("profiles").select("nome,cpf")
+      .in("id", vinculos.map((v) => v.user_id)).not("nome", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (erroPerfil) throw new Error("Não foi possível consultar o responsável");
+    return perfil;
   });

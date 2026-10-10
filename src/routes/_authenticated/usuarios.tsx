@@ -37,30 +37,20 @@ const NOMES: Record<Papel, string> = {
   visualizador: "Visualizador",
 };
 
-function SeletorSalas({
-  salas,
-  valor,
-  onChange,
-}: {
+function SeletorSalas({ salas, valor, onChange, id, required = false }: {
   salas: SalaMin[];
   valor: string[];
   onChange: (v: string[]) => void;
+  id?: string;
+  required?: boolean;
 }) {
-  if (salas.length === 0) return <p className="text-xs text-muted-foreground">Nenhum local cadastrado.</p>;
   return (
-    <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-md border border-border p-2">
-      {salas.map((s) => (
-        <label key={s.id} className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-primary"
-            checked={valor.includes(s.id)}
-            onChange={(e) => onChange(e.target.checked ? [...valor, s.id] : valor.filter((x) => x !== s.id))}
-          />
-          {s.nome}
-        </label>
-      ))}
-    </div>
+    <select id={id} required={required} aria-label="Local Físico"
+      className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm"
+      value={valor[0] ?? ""} onChange={(e) => onChange(e.target.value ? [e.target.value] : [])}>
+      <option value="">{salas.length ? "Selecione o Local Físico" : "Nenhum local cadastrado"}</option>
+      {salas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+    </select>
   );
 }
 
@@ -110,9 +100,16 @@ function UsuariosPage() {
   async function mudarSalas(l: Linha, novas: string[]) {
     const add = novas.filter((x) => !l.salas.includes(x));
     const rem = l.salas.filter((x) => !novas.includes(x));
-    if (add.length) await supabase.from("user_salas").insert(add.map((sala_id) => ({ user_id: l.id, sala_id })));
-    if (rem.length) await supabase.from("user_salas").delete().eq("user_id", l.id).in("sala_id", rem);
+    if (add.length) {
+      const { error } = await supabase.from("user_salas").insert(add.map((sala_id) => ({ user_id: l.id, sala_id })));
+      if (error) { toast.error("Não foi possível vincular o local"); return; }
+    }
+    if (rem.length) {
+      const { error } = await supabase.from("user_salas").delete().eq("user_id", l.id).in("sala_id", rem);
+      if (error) { toast.error("Não foi possível remover o vínculo anterior"); carregar(); return; }
+    }
     setLinhas((p) => p.map((x) => (x.id === l.id ? { ...x, salas: novas } : x)));
+    toast.success("Local Físico atualizado");
   }
 
   async function cadastrar(e: React.FormEvent) {
@@ -120,7 +117,8 @@ function UsuariosPage() {
     if (!cpfValido(novo.cpf)) { toast.error("Informe um CPF válido"); return; }
     setSalvando(true);
     try {
-      await criar({ data: { ...novo, salas: novo.role === "visualizador" ? novo.salas : [] } });
+      if (!novo.salas.length) throw new Error("Selecione o Local Físico do usuário");
+      await criar({ data: novo });
       toast.success("Usuário cadastrado");
       setNovo({ nome: "", cpf: "", email: "", senha: "", role: "visualizador", salas: [] });
       carregar();
@@ -145,7 +143,7 @@ function UsuariosPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5" /> Cadastrar usuário</CardTitle>
-            <CardDescription>Crie o acesso e defina a permissão. Visualizadores veem só os locais marcados.</CardDescription>
+            <CardDescription>Crie o acesso, defina a permissão e vincule o usuário ao Local Físico. Visualizadores veem somente o local vinculado.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={cadastrar} className="grid gap-4 sm:grid-cols-2">
@@ -176,12 +174,10 @@ function UsuariosPage() {
                   {(Object.keys(NOMES) as Papel[]).map((p) => <option key={p} value={p}>{NOMES[p]}</option>)}
                 </select>
               </div>
-              {novo.role === "visualizador" && (
-                <div className="flex flex-col gap-1.5">
-                  <Label>Local(is) do visualizador</Label>
-                  <SeletorSalas salas={salas} valor={novo.salas} onChange={(v) => setNovo({ ...novo, salas: v })} />
-                </div>
-              )}
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <Label htmlFor="nLocal">Local Físico</Label>
+                <SeletorSalas id="nLocal" required salas={salas} valor={novo.salas} onChange={(v) => setNovo({ ...novo, salas: v })} />
+              </div>
               <div className="sm:col-span-2">
                 <Button type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Cadastrar usuário"}</Button>
               </div>
@@ -199,7 +195,7 @@ function UsuariosPage() {
                 <TableRow>
                   <TableHead>Nome, CPF e e-mail</TableHead>
                   <TableHead className="w-44">Permissão</TableHead>
-                  <TableHead className="w-64">Locais (visualizador)</TableHead>
+                  <TableHead className="w-64">Local Físico vinculado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -220,9 +216,15 @@ function UsuariosPage() {
                     </TableCell>
                     <TableCell>
                       {l.role === "visualizador" ? (
-                        <SeletorSalas salas={salas} valor={l.salas} onChange={(v) => mudarSalas(l, v)} />
+                        <>
+                          <SeletorSalas salas={salas} valor={l.salas} onChange={(v) => mudarSalas(l, v)} />
+                          {l.salas.length > 1 && <p className="mt-1 text-xs text-muted-foreground">Vínculos existentes: {salas.filter((s) => l.salas.includes(s.id)).map((s) => s.nome).join("; ")}. Selecionar outro local substitui esses vínculos.</p>}
+                        </>
                       ) : (
-                        <span className="text-xs text-muted-foreground">Todos os locais</span>
+                        <span className="text-xs text-muted-foreground">
+                          {salas.filter((s) => l.salas.includes(s.id)).map((s) => s.nome).join("; ") || "Sem local vinculado"}
+                          <span className="block">Acesso a todos os locais pela permissão.</span>
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>

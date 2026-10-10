@@ -14,10 +14,35 @@ describe("importação HTML", () => {
     const termo = parsearTermoHtml(`${cabecalho}<table>${colunas}${primeira}</table>
       <table>${colunas}${segunda}</table><p>Total de bens: 888</p>`);
     expect(termo.bens).toHaveLength(888);
-    expect(termo.cabecalho.local).toBe("58195-C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES");
+    expect(termo.cabecalho.local).toBe("58195 C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES");
     expect(termo.cabecalho.endereco).toBe("Rua da Escola, 10");
     expect(termo.bens[0]?.valor).toBe(1234.56);
     expect(termo.bens[887]?.codigo_red).toBe("100887");
+  });
+
+  it("prioriza o local em negrito acima da Descrição do Bem e ignora os filtros", () => {
+    const filtros = `<p>Local Físico: C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES; Situação do Bem: Ativo; Parâmetro de Ordenação: Código;</p>`;
+    const titulo = `<tr><td colspan="5"><strong>58195  C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES</strong></td></tr>`;
+    const termo = parsearTermoHtml(`${filtros}<table>${titulo}${colunas.replace("Descrição", "Descrição do Bem")}${bem(100001)}</table>`);
+    expect(termo.cabecalho.local).toBe("58195 C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES");
+    expect(termo.cabecalho.local).not.toContain("Situação");
+  });
+
+  it("reúne código e nome em negritos separados", () => {
+    const titulo = `<tr><td><b>58195</b></td><td colspan="4"><b>C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES</b></td></tr>`;
+    const termo = parsearTermoHtml(`<table>${titulo}${colunas}${bem(100001)}</table>`);
+    expect(termo.cabecalho.local).toBe("58195 C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES");
+  });
+
+  it("remove situação e ordenação mesmo sem título em negrito", () => {
+    const termo = parsearTermoHtml(`<p>Local Físico: 58195 Escola; Situação do Bem: Ativo; Parâmetro de Ordenação: Código;</p><table>${colunas}${bem(100001)}</table>`);
+    expect(termo.cabecalho.local).toBe("58195 Escola");
+  });
+
+  it("não mistura dois locais identificados nos títulos", () => {
+    expect(() => parsearTermoHtml(`<table><tr><td><b>58195 Escola A</b></td></tr>${colunas}${bem(100001)}</table>
+      <table><tr><td><b>58196 Escola B</b></td></tr>${colunas}${bem(100002)}</table>`))
+      .toThrow("mais de um Local Físico");
   });
 
   it("lê a continuação sem repetir o cabeçalho das colunas", () => {

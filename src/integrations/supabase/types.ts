@@ -257,6 +257,7 @@ export type Database = {
     }
     Functions: {
       can_edit: { Args: { _user_id: string }; Returns: boolean }
+      excluir_sala_vazia: { Args: { _sala_id: string }; Returns: undefined }
       importar_bens_pdf: {
         Args: { _sala_id: string; _arquivo: string; _bens: Json }
         Returns: Json
