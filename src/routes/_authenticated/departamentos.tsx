@@ -1,0 +1,776 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Building2,
+  FileText,
+  LogOut,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { extrairBensDePdf } from "@/lib/pdf-parse";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import type { Tables } from "@/integrations/supabase/types";
+
+export const Route = createFileRoute("/_authenticated/departamentos")({
+  head: () => ({
+    meta: [
+      { title: "Departamentos — SysPatrimônio" },
+      {
+        name: "description",
+        content:
+          "Cadastro de departamentos, salas e bens patrimoniais no SysPatrimônio.",
+      },
+      { property: "og:title", content: "Departamentos — SysPatrimônio" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: DepartamentosPage,
+});
+
+type Departamento = Tables<"departamentos">;
+type Sala = Tables<"salas">;
+type Bem = Tables<"bens">;
+
+const formataMoeda = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+function DepartamentosPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
+  const [departamentoSel, setDepartamentoSel] = useState<Departamento | null>(null);
+  const [salas, setSalas] = useState<Sala[]>([]);
+  const [salaSel, setSalaSel] = useState<Sala | null>(null);
+  const [bens, setBens] = useState<Bem[]>([]);
+  const [busca, setBusca] = useState("");
+
+  // formulário de departamento (cabeçalho)
+  const [form, setForm] = useState({
+    diretor: "",
+    departamento: "",
+    almoxarifado: "",
+    local: "",
+    cpd: "",
+    endereco: "",
+  });
+  // campo pai: sala
+  const [novaSala, setNovaSala] = useState({ nome: "", endereco: "" });
+  // subformulário de bens
+  const [novoBem, setNovoBem] = useState({ codigo_red: "", descricao: "", valor: "" });
+
+  const [dialogSala, setDialogSala] = useState<Sala | null>(null);
+  const [bensDialogSala, setBensDialogSala] = useState<Bem[]>([]);
+  const [termoBem, setTermoBem] = useState<Bem | null>(null);
+  const [importando, setImportando] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("departamentos")
+      .select("*")
+      .order("created_at")
+      .then(({ data, error }) => {
+        if (error) toast.error("Erro ao carregar departamentos");
+        setDepartamentos(data ?? []);
+      });
+  }, [user]);
+
+  useEffect(() => {
+    if (!departamentoSel) {
+      setSalas([]);
+      return;
+    }
+    supabase
+      .from("salas")
+      .select("*")
+      .eq("departamento_id", departamentoSel.id)
+      .order("nome")
+      .then(({ data }) => setSalas(data ?? []));
+  }, [departamentoSel]);
+
+  useEffect(() => {
+    if (!salaSel) {
+      setBens([]);
+      return;
+    }
+    supabase
+      .from("bens")
+      .select("*")
+      .eq("sala_id", salaSel.id)
+      .order("codigo_red")
+      .then(({ data }) => setBens(data ?? []));
+  }, [salaSel]);
+
+  const salasFiltradas = useMemo(() => {
+    const t = busca.trim().toLowerCase();
+    if (!t) return salas;
+    return salas.filter(
+      (s) =>
+        s.nome.toLowerCase().includes(t) ||
+        (s.endereco ?? "").toLowerCase().includes(t),
+    );
+  }, [salas, busca]);
+
+  async function salvarDepartamento(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    const payload = { ...form, user_id: user.id };
+    if (departamentoSel) {
+      const { data, error } = await supabase
+        .from("departamentos")
+        .update(payload)
+        .eq("id", departamentoSel.id)
+        .select()
+        .single();
+      if (error) { toast.error("Erro ao salvar departamento"); return; }
+      setDepartamentos((prev) =>
+        prev.map((d) => (d.id === data.id ? data : d)),
+      );
+      setDepartamentoSel(data);
+      toast.success("Departamento atualizado");
+    } else {
+      const { data, error } = await supabase
+        .from("departamentos")
+        .insert(payload)
+        .select()
+        .single();
+      if (error) { toast.error("Erro ao cadastrar departamento"); return; }
+      setDepartamentos((prev) => [...prev, data]);
+      setDepartamentoSel(data);
+      toast.success("Departamento cadastrado");
+    }
+  }
+
+  function novoDepartamento() {
+    setDepartamentoSel(null);
+    setSalaSel(null);
+    setForm({
+      diretor: "",
+      departamento: "",
+      almoxarifado: "",
+      local: "",
+      cpd: "",
+      endereco: "",
+    });
+  }
+
+  function selecionarDepartamento(d: Departamento) {
+    setDepartamentoSel(d);
+    setSalaSel(null);
+    setForm({
+      diretor: d.diretor,
+      departamento: d.departamento,
+      almoxarifado: d.almoxarifado,
+      local: d.local,
+      cpd: d.cpd,
+      endereco: d.endereco ?? "",
+    });
+  }
+
+  async function adicionarSala(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !departamentoSel) {
+      toast.error("Salve o departamento antes de adicionar salas");
+      return;
+    }
+    const { data, error } = await supabase
+      .from("salas")
+      .insert({
+        user_id: user.id,
+        departamento_id: departamentoSel.id,
+        nome: novaSala.nome,
+        endereco: novaSala.endereco || null,
+      })
+      .select()
+      .single();
+    if (error) { toast.error("Erro ao adicionar sala"); return; }
+    setSalas((prev) => [...prev, data]);
+    setNovaSala({ nome: "", endereco: "" });
+    toast.success("Sala adicionada");
+  }
+
+  async function adicionarBem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !salaSel) {
+      toast.error("Selecione uma sala antes de adicionar bens");
+      return;
+    }
+    const valor = parseFloat(novoBem.valor.replace(/\./g, "").replace(",", ".")) || 0;
+    const { data, error } = await supabase
+      .from("bens")
+      .insert({
+        user_id: user.id,
+        sala_id: salaSel.id,
+        codigo_red: novoBem.codigo_red,
+        descricao: novoBem.descricao,
+        valor,
+      })
+      .select()
+      .single();
+    if (error) { toast.error("Erro ao adicionar bem"); return; }
+    setBens((prev) => [...prev, data]);
+    setNovoBem({ codigo_red: "", descricao: "", valor: "" });
+  }
+
+  async function removerBem(id: string) {
+    const { error } = await supabase.from("bens").delete().eq("id", id);
+    if (error) { toast.error("Erro ao remover bem"); return; }
+    setBens((prev) => prev.filter((b) => b.id !== id));
+  }
+
+  async function importarPdf(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !user || !salaSel) {
+      if (!salaSel) toast.error("Selecione uma sala antes de importar o PDF");
+      return;
+    }
+    setImportando(true);
+    try {
+      const extraidos = await extrairBensDePdf(file);
+      if (extraidos.length === 0) {
+        toast.error("Nenhum bem encontrado no PDF", {
+          description:
+            "O PDF deve conter linhas com código, descrição e valor (ex.: 123456 CADEIRA 1.234,56).",
+        });
+        return;
+      }
+      const { data, error } = await supabase
+        .from("bens")
+        .insert(
+          extraidos.map((b) => ({
+            ...b,
+            user_id: user.id,
+            sala_id: salaSel.id,
+          })),
+        )
+        .select();
+      if (error) throw error;
+      setBens((prev) => [...prev, ...(data ?? [])]);
+      toast.success(`${data?.length ?? 0} bens importados do PDF`);
+    } catch {
+      toast.error("Não foi possível ler o PDF");
+    } finally {
+      setImportando(false);
+    }
+  }
+
+  async function abrirRegistrosDaSala(sala: Sala) {
+    setDialogSala(sala);
+    const { data } = await supabase
+      .from("bens")
+      .select("*")
+      .eq("sala_id", sala.id)
+      .order("codigo_red");
+    setBensDialogSala(data ?? []);
+  }
+
+  async function sair() {
+    await supabase.auth.signOut();
+    navigate({ to: "/" });
+  }
+
+  return (
+    <div className="min-h-screen bg-muted/40">
+      <header className="border-b border-border bg-primary px-6 py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-primary-foreground" />
+            <span className="text-lg font-bold text-primary-foreground">
+              SysPatrimônio
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={sair}
+            className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+          >
+            <LogOut className="mr-2 h-4 w-4" /> Sair
+          </Button>
+        </div>
+      </header>
+
+      <main className="mx-auto grid max-w-6xl gap-6 px-6 py-6 lg:grid-cols-[1fr_360px]">
+        <div className="flex flex-col gap-6">
+          {/* Formulário principal — cabeçalho */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Cadastro de Departamento</CardTitle>
+                  <CardDescription>
+                    Dados do cabeçalho do termo de responsabilidade
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={novoDepartamento}>
+                  <Plus className="mr-1 h-4 w-4" /> Novo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {departamentos.length > 0 && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {departamentos.map((d) => (
+                    <Button
+                      key={d.id}
+                      size="sm"
+                      variant={departamentoSel?.id === d.id ? "default" : "outline"}
+                      onClick={() => selecionarDepartamento(d)}
+                    >
+                      {d.departamento}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              <form
+                onSubmit={salvarDepartamento}
+                className="grid gap-4 sm:grid-cols-2"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="diretor">Diretor</Label>
+                  <Input
+                    id="diretor"
+                    required
+                    value={form.diretor}
+                    onChange={(e) => setForm({ ...form, diretor: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="departamento">Departamento</Label>
+                  <Input
+                    id="departamento"
+                    required
+                    value={form.departamento}
+                    onChange={(e) =>
+                      setForm({ ...form, departamento: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="almoxarifado">Almoxarifado</Label>
+                  <Input
+                    id="almoxarifado"
+                    required
+                    value={form.almoxarifado}
+                    onChange={(e) =>
+                      setForm({ ...form, almoxarifado: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="local">Local</Label>
+                  <Input
+                    id="local"
+                    required
+                    value={form.local}
+                    onChange={(e) => setForm({ ...form, local: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cpd">CPD</Label>
+                  <Input
+                    id="cpd"
+                    required
+                    value={form.cpd}
+                    onChange={(e) => setForm({ ...form, cpd: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="endereco">Endereço do local</Label>
+                  <Input
+                    id="endereco"
+                    value={form.endereco}
+                    onChange={(e) =>
+                      setForm({ ...form, endereco: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Button type="submit">
+                    {departamentoSel ? "Salvar alterações" : "Cadastrar departamento"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Campo pai: sala + endereço */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Local (Sala)</CardTitle>
+              <CardDescription>
+                Nome da sala onde os bens estão localizados
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={adicionarSala}
+                className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="nomeSala">Local (nome da sala)</Label>
+                  <Input
+                    id="nomeSala"
+                    required
+                    value={novaSala.nome}
+                    onChange={(e) =>
+                      setNovaSala({ ...novaSala, nome: e.target.value })
+                    }
+                    placeholder="Ex.: Sala 101 — Secretaria"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="endSala">Endereço do local</Label>
+                  <Input
+                    id="endSala"
+                    value={novaSala.endereco}
+                    onChange={(e) =>
+                      setNovaSala({ ...novaSala, endereco: e.target.value })
+                    }
+                    placeholder="Ex.: Bloco A, 1º andar"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button type="submit" variant="secondary">
+                    <Plus className="mr-1 h-4 w-4" /> Adicionar
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Subformulário de bens */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+                  <CardDescription>
+                    Preenchido manualmente ou pela leitura do PDF do termo
+                  </CardDescription>
+                </div>
+                <div>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={importarPdf}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!salaSel || importando}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <Upload className="mr-1 h-4 w-4" />
+                    {importando ? "Lendo PDF..." : "Importar PDF do termo"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <form
+                onSubmit={adicionarBem}
+                className="grid gap-3 sm:grid-cols-[160px_1fr_140px_auto]"
+              >
+                <Input
+                  required
+                  placeholder="Código RED."
+                  value={novoBem.codigo_red}
+                  onChange={(e) =>
+                    setNovoBem({ ...novoBem, codigo_red: e.target.value })
+                  }
+                />
+                <Input
+                  required
+                  placeholder="Descrição do bem"
+                  value={novoBem.descricao}
+                  onChange={(e) =>
+                    setNovoBem({ ...novoBem, descricao: e.target.value })
+                  }
+                />
+                <Input
+                  required
+                  placeholder="Valor (R$)"
+                  value={novoBem.valor}
+                  onChange={(e) =>
+                    setNovoBem({ ...novoBem, valor: e.target.value })
+                  }
+                />
+                <Button type="submit" disabled={!salaSel}>
+                  <Plus className="mr-1 h-4 w-4" /> Incluir
+                </Button>
+              </form>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-36">Código RED.</TableHead>
+                    <TableHead>Descrição do bem</TableHead>
+                    <TableHead className="w-32 text-right">Valor</TableHead>
+                    <TableHead className="w-12" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bens.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={4}
+                        className="text-center text-sm text-muted-foreground"
+                      >
+                        {salaSel
+                          ? "Nenhum bem cadastrado nesta sala."
+                          : "Selecione uma sala na caixa de listagem ao lado."}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {bens.map((b) => (
+                    <TableRow key={b.id}>
+                      <TableCell>
+                        <button
+                          type="button"
+                          className="font-mono text-sm font-medium text-primary underline"
+                          onClick={() => setTermoBem(b)}
+                        >
+                          {b.codigo_red}
+                        </button>
+                      </TableCell>
+                      <TableCell>{b.descricao}</TableCell>
+                      <TableCell className="text-right">
+                        {formataMoeda(Number(b.valor))}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removerBem(b.id)}
+                          aria-label="Remover bem"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {bens.length > 0 && (
+                <p className="text-right text-sm font-medium text-foreground">
+                  Total:{" "}
+                  {formataMoeda(bens.reduce((acc, b) => acc + Number(b.valor), 0))}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Caixa de listagem de salas + busca */}
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Localizar salas</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-8"
+                  placeholder="Buscar sala ou endereço..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                />
+              </div>
+              <div
+                role="listbox"
+                aria-label="Salas"
+                className="flex max-h-[480px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1"
+              >
+                {salasFiltradas.length === 0 && (
+                  <p className="p-3 text-center text-sm text-muted-foreground">
+                    {departamentoSel
+                      ? "Nenhuma sala encontrada."
+                      : "Cadastre ou selecione um departamento."}
+                  </p>
+                )}
+                {salasFiltradas.map((s) => (
+                  <div
+                    key={s.id}
+                    role="option"
+                    aria-selected={salaSel?.id === s.id}
+                    className={`flex items-center justify-between rounded-sm px-3 py-2 text-sm ${
+                      salaSel?.id === s.id
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="flex-1 text-left"
+                      onClick={() => setSalaSel(s)}
+                    >
+                      <span className="block font-medium">{s.nome}</span>
+                      {s.endereco && (
+                        <span
+                          className={`block text-xs ${
+                            salaSel?.id === s.id
+                              ? "text-primary-foreground/80"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {s.endereco}
+                        </span>
+                      )}
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Ver registros de ${s.nome}`}
+                      className={
+                        salaSel?.id === s.id
+                          ? "text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                          : ""
+                      }
+                      onClick={() => abrirRegistrosDaSala(s)}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      {/* Dialog: registros (bens) da sala clicada */}
+      <Dialog open={!!dialogSala} onOpenChange={(o) => !o && setDialogSala(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Registros — {dialogSala?.nome}</DialogTitle>
+            <DialogDescription>{dialogSala?.endereco}</DialogDescription>
+          </DialogHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Código RED.</TableHead>
+                <TableHead>Descrição do bem</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bensDialogSala.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className="text-center text-sm text-muted-foreground"
+                  >
+                    Nenhum registro nesta sala.
+                  </TableCell>
+                </TableRow>
+              )}
+              {bensDialogSala.map((b) => (
+                <TableRow key={b.id}>
+                  <TableCell className="font-mono text-sm">{b.codigo_red}</TableCell>
+                  <TableCell>{b.descricao}</TableCell>
+                  <TableCell className="text-right">
+                    {formataMoeda(Number(b.valor))}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: termo do bem (clique no Código RED.) */}
+      <Dialog open={!!termoBem} onOpenChange={(o) => !o && setTermoBem(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Termo de Responsabilidade</DialogTitle>
+            <DialogDescription>
+              Informações do bem {termoBem?.codigo_red}
+            </DialogDescription>
+          </DialogHeader>
+          {termoBem && departamentoSel && (
+            <div className="rounded-md border border-border">
+              <div className="border-b border-border bg-muted/50 px-4 py-3 text-sm">
+                <p>
+                  <strong>Diretor:</strong> {departamentoSel.diretor}
+                </p>
+                <p>
+                  <strong>Departamento:</strong> {departamentoSel.departamento}
+                </p>
+                <p>
+                  <strong>Almoxarifado:</strong> {departamentoSel.almoxarifado}
+                </p>
+                <p>
+                  <strong>Local:</strong> {salaSel?.nome ?? departamentoSel.local}
+                </p>
+                <p>
+                  <strong>CPD:</strong> {departamentoSel.cpd}
+                </p>
+              </div>
+              <div className="px-4 py-3 text-sm">
+                <p>
+                  <strong>Código RED.:</strong> {termoBem.codigo_red}
+                </p>
+                <p>
+                  <strong>Descrição do bem:</strong> {termoBem.descricao}
+                </p>
+                <p>
+                  <strong>Valor:</strong> {formataMoeda(Number(termoBem.valor))}
+                </p>
+              </div>
+            </div>
+          )}
+          {termoBem && !departamentoSel && (
+            <div className="px-1 text-sm">
+              <p>
+                <strong>Código RED.:</strong> {termoBem.codigo_red}
+              </p>
+              <p>
+                <strong>Descrição do bem:</strong> {termoBem.descricao}
+              </p>
+              <p>
+                <strong>Valor:</strong> {formataMoeda(Number(termoBem.valor))}
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
