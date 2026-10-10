@@ -322,7 +322,7 @@ function DepartamentosPage() {
   return (
     <div className="min-h-screen bg-muted/40">
       <header className="border-b border-border bg-primary px-6 py-3">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between">
           <div className="flex items-center gap-2">
             <Building2 className="h-6 w-6 text-primary-foreground" />
             <span className="text-lg font-bold text-primary-foreground">
@@ -340,7 +340,7 @@ function DepartamentosPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-6 px-6 py-6 lg:grid-cols-[1fr_360px]">
+      <main className="mx-auto grid max-w-[1600px] gap-6 px-6 py-6 lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-6">
           {/* Formulário principal — cabeçalho */}
           <Card>
@@ -523,8 +523,10 @@ function DepartamentosPage() {
               <div className="grid gap-3 rounded-md border border-border bg-muted/40 p-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <Label htmlFor="cabHistorico">Histórico</Label>
-                  <Input
+                  <textarea
                     id="cabHistorico"
+                    rows={4}
+                    className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={cabecalho.historico}
                     onChange={(e) => setCabecalho({ ...cabecalho, historico: e.target.value })}
                   />
@@ -537,7 +539,7 @@ function DepartamentosPage() {
                     onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <Label htmlFor="cabLocal">Local</Label>
                   <Input
                     id="cabLocal"
