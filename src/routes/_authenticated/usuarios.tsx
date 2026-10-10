@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRole, type Papel } from "@/hooks/use-role";
 import { criarUsuario } from "@/lib/usuarios.functions";
+import { cpfValido, formatarCpf } from "@/lib/cpf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsuariosPage,
 });
 
-type Linha = { id: string; email: string | null; role: Papel | null; salas: string[] };
+type Linha = { id: string; nome: string | null; cpf: string | null; email: string | null; role: Papel | null; salas: string[] };
 type SalaMin = { id: string; nome: string };
 
 const NOMES: Record<Papel, string> = {
@@ -69,12 +70,12 @@ function UsuariosPage() {
   const criar = useServerFn(criarUsuario);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [salas, setSalas] = useState<SalaMin[]>([]);
-  const [novo, setNovo] = useState({ email: "", senha: "", role: "visualizador" as Papel, salas: [] as string[] });
+  const [novo, setNovo] = useState({ nome: "", cpf: "", email: "", senha: "", role: "visualizador" as Papel, salas: [] as string[] });
   const [salvando, setSalvando] = useState(false);
 
   async function carregar() {
     const [{ data: perfis }, { data: papeis }, { data: us }, { data: ss }] = await Promise.all([
-      supabase.from("profiles").select("id,email").order("created_at"),
+      supabase.from("profiles").select("id,email,nome,cpf").order("created_at"),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("user_salas").select("user_id,sala_id"),
       supabase.from("salas").select("id,nome").order("nome"),
@@ -83,6 +84,8 @@ function UsuariosPage() {
     setLinhas(
       (perfis ?? []).map((p) => ({
         id: p.id,
+        nome: p.nome,
+        cpf: p.cpf,
         email: p.email,
         role: (papeis?.find((r) => r.user_id === p.id)?.role as Papel) ?? null,
         salas: (us ?? []).filter((u) => u.user_id === p.id).map((u) => u.sala_id),
@@ -114,11 +117,12 @@ function UsuariosPage() {
 
   async function cadastrar(e: React.FormEvent) {
     e.preventDefault();
+    if (!cpfValido(novo.cpf)) { toast.error("Informe um CPF válido"); return; }
     setSalvando(true);
     try {
       await criar({ data: { ...novo, salas: novo.role === "visualizador" ? novo.salas : [] } });
       toast.success("Usuário cadastrado");
-      setNovo({ email: "", senha: "", role: "visualizador", salas: [] });
+      setNovo({ nome: "", cpf: "", email: "", senha: "", role: "visualizador", salas: [] });
       carregar();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao cadastrar usuário");
@@ -145,6 +149,16 @@ function UsuariosPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={cadastrar} className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="nNome">Nome completo do usuário</Label>
+                <Input id="nNome" required minLength={3} maxLength={200} autoComplete="name" value={novo.nome}
+                  onChange={(e) => setNovo({ ...novo, nome: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="nCpf">CPF</Label>
+                <Input id="nCpf" required inputMode="numeric" maxLength={14} placeholder="000.000.000-00" value={novo.cpf}
+                  onChange={(e) => setNovo({ ...novo, cpf: formatarCpf(e.target.value) })} />
+              </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="nEmail">E-mail</Label>
                 <Input id="nEmail" type="email" required value={novo.email}
@@ -183,7 +197,7 @@ function UsuariosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>E-mail</TableHead>
+                  <TableHead>Nome, CPF e e-mail</TableHead>
                   <TableHead className="w-44">Permissão</TableHead>
                   <TableHead className="w-64">Locais (visualizador)</TableHead>
                 </TableRow>
@@ -191,7 +205,11 @@ function UsuariosPage() {
               <TableBody>
                 {linhas.map((l) => (
                   <TableRow key={l.id}>
-                    <TableCell>{l.email}</TableCell>
+                    <TableCell>
+                      <p className="font-medium">{l.nome || "Nome não informado"}</p>
+                      <p>{l.email}</p>
+                      <p className="text-xs text-muted-foreground">CPF: {l.cpf ? formatarCpf(l.cpf) : "Não informado"}</p>
+                    </TableCell>
                     <TableCell>
                       <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                         value={l.role ?? ""} disabled={l.id === user?.id}

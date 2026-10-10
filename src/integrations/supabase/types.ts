@@ -150,16 +150,22 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          nome: string | null
+          cpf: string | null
         }
         Insert: {
           created_at?: string
           email?: string | null
           id: string
+          nome?: string | null
+          cpf?: string | null
         }
         Update: {
           created_at?: string
           email?: string | null
           id?: string
+          nome?: string | null
+          cpf?: string | null
         }
         Relationships: []
       }
