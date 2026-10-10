@@ -1,11 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Building2, LogOut, Save, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Building2, LogOut, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { limparDescricao } from "@/lib/pdf-parse";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Tables } from "@/integrations/supabase/types";
@@ -28,14 +27,38 @@ export const Route = createFileRoute("/_authenticated/conferencia")({
 
 type Sala = Tables<"salas">;
 type Bem = Tables<"bens">;
+type CampoOrdenacao = "conferido" | "codigo_red" | "descricao" | "situacao" | "valor";
+type Ordenacao = { campo: CampoOrdenacao; crescente: boolean };
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const situacaoBem = (bem: Bem) => bem.conferido ? "LOCALIZADO" : bem.conferencia_finalizada ? "NÃO LOCALIZADO" : "A CONFERIR";
+
+function CabecalhoOrdenavel({ campo, titulo, ordenacao, onOrdenar, className = "" }: {
+  campo: CampoOrdenacao;
+  titulo: string;
+  ordenacao: Ordenacao;
+  onOrdenar: (campo: CampoOrdenacao) => void;
+  className?: string;
+}) {
+  const ativo = ordenacao.campo === campo;
+  const Icone = ativo ? (ordenacao.crescente ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={`p-0 font-bold text-conference-header-foreground ${className}`}
+      aria-sort={ativo ? (ordenacao.crescente ? "ascending" : "descending") : "none"}>
+      <button type="button" onClick={() => onOrdenar(campo)}
+        title={`Ordenar por ${titulo}: ${ativo && ordenacao.crescente ? "decrescente" : "crescente"}`}
+        className={`flex min-h-12 w-full items-center gap-2 px-3 py-2 text-left text-xs tracking-wide hover:bg-conference-header-foreground/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-conference-header-foreground ${campo === "valor" ? "justify-end" : ""}`}>
+        {titulo}<Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
+      </button>
+    </TableHead>
+  );
+}
 
 function ConferenciaPage() {
   const navigate = useNavigate();
   const [salas, setSalas] = useState<Sala[]>([]);
   const [sala, setSala] = useState<Sala | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
-  const [busca, setBusca] = useState("");
+  const [ordenacao, setOrdenacao] = useState<Ordenacao>({ campo: "codigo_red", crescente: true });
   const [obsBem, setObsBem] = useState<Bem | null>(null);
   const [atualizacaoRelatorios, setAtualizacaoRelatorios] = useState(0);
   const [carregando, setCarregando] = useState(false);
@@ -43,7 +66,14 @@ function ConferenciaPage() {
   const [pendentes, setPendentes] = useState<string[]>([]);
 
   useEffect(() => {
-    supabase.from("salas").select("*").order("nome").then(({ data }) => setSalas(data ?? []));
+    supabase.from("salas").select("*").order("nome").then(({ data, error }) => {
+      if (error) {
+        toast.error("Não foi possível carregar os locais da conferência.");
+        return;
+      }
+      setSalas(data ?? []);
+      setSala((atual) => atual ?? data?.[0] ?? null);
+    });
   }, []);
   useEffect(() => {
     if (!sala) return setBens([]);
@@ -72,10 +102,24 @@ function ConferenciaPage() {
     return () => { cancelado = true; };
   }, [sala]);
 
-  const filtradas = useMemo(() => {
-    const t = busca.trim().toLowerCase();
-    return t ? salas.filter((s) => s.nome.toLowerCase().includes(t)) : salas;
-  }, [salas, busca]);
+  const bensOrdenados = useMemo(() => {
+    const compararTexto = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
+    return [...bens].sort((a, b) => {
+      let resultado: number;
+      switch (ordenacao.campo) {
+        case "conferido": resultado = Number(a.conferido) - Number(b.conferido); break;
+        case "valor": resultado = Number(a.valor) - Number(b.valor); break;
+        case "descricao": resultado = compararTexto(limparDescricao(a.descricao), limparDescricao(b.descricao)); break;
+        case "situacao": resultado = compararTexto(situacaoBem(a), situacaoBem(b)); break;
+        default: resultado = compararTexto(a.codigo_red, b.codigo_red);
+      }
+      return (ordenacao.crescente ? resultado : -resultado) || compararTexto(a.codigo_red, b.codigo_red) || a.id.localeCompare(b.id);
+    });
+  }, [bens, ordenacao]);
+
+  function ordenar(campo: CampoOrdenacao) {
+    setOrdenacao((atual) => ({ campo, crescente: atual.campo === campo ? !atual.crescente : true }));
+  }
 
   async function marcar(b: Bem, v: boolean) {
     setPendentes((p) => [...p, b.id]);
@@ -129,7 +173,7 @@ function ConferenciaPage() {
           </Button>
         </div>
       </header>
-      <main className="mx-auto grid max-w-[1400px] gap-6 px-6 py-6 lg:grid-cols-[1fr_300px]">
+      <main className="mx-auto max-w-[1400px] px-6 py-6">
         <Card className="min-w-0 self-start">
           <CardHeader className="gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -141,7 +185,17 @@ function ConferenciaPage() {
               </Button>
             </div>
             <div className="grid gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm sm:grid-cols-2">
-              <p><strong>Local Físico:</strong> {sala?.nome ?? "—"}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="local-conferencia" className="font-bold">Local Físico:</label>
+                {salas.length > 1 ? (
+                  <select id="local-conferencia" value={sala?.id ?? ""}
+                    disabled={salvando || pendentes.length > 0}
+                    onChange={(e) => setSala(salas.find((local) => local.id === e.target.value) ?? null)}
+                    className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-foreground disabled:opacity-60">
+                    {salas.map((local) => <option key={local.id} value={local.id}>{local.nome}</option>)}
+                  </select>
+                ) : <span>{sala?.nome ?? "Nenhum local disponível"}</span>}
+              </div>
               <p><strong>Responsável pelo local:</strong> {sala?.responsavel ?? "—"}</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
@@ -161,24 +215,24 @@ function ConferenciaPage() {
             <div role="region" aria-label="Lista de bens da conferência" tabIndex={0}
               className="rounded-md border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&>div]:max-h-[55vh] [&>div]:overflow-y-scroll [&>div]:[scrollbar-gutter:stable]">
             <Table className="min-w-[760px]">
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead className="w-24">Localizado</TableHead>
-                  <TableHead className="w-36">Código RED.</TableHead>
-                  <TableHead>Descrição do bem</TableHead>
-                  <TableHead className="w-40">Situação</TableHead>
-                  <TableHead className="w-32 text-right">Valor</TableHead>
+              <TableHeader className="sticky top-0 z-10 bg-conference-header">
+                <TableRow className="hover:bg-transparent">
+                  <CabecalhoOrdenavel campo="conferido" titulo="LOCALIZADO" ordenacao={ordenacao} onOrdenar={ordenar} className="w-36" />
+                  <CabecalhoOrdenavel campo="codigo_red" titulo="CÓDIGO RED." ordenacao={ordenacao} onOrdenar={ordenar} className="w-40" />
+                  <CabecalhoOrdenavel campo="descricao" titulo="DESCRIÇÃO DO BEM" ordenacao={ordenacao} onOrdenar={ordenar} />
+                  <CabecalhoOrdenavel campo="situacao" titulo="SITUAÇÃO" ordenacao={ordenacao} onOrdenar={ordenar} className="w-40" />
+                  <CabecalhoOrdenavel campo="valor" titulo="VALOR" ordenacao={ordenacao} onOrdenar={ordenar} className="w-36" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {bens.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                      {carregando ? "Carregando bens..." : sala ? "Nenhum bem nesta sala." : "Selecione uma sala ao lado."}
+                      {carregando ? "Carregando bens..." : sala ? "Nenhum bem nesta sala." : "Nenhum local disponível para conferência."}
                     </TableCell>
                   </TableRow>
                 )}
-                {bens.map((b) => (
+                {bensOrdenados.map((b) => (
                   <TableRow key={b.id}>
                     <TableCell className="py-2">
                       <label className="inline-flex items-center gap-2">
@@ -219,25 +273,7 @@ function ConferenciaPage() {
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-base">Localizar salas</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-8" placeholder="Buscar sala..." value={busca}
-                onChange={(e) => setBusca(e.target.value)} />
-            </div>
-            <div className="flex max-h-[480px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1">
-              {filtradas.map((s) => (
-                <button key={s.id} type="button" onClick={() => setSala(s)}
-                  disabled={salvando || pendentes.length > 0}
-                  className={`rounded-sm px-3 py-2 text-left text-sm disabled:cursor-wait disabled:opacity-60 ${sala?.id === s.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}>
-                  {s.nome}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+
       </main>
       {obsBem && <ObservacoesBemDialog key={obsBem.id} bem={obsBem} onClose={() => setObsBem(null)}
         onSaved={(id, observacao) => {
