@@ -36,6 +36,13 @@
       "when": 1791646958932,
       "tag": "0004_salas_data_termo",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791648912128,
+      "tag": "0005_bens_incorporacao_tipo",
+      "breakpoints": true
     }
   ]
 }
