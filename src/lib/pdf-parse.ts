@@ -9,6 +9,8 @@ export type BemExtraido = {
   codigo_red: string;
   descricao: string;
   valor: number;
+  incorporacao?: string | null;
+  tipo?: string | null;
 };
 
 export type CabecalhoTermo = {
@@ -38,9 +40,11 @@ export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
   const buffer = await file.arrayBuffer();
   const doc = await pdfjs.getDocument({ data: buffer }).promise;
   let texto = "";
+  const bensPos: BemExtraido[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
+    bensPos.push(...parsearPorPosicao(content.items as unknown[]));
     texto +=
       content.items
         .map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : ""))
@@ -48,6 +52,7 @@ export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
   }
   texto = texto.normalize("NFC").replace(/[ \t\u00a0]+/g, " ");
   const dataMatch =
+    texto.match(/Emiss\S{1,2}o\s*:.*?(\d{2}[-/.]\d{2}[-/.]\d{4})/i) ??
     texto.match(/Data\s*:?\s*(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})/i) ??
     texto.match(/(\d{1,2}[/.]\d{1,2}[/.]\d{4})/) ??
     texto.match(/(\d{1,2}\s+de\s+[A-Za-zçÇ]+\s+de\s+\d{4})/i);
@@ -80,10 +85,14 @@ export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
     }
   }
   // Local: linha inteira após o rótulo (ex.: "12-SECRETARIA MUNICIPAL DE EDUCAÇÃO - SEMED")
+  const localFisico =
+    texto.match(/Local\s+F\S{1,2}sico\s*:\s*(\d+\s+[^\n;]+?)(?=\s+C\S{0,2}d(?:igo)?\.?\s*Red|\n|;|$)/i)?.[1] ??
+    texto.match(/Local\s+F\S{1,2}sico\s*:\s*([^\n;]+)/i)?.[1];
   let local =
+    localFisico?.replace(/\s{2,}/g, " ").trim() ??
     texto.match(/\bLocal\s*:?\s*([^\n]+?)(?=\s+(?:Endere\S{1,2}o|Data|Hist\S{0,2}rico)\s*:|\n|$)/i)?.[1]?.trim() ??
     campo(texto, "Local");
-  if (local) {
+  if (local && !localFisico) {
     const esc = local.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const completo = texto.match(new RegExp(`(\\d+\\s*-\\s*)?${esc}(\\s*-\\s*[A-ZÇÃÕÁÉÍÓÚ]{2,})?`));
     if (completo) local = completo[0].replace(/\s{2,}/g, " ").trim();
@@ -94,7 +103,7 @@ export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
     local,
     endereco: campo(texto, "Endere[çc]o"),
   };
-  return { cabecalho, bens: parsearBens(texto) };
+  return { cabecalho, bens: bensPos.length > 0 ? bensPos : parsearBens(texto) };
 }
 
 export async function extrairBensDePdf(file: File): Promise<BemExtraido[]> {
@@ -114,6 +123,7 @@ export function limparDescricao(d: string): string {
   );
   // remove rótulos soltos
   s = s.replace(new RegExp(`\\b(?:${ROTULOS})\\s*:?`, "gi"), " ");
+  s = s.replace(/\bMotivo\s*:\s*\d*/gi, " ");
   s = s.replace(/\bR\$\s*$/i, "");
   return s.replace(/\s{2,}/g, " ").replace(/^[\s:\-–]+|[\s:\-–]+$/g, "").trim();
 }
@@ -143,6 +153,46 @@ export function parsearBens(texto: string): BemExtraido[] {
       if (!desc) continue;
       bens.push({ codigo_red: codigo, descricao: desc, valor });
     }
+  }
+  return bens;
+}
+
+type Item = { s: string; x: number; y: number };
+
+// Layout "Quadro Demonstrativo dos Bens por Local Físico":
+// código à esquerda; descrição na 1ª linha; Motivo/Obs abaixo; Incorporação, Tipo e Valor à direita
+function parsearPorPosicao(raw: unknown[]): BemExtraido[] {
+  const items: Item[] = [];
+  for (const r of raw as { str?: string; transform?: number[] }[]) {
+    const s = (r.str ?? "").normalize("NFC").replace(/\s+/g, " ").trim();
+    if (!s || !r.transform) continue;
+    items.push({ s, x: r.transform[4]!, y: r.transform[5]! });
+  }
+  const datas = items.filter((i) => /^\d{2}\/\d{2}\/\d{4}$/.test(i.s));
+  if (datas.length === 0) return [];
+  const minX = Math.min(...items.map((i) => i.x));
+  const bens: BemExtraido[] = [];
+  for (const d of datas) {
+    const linha = items.filter((i) => Math.abs(i.y - d.y) < 4).sort((a, b) => a.x - b.x);
+    const cod = linha.find((i) => /^\d{3,8}$/.test(i.s) && i.x < d.x && i.x < minX + 120);
+    if (!cod) continue;
+    const direita = linha.filter((i) => i.x > d.x).map((i) => i.s).join(" ");
+    const mv = direita.match(/^(.*?)\s*R?\$?\s*([\d.]*\d,\d{2})\s*$/);
+    if (!mv) continue;
+    const valor = parseFloat(mv[2]!.replace(/\./g, "").replace(",", "."));
+    const tipo = mv[1]!.replace(/R\$/g, "").trim();
+    const cands = items.filter(
+      (i) =>
+        i.x > cod.x + 5 && i.x < d.x - 5 && i.y > d.y - 4 && i.y < d.y + 16 &&
+        !/^(Motivo|Obs\.?)\s*:?/i.test(i.s) && i !== cod,
+    );
+    if (cands.length === 0) continue;
+    const topo = Math.max(...cands.map((c) => c.y));
+    const descricao = limparDescricao(
+      cands.filter((c) => Math.abs(c.y - topo) < 3).sort((a, b) => a.x - b.x).map((c) => c.s).join(" "),
+    );
+    if (!descricao || Number.isNaN(valor)) continue;
+    bens.push({ codigo_red: cod.s, descricao, valor, incorporacao: d.s, tipo: tipo || null });
   }
   return bens;
 }

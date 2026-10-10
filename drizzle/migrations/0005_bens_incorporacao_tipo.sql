@@ -1,0 +1,1 @@
+ALTER TABLE public.bens ADD COLUMN IF NOT EXISTS incorporacao text; ALTER TABLE public.bens ADD COLUMN IF NOT EXISTS tipo text;

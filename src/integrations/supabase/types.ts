@@ -21,8 +21,10 @@ export type Database = {
           created_at: string
           descricao: string
           id: string
+          incorporacao: string | null
           observacao: string | null
           sala_id: string | null
+          tipo: string | null
           user_id: string
           valor: number
         }
@@ -32,8 +34,10 @@ export type Database = {
           created_at?: string
           descricao: string
           id?: string
+          incorporacao?: string | null
           observacao?: string | null
           sala_id?: string | null
+          tipo?: string | null
           user_id: string
           valor?: number
         }
@@ -43,8 +47,10 @@ export type Database = {
           created_at?: string
           descricao?: string
           id?: string
+          incorporacao?: string | null
           observacao?: string | null
           sala_id?: string | null
+          tipo?: string | null
           user_id?: string
           valor?: number
         }

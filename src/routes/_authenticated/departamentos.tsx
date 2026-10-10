@@ -387,7 +387,7 @@ function DepartamentosPage() {
       const extraidos = termo.bens;
       const nomeLocal = (termo.cabecalho.local || salaSel?.nome || "").trim();
       if (!nomeLocal) {
-        toast.error("Local não encontrado no PDF. Selecione uma sala e tente de novo.");
+        toast.error("Local Físico não encontrado no PDF. Selecione uma sala e tente de novo.");
         return;
       }
       // procura sala com o mesmo Local (acumula os PDFs no mesmo local)
@@ -598,16 +598,6 @@ function DepartamentosPage() {
                     }
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="endereco">Endereço do local</Label>
-                  <Input
-                    id="endereco"
-                    value={form.endereco}
-                    onChange={(e) =>
-                      setForm({ ...form, endereco: e.target.value })
-                    }
-                  />
-                </div>
                 <div className="sm:col-span-2">
                   <Button type="submit">
                     {departamentoSel ? "Salvar alterações" : "Cadastrar departamento"}
@@ -661,22 +651,12 @@ function DepartamentosPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cabLocal">Local</Label>
+                  <Label htmlFor="cabLocal">Local Físico</Label>
                   <Input
                     id="cabLocal"
                     disabled={!salaSel}
                     value={cabecalho.local}
                     onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
-                    onBlur={salvarCabecalho}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cabEndereco">Endereço</Label>
-                  <Input
-                    id="cabEndereco"
-                    disabled={!salaSel}
-                    value={cabecalho.endereco}
-                    onChange={(e) => setCabecalho({ ...cabecalho, endereco: e.target.value })}
                     onBlur={salvarCabecalho}
                   />
                 </div>
@@ -723,6 +703,8 @@ function DepartamentosPage() {
                     </TableHead>
                     <TableHead className="h-8 w-36 py-1">Código RED.</TableHead>
                     <TableHead className="h-8 py-1">Descrição do bem</TableHead>
+                    <TableHead className="h-8 w-28 py-1">Incorporação</TableHead>
+                    <TableHead className="h-8 w-24 py-1">Tipo</TableHead>
                     <TableHead className="h-8 w-32 py-1 text-right">Valor</TableHead>
                     <TableHead className="h-8 w-12 py-1" />
                   </TableRow>
@@ -731,7 +713,7 @@ function DepartamentosPage() {
                   {bens.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={5}
+                        colSpan={7}
                         className="text-center text-sm text-muted-foreground"
                       >
                         {salaSel
@@ -765,6 +747,8 @@ function DepartamentosPage() {
                         </button>
                       </TableCell>
                       <TableCell className="py-1">{limparDescricao(b.descricao)}</TableCell>
+                      <TableCell className="py-1 whitespace-nowrap">{b.incorporacao ?? ""}</TableCell>
+                      <TableCell className="py-1">{b.tipo ?? ""}</TableCell>
                       <TableCell className="py-1 text-right">
                         {formataMoeda(Number(b.valor))}
                       </TableCell>
@@ -895,6 +879,8 @@ function DepartamentosPage() {
               <TableRow>
                 <TableHead>Código RED.</TableHead>
                 <TableHead>Descrição do bem</TableHead>
+                <TableHead>Incorporação</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
               </TableRow>
             </TableHeader>
@@ -902,7 +888,7 @@ function DepartamentosPage() {
               {bensDialogSala.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={3}
+                    colSpan={5}
                     className="text-center text-sm text-muted-foreground"
                   >
                     Nenhum registro nesta sala.
@@ -913,6 +899,8 @@ function DepartamentosPage() {
                 <TableRow key={b.id}>
                   <TableCell className="font-mono text-sm">{b.codigo_red}</TableCell>
                   <TableCell>{limparDescricao(b.descricao)}</TableCell>
+                  <TableCell>{b.incorporacao ?? ""}</TableCell>
+                  <TableCell>{b.tipo ?? ""}</TableCell>
                   <TableCell className="text-right">
                     {formataMoeda(Number(b.valor))}
                   </TableCell>
