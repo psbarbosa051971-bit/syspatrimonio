@@ -95,7 +95,7 @@ export function parsearBens(texto: string): BemExtraido[] {
   const STATUS = /\b(?:ATIVO|INATIVO|BAIXADO|EM\s+USO|BOM|REGULAR|RUIM|NOVO)\b/gi;
   const re = /(\d{4,})\s+(.+?)\s+R?\$?\s*([\d.]*\d,\d{2}|\d+\.\d{2})\b/g;
   for (let li = 0; li < linhas.length; li++) {
-    const linha = linhas[li];
+    const linha = linhas[li] ?? "";
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(linha)) !== null) {
