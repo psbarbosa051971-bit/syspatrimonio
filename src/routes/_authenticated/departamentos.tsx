@@ -617,58 +617,6 @@ function DepartamentosPage() {
             </CardContent>
           </Card>
 
-          {/* Campo pai: sala + endereço */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Local (Sala)</CardTitle>
-              <CardDescription>
-                Nome da sala onde os bens estão localizados
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form
-                onSubmit={adicionarSala}
-                className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]"
-              >
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="nomeSala">Local (nome da sala)</Label>
-                  <Input
-                    id="nomeSala"
-                    required
-                    value={novaSala.nome}
-                    onChange={(e) =>
-                      setNovaSala({ ...novaSala, nome: e.target.value })
-                    }
-                    placeholder="Ex.: Sala 101 — Secretaria"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="endSala">Endereço do local</Label>
-                  <Input
-                    id="endSala"
-                    value={novaSala.endereco}
-                    onChange={(e) =>
-                      setNovaSala({ ...novaSala, endereco: e.target.value })
-                    }
-                    placeholder="Ex.: Bloco A, 1º andar"
-                  />
-                </div>
-                <div className="flex items-end gap-2">
-                  <Button type="submit" variant="secondary">
-                    <Plus className="mr-1 h-4 w-4" /> Adicionar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!departamentoSel || importando}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <Upload className="mr-1 h-4 w-4" /> Nova importação
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
 
           {/* Subformulário de bens */}
           <Card>
@@ -703,7 +651,7 @@ function DepartamentosPage() {
             <CardContent className="flex flex-col gap-4">
               <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cabData">Data</Label>
+                  <Label htmlFor="cabData">Data da última importação</Label>
                   <Input
                     id="cabData"
                     disabled={!salaSel}
@@ -758,8 +706,9 @@ function DepartamentosPage() {
                   </Button>
                 </div>
               )}
+              <div className="max-h-[480px] overflow-y-auto rounded-md border border-border">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow className="h-8">
                     <TableHead className="h-8 w-10 py-1">
                       <input
@@ -834,12 +783,13 @@ function DepartamentosPage() {
                   ))}
                 </TableBody>
               </Table>
-              {bens.length > 0 && (
-                <p className="text-right text-sm font-medium text-foreground">
-                  Total:{" "}
-                  {formataMoeda(bens.reduce((acc, b) => acc + Number(b.valor), 0))}
-                </p>
-              )}
+              </div>
+              <div className="flex items-center justify-between rounded-md border-2 border-primary/30 bg-accent px-3 py-2 text-sm font-medium text-foreground">
+                <span>Quantidade de bens: {bens.length}</span>
+                <span>
+                  Total: {formataMoeda(bens.reduce((acc, b) => acc + Number(b.valor), 0))}
+                </span>
+              </div>
             </CardContent>
           </Card>
         </div>
