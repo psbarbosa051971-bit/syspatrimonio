@@ -46,10 +46,21 @@ export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
         .map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : ""))
         .join("") + "\n";
   }
-  const dataMatch = texto.match(/Data\s*:?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+  const dataMatch =
+    texto.match(/Data\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i) ??
+    texto.match(/(\d{1,2}\/\d{1,2}\/\d{4})/) ??
+    texto.match(/(\d{1,2}\s+de\s+[A-Za-zçÇ]+\s+de\s+\d{4})/i);
+  const historicoBruto =
+    texto.match(/Hist[óo]rico\s*:?\s*([\s\S]+?)(?=\s*\b(?:Data|Local|Endere[çc]o|C[óo]d)\b|$)/i)?.[1] ??
+    campo(texto, "Hist[óo]rico");
+  const historico = historicoBruto
+    .replace(/\d{1,2}\/\d{1,2}\/\d{2,4}/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[\s,;\-–]+$/, "")
+    .trim();
   const cabecalho: CabecalhoTermo = {
-    historico: campo(texto, "Hist[óo]rico"),
-    data: dataMatch?.[1] ?? campo(texto, "Data"),
+    historico,
+    data: dataMatch?.[1]?.trim() ?? "",
     local: campo(texto, "Local"),
     endereco: campo(texto, "Endere[çc]o"),
   };
@@ -81,8 +92,10 @@ export function limparDescricao(d: string): string {
 export function parsearBens(texto: string): BemExtraido[] {
   const bens: BemExtraido[] = [];
   const linhas = texto.split(/\n+/);
+  const STATUS = /\b(?:ATIVO|INATIVO|BAIXADO|EM\s+USO|BOM|REGULAR|RUIM|NOVO)\b/gi;
   const re = /(\d{4,})\s+(.+?)\s+R?\$?\s*([\d.]*\d,\d{2}|\d+\.\d{2})\b/g;
-  for (const linha of linhas) {
+  for (let li = 0; li < linhas.length; li++) {
+    const linha = linhas[li] ?? "";
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(linha)) !== null) {
@@ -90,7 +103,13 @@ export function parsearBens(texto: string): BemExtraido[] {
       if (!codigo || !descricao || !valorStr) continue;
       const valor = parseFloat(valorStr.replace(/\./g, "").replace(",", "."));
       if (Number.isNaN(valor)) continue;
-      const desc = limparDescricao(descricao);
+      let desc = limparDescricao(descricao).replace(STATUS, " ").replace(/\s{2,}/g, " ").trim();
+      if (!desc) {
+        // descrição pode vir depois do valor ou na linha seguinte
+        const resto = linha.slice(re.lastIndex).replace(STATUS, " ").trim();
+        const prox = (linhas[li + 1] ?? "").replace(STATUS, " ").trim();
+        desc = limparDescricao(resto || (/^\d{4,}\s/.test(prox) ? "" : prox));
+      }
       if (!desc) continue;
       bens.push({ codigo_red: codigo, descricao: desc, valor });
     }
