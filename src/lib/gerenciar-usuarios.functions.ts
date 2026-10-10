@@ -1,0 +1,82 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { cpfValido, normalizarCpf } from "@/lib/cpf";
+
+export const editarUsuario = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().uuid(),
+    nome: z.string().trim().min(3, "Informe o nome completo").max(200),
+    cpf: z.string().transform(normalizarCpf).refine(cpfValido, "CPF inválido"),
+    email: z.string().trim().email().max(255),
+    role: z.enum(["admin", "operador", "visualizador"]),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: admin, error: erroAcesso } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId, _role: "admin",
+    });
+    if (erroAcesso || !admin) throw new Error("Apenas administradores podem editar usuários");
+    if (data.id === context.userId && data.role !== "admin") {
+      throw new Error("Você não pode remover sua própria permissão de administrador");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: anterior, error: erroPerfil } = await supabaseAdmin.from("profiles")
+      .select("id,nome,cpf,email").eq("id", data.id).single();
+    if (erroPerfil || !anterior) throw new Error("Usuário não encontrado. Atualize a lista.");
+    const { data: duplicado, error: erroCpf } = await supabaseAdmin.from("profiles")
+      .select("id").eq("cpf", data.cpf).neq("id", data.id).maybeSingle();
+    if (erroCpf) throw new Error("Não foi possível verificar o CPF");
+    if (duplicado) throw new Error("Já existe outro usuário com esse CPF");
+    const { data: conta, error: erroConta } = await supabaseAdmin.auth.admin.getUserById(data.id);
+    if (erroConta || !conta.user) throw new Error("Não foi possível localizar o acesso do usuário");
+    const { error: erroEmail } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
+      email: data.email, email_confirm: true,
+    });
+    if (erroEmail) throw new Error("Não foi possível atualizar o e-mail. Verifique se ele já está em uso.");
+    const { error: erroSalvar } = await supabaseAdmin.from("profiles")
+      .update({ nome: data.nome, cpf: data.cpf, email: data.email }).eq("id", data.id);
+    if (erroSalvar) {
+      if (conta.user.email) await supabaseAdmin.auth.admin.updateUserById(data.id, { email: conta.user.email, email_confirm: true });
+      throw new Error("Não foi possível salvar os dados. Verifique o CPF e tente novamente.");
+    }
+    const { error: erroPapel } = await supabaseAdmin.from("user_roles")
+      .upsert({ user_id: data.id, role: data.role }, { onConflict: "user_id" });
+    if (erroPapel) {
+      await supabaseAdmin.from("profiles").update({ nome: anterior.nome, cpf: anterior.cpf, email: anterior.email }).eq("id", data.id);
+      if (conta.user.email) await supabaseAdmin.auth.admin.updateUserById(data.id, { email: conta.user.email, email_confirm: true });
+      throw new Error("Não foi possível atualizar a permissão. Recarregue a lista antes de tentar novamente.");
+    }
+    return { sucesso: true };
+  });
+
+export const excluirUsuario = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: admin, error: erroAcesso } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId, _role: "admin",
+    });
+    if (erroAcesso || !admin) throw new Error("Apenas administradores podem excluir usuários");
+    if (data.id === context.userId) throw new Error("Você não pode excluir a própria conta");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.id);
+    if (error) throw new Error("Não foi possível excluir o usuário. Atualize a lista e tente novamente.");
+    return { sucesso: true };
+  });
+
+export const mudarSenhaUsuario = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().uuid(), senha: z.string().min(6, "A senha deve ter pelo menos 6 caracteres").max(72),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: admin, error: erroAcesso } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId, _role: "admin",
+    });
+    if (erroAcesso || !admin) throw new Error("Apenas administradores podem mudar senhas");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, { password: data.senha });
+    if (error) throw new Error("Não foi possível mudar a senha. Use uma senha diferente com pelo menos 6 caracteres.");
+    return { sucesso: true };
+  });

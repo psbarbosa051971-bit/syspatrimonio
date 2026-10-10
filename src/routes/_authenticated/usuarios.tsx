@@ -9,6 +9,7 @@ import { useRole, type Papel } from "@/hooks/use-role";
 import { criarUsuario } from "@/lib/usuarios.functions";
 import { cpfValido, formatarCpf } from "@/lib/cpf";
 import { SeletorLocalFisico, type LocalFisicoOpcao } from "@/components/SeletorLocalFisico";
+import { GerenciarUsuarios } from "@/components/GerenciarUsuarios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,12 +128,13 @@ function UsuariosPage() {
 
   return (
     <div className="min-h-screen bg-muted/40 p-6">
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <Button asChild variant="ghost" size="sm" className="self-start">
           <Link to="/departamentos"><ArrowLeft className="mr-1 h-4 w-4" /> Voltar</Link>
         </Button>
 
-        <Card>
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5" /> Cadastrar usuário</CardTitle>
             <CardDescription>Crie o acesso, defina a permissão e vincule o usuário ao Local Físico. Visualizadores veem somente o local vinculado.</CardDescription>
@@ -187,6 +189,9 @@ function UsuariosPage() {
             </form>
           </CardContent>
         </Card>
+
+        <GerenciarUsuarios usuarios={linhas} usuarioAtualId={user?.id} onAtualizar={carregar} />
+        </div>
 
         <Card>
           <CardHeader>
