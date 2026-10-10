@@ -107,6 +107,7 @@ function DepartamentosPage() {
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cabecalhoPendente = useRef<{ historico: string; data: string; local: string; endereco: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -147,6 +148,12 @@ function DepartamentosPage() {
   }, [salaSel]);
 
   useEffect(() => {
+    if (cabecalhoPendente.current) {
+      setCabecalho(cabecalhoPendente.current);
+      cabecalhoPendente.current = null;
+      setResponsavel(salaSel?.responsavel ?? "");
+      return;
+    }
     setCabecalho({
       historico: "",
       data: "",
@@ -618,7 +625,7 @@ function DepartamentosPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!salaSel || importando}
+                    disabled={!departamentoSel || importando}
                     onClick={() => fileRef.current?.click()}
                   >
                     <Upload className="mr-1 h-4 w-4" />
