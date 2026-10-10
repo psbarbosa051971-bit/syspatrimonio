@@ -1,0 +1,1 @@
+ALTER TABLE public.salas ADD COLUMN IF NOT EXISTS data_termo text;

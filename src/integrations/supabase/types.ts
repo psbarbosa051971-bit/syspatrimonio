@@ -115,6 +115,7 @@ export type Database = {
       salas: {
         Row: {
           created_at: string
+          data_termo: string | null
           departamento_id: string | null
           endereco: string | null
           id: string
@@ -124,6 +125,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          data_termo?: string | null
           departamento_id?: string | null
           endereco?: string | null
           id?: string
@@ -133,6 +135,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          data_termo?: string | null
           departamento_id?: string | null
           endereco?: string | null
           id?: string
