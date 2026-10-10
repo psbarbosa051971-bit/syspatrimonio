@@ -16,8 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRole } from "@/hooks/use-role";
 import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
-import { useServerFn } from "@tanstack/react-start";
-import { excluirSala } from "@/lib/salas.functions";
+import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,25 +109,26 @@ function DepartamentosPage() {
   const [importando, setImportando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [salaExcluir, setSalaExcluir] = useState<Sala | null>(null);
-  const [credAdmin, setCredAdmin] = useState({ email: "", senha: "" });
-  const [excluindo, setExcluindo] = useState(false);
-  const excluirSalaFn = useServerFn(excluirSala);
-
-  async function confirmarExclusaoSala(e: React.FormEvent) {
-    e.preventDefault();
+  async function atualizarAposExclusao() {
     if (!salaExcluir) return;
-    setExcluindo(true);
-    try {
-      await excluirSalaFn({ data: { salaId: salaExcluir.id, ...credAdmin } });
-      setSalas((p) => p.filter((s) => s.id !== salaExcluir.id));
-      if (salaSel?.id === salaExcluir.id) setSalaSel(null);
-      toast.success("Sala excluída");
-      setSalaExcluir(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao excluir sala");
-    } finally {
-      setExcluindo(false);
+    const atualizados: Bem[] = [];
+    for (let inicio = 0; ; inicio += 500) {
+      const { data, error } = await supabase.from("bens").select("*")
+        .eq("sala_id", salaExcluir.id).order("id").range(inicio, inicio + 499);
+      if (error) {
+        toast.error("Exclusão concluída, mas não foi possível atualizar a lista. Recarregue a página.");
+        return;
+      }
+      atualizados.push(...(data ?? []));
+      if (!data || data.length < 500) break;
     }
+    atualizados.sort((a, b) => a.codigo_red.localeCompare(b.codigo_red));
+    if (salaSel?.id === salaExcluir.id) {
+      setBens(atualizados);
+      setSelecionados([]);
+    }
+    if (dialogSala?.id === salaExcluir.id) setBensDialogSala(atualizados);
+    setSalas((p) => [...p]);
   }
   const cabecalhoPendente = useRef<{ historico: string; data: string; local: string; endereco: string } | null>(null);
 
@@ -443,18 +443,18 @@ function DepartamentosPage() {
         });
         return;
       }
-      const { data: existentes } = await supabase
-        .from("bens")
-        .select("codigo_red")
-        .eq("sala_id", salaAlvo.id);
-      const ja = new Set((existentes ?? []).map((b) => b.codigo_red));
-      const novos = extraidos.filter((b) => !ja.has(b.codigo_red));
-      if (novos.length > 0) {
-        const { error } = await supabase
-          .from("bens")
-          .insert(novos.map((b) => ({ ...b, user_id: user.id, sala_id: salaAlvo.id })));
-        if (error) throw error;
+      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_pdf", {
+        _sala_id: salaAlvo.id,
+        _arquivo: file.name,
+        _bens: extraidos.map((b) => ({ ...b })),
+      });
+      if (erroImportacao) throw erroImportacao;
+      if (!resultado || typeof resultado !== "object" || Array.isArray(resultado)) {
+        throw new Error("Não foi possível confirmar a importação");
       }
+      const numeroImportacao = Number(resultado.numero);
+      const quantidadeNovos = Number(resultado.novos);
+      const quantidadeRepetidos = Number(resultado.repetidos);
       if (salaSel?.id === salaAlvo.id) {
         const { data: todos } = await supabase
           .from("bens").select("*").eq("sala_id", salaAlvo.id).order("codigo_red");
@@ -465,11 +465,11 @@ function DepartamentosPage() {
         setSalaSel(salaAlvo);
       }
       toast.success(
-        `${novos.length} bem(ns) adicionados ao local "${salaAlvo.nome}"` +
-          (extraidos.length > novos.length ? ` (${extraidos.length - novos.length} já existiam)` : ""),
+        `Importação nº ${numeroImportacao}: ${quantidadeNovos} bem(ns) adicionados ao local "${salaAlvo.nome}"` +
+          (quantidadeRepetidos > 0 ? ` (${quantidadeRepetidos} já existiam ou estavam repetidos no PDF)` : ""),
       );
     } catch {
-      toast.error("Não foi possível ler o PDF");
+      toast.error("Não foi possível concluir a importação do PDF");
     } finally {
       setImportando(false);
     }
@@ -849,13 +849,14 @@ function DepartamentosPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Excluir sala ${s.nome}`}
+                      aria-label={`Excluir importações de ${s.nome}`}
+                      title="Excluir importações (mantém o local)"
                       className={
                         salaSel?.id === s.id
                           ? "text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
                           : "text-destructive"
                       }
-                      onClick={() => { setSalaExcluir(s); setCredAdmin({ email: "", senha: "" }); }}
+                      onClick={() => setSalaExcluir(s)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -965,31 +966,14 @@ function DepartamentosPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!salaExcluir} onOpenChange={(o) => !o && setSalaExcluir(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Excluir sala</DialogTitle>
-            <DialogDescription>
-              A sala "{salaExcluir?.nome}" e todos os seus bens serão excluídos. Informe o e-mail e a senha do administrador.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={confirmarExclusaoSala} className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="admEmail">E-mail do administrador</Label>
-              <Input id="admEmail" type="email" required value={credAdmin.email}
-                onChange={(e) => setCredAdmin({ ...credAdmin, email: e.target.value })} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="admSenha">Senha do administrador</Label>
-              <Input id="admSenha" type="password" required value={credAdmin.senha}
-                onChange={(e) => setCredAdmin({ ...credAdmin, senha: e.target.value })} />
-            </div>
-            <Button type="submit" variant="destructive" disabled={excluindo}>
-              {excluindo ? "Excluindo..." : "Excluir sala"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {salaExcluir && (
+        <ExcluirImportacoesDialog
+          key={salaExcluir.id}
+          sala={salaExcluir}
+          onClose={() => setSalaExcluir(null)}
+          onDeleted={atualizarAposExclusao}
+        />
+      )}
     </div>
   );
 }

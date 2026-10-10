@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           descricao: string
           id: string
+          importacao_id: string | null
           incorporacao: string | null
           observacao: string | null
           sala_id: string | null
@@ -34,6 +35,7 @@ export type Database = {
           created_at?: string
           descricao: string
           id?: string
+          importacao_id?: string | null
           incorporacao?: string | null
           observacao?: string | null
           sala_id?: string | null
@@ -47,6 +49,7 @@ export type Database = {
           created_at?: string
           descricao?: string
           id?: string
+          importacao_id?: string | null
           incorporacao?: string | null
           observacao?: string | null
           sala_id?: string | null
@@ -57,6 +60,48 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "bens_sala_id_fkey"
+            columns: ["sala_id"]
+            isOneToOne: false
+            referencedRelation: "salas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bens_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      importacoes: {
+        Row: {
+          id: string
+          numero: number
+          sala_id: string
+          user_id: string
+          arquivo: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          numero?: never
+          sala_id: string
+          user_id?: string
+          arquivo: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          numero?: never
+          sala_id?: string
+          user_id?: string
+          arquivo?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "importacoes_sala_id_fkey"
             columns: ["sala_id"]
             isOneToOne: false
             referencedRelation: "salas"
@@ -206,6 +251,14 @@ export type Database = {
     }
     Functions: {
       can_edit: { Args: { _user_id: string }; Returns: boolean }
+      importar_bens_pdf: {
+        Args: { _sala_id: string; _arquivo: string; _bens: Json }
+        Returns: Json
+      }
+      excluir_importacoes_sala: {
+        Args: { _sala_id: string; _modo: string; _importacao_id?: string }
+        Returns: undefined
+      }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {

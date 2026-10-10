@@ -3,15 +3,18 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-export const excluirSala = createServerFn({ method: "POST" })
+export const excluirImportacoes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
       .object({
         salaId: z.string().uuid(),
+        modo: z.enum(["uma", "todas", "anteriores"]),
+        importacaoId: z.string().uuid().optional(),
         email: z.string().email().max(255),
         senha: z.string().min(1).max(72),
       })
+      .refine((v) => v.modo !== "uma" || !!v.importacaoId, "Selecione uma importação")
       .parse(d),
   )
   .handler(async ({ data }) => {
@@ -37,9 +40,11 @@ export const excluirSala = createServerFn({ method: "POST" })
     const { data: papel } = await supabaseAdmin
       .from("user_roles").select("role").eq("user_id", login.user.id).eq("role", "admin").maybeSingle();
     if (!papel) throw new Error("Esta conta não é de administrador");
-    await supabaseAdmin.from("user_salas").delete().eq("sala_id", data.salaId);
-    await supabaseAdmin.from("bens").delete().eq("sala_id", data.salaId);
-    const { error: e2 } = await supabaseAdmin.from("salas").delete().eq("id", data.salaId);
-    if (e2) throw new Error("Erro ao excluir sala");
+    const { error: exclusaoErro } = await supabaseAdmin.rpc("excluir_importacoes_sala", {
+      _sala_id: data.salaId,
+      _modo: data.modo,
+      ...(data.importacaoId ? { _importacao_id: data.importacaoId } : {}),
+    });
+    if (exclusaoErro) throw new Error("Não foi possível excluir os registros selecionados. Atualize a lista e tente novamente.");
     return { ok: true };
   });
