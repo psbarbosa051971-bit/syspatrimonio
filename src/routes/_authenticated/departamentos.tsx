@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRole } from "@/hooks/use-role";
 import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
+import { useServerFn } from "@tanstack/react-start";
+import { excluirSala } from "@/lib/salas.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,6 +109,27 @@ function DepartamentosPage() {
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [salaExcluir, setSalaExcluir] = useState<Sala | null>(null);
+  const [credAdmin, setCredAdmin] = useState({ email: "", senha: "" });
+  const [excluindo, setExcluindo] = useState(false);
+  const excluirSalaFn = useServerFn(excluirSala);
+
+  async function confirmarExclusaoSala(e: React.FormEvent) {
+    e.preventDefault();
+    if (!salaExcluir) return;
+    setExcluindo(true);
+    try {
+      await excluirSalaFn({ data: { salaId: salaExcluir.id, ...credAdmin } });
+      setSalas((p) => p.filter((s) => s.id !== salaExcluir.id));
+      if (salaSel?.id === salaExcluir.id) setSalaSel(null);
+      toast.success("Sala excluída");
+      setSalaExcluir(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao excluir sala");
+    } finally {
+      setExcluindo(false);
+    }
+  }
   const cabecalhoPendente = useRef<{ historico: string; data: string; local: string; endereco: string } | null>(null);
 
   useEffect(() => {
@@ -523,24 +546,6 @@ function DepartamentosPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="local">Local</Label>
-                  <Input
-                    id="local"
-                    required
-                    value={form.local}
-                    onChange={(e) => setForm({ ...form, local: e.target.value })}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cpd">CPD</Label>
-                  <Input
-                    id="cpd"
-                    required
-                    value={form.cpd}
-                    onChange={(e) => setForm({ ...form, cpd: e.target.value })}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
                   <Label htmlFor="endereco">Endereço do local</Label>
                   <Input
                     id="endereco"
@@ -595,9 +600,17 @@ function DepartamentosPage() {
                     placeholder="Ex.: Bloco A, 1º andar"
                   />
                 </div>
-                <div className="flex items-end">
+                <div className="flex items-end gap-2">
                   <Button type="submit" variant="secondary">
                     <Plus className="mr-1 h-4 w-4" /> Adicionar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!departamentoSel || importando}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <Upload className="mr-1 h-4 w-4" /> Nova importação
                   </Button>
                 </div>
               </form>
@@ -854,6 +867,19 @@ function DepartamentosPage() {
                     >
                       <FileText className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Excluir sala ${s.nome}`}
+                      className={
+                        salaSel?.id === s.id
+                          ? "text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                          : "text-destructive"
+                      }
+                      onClick={() => { setSalaExcluir(s); setCredAdmin({ email: "", senha: "" }); }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -924,10 +950,7 @@ function DepartamentosPage() {
                   <strong>Almoxarifado:</strong> {departamentoSel.almoxarifado}
                 </p>
                 <p>
-                  <strong>Local:</strong> {salaSel?.nome ?? departamentoSel.local}
-                </p>
-                <p>
-                  <strong>CPD:</strong> {departamentoSel.cpd}
+                  <strong>Local:</strong> {salaSel?.nome ?? "—"}
                 </p>
               </div>
               <div className="px-4 py-3 text-sm">
