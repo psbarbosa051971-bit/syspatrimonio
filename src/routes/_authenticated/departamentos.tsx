@@ -620,7 +620,7 @@ function DepartamentosPage() {
                           {b.codigo_red}
                         </button>
                       </TableCell>
-                      <TableCell>{b.descricao}</TableCell>
+                      <TableCell>{limparDescricao(b.descricao)}</TableCell>
                       <TableCell className="text-right">
                         {formataMoeda(Number(b.valor))}
                       </TableCell>
@@ -755,7 +755,7 @@ function DepartamentosPage() {
               {bensDialogSala.map((b) => (
                 <TableRow key={b.id}>
                   <TableCell className="font-mono text-sm">{b.codigo_red}</TableCell>
-                  <TableCell>{b.descricao}</TableCell>
+                  <TableCell>{limparDescricao(b.descricao)}</TableCell>
                   <TableCell className="text-right">
                     {formataMoeda(Number(b.valor))}
                   </TableCell>
