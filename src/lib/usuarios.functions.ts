@@ -13,6 +13,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
         email: z.string().email().max(255),
         senha: z.string().min(6).max(72),
         role: z.enum(["admin", "operador", "visualizador"]),
+        unidade: z.enum(["CENTRAL", "SAÚDE", "EDUCAÇÃO"], { message: "Selecione a Unidade" }),
         salas: z.array(z.string().uuid()).length(1, "Selecione o Local Físico do usuário"),
       })
       .parse(d),
@@ -24,6 +25,12 @@ export const criarUsuario = createServerFn({ method: "POST" })
     });
     if (!ehAdmin) throw new Error("Apenas administradores podem cadastrar usuários");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: local, error: erroLocal } = await supabaseAdmin.from("salas")
+      .select("id,unidade").eq("id", data.salas[0]!).single();
+    if (erroLocal || !local) throw new Error("Selecione um Local Físico válido");
+    if (local.unidade && local.unidade !== data.unidade) {
+      throw new Error("O Local Físico pertence a outra unidade. Atualize a lista e selecione novamente.");
+    }
     const { data: existente, error: erroConsulta } = await supabaseAdmin
       .from("profiles").select("id").eq("cpf", data.cpf).maybeSingle();
     if (erroConsulta) throw new Error("Não foi possível verificar o CPF");
@@ -47,7 +54,9 @@ export const criarUsuario = createServerFn({ method: "POST" })
           .insert(data.salas.map((sala_id) => ({ user_id: id, sala_id })));
         if (erroSalas) throw erroSalas;
         const { error: erroResponsavel } = await supabaseAdmin.from("salas")
-          .update({ responsavel: data.nome }).eq("id", data.salas[0]!).select("id").single();
+          .update({ responsavel: data.nome, unidade: data.unidade })
+          .eq("id", data.salas[0]!).or(`unidade.is.null,unidade.eq.${data.unidade}`)
+          .select("id").single();
         if (erroResponsavel) throw erroResponsavel;
       }
     } catch {

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRole, type Papel } from "@/hooks/use-role";
 import { criarUsuario } from "@/lib/usuarios.functions";
 import { cpfValido, formatarCpf } from "@/lib/cpf";
+import { SeletorLocalFisico, type LocalFisicoOpcao } from "@/components/SeletorLocalFisico";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,8 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
 });
 
 type Linha = { id: string; nome: string | null; cpf: string | null; email: string | null; role: Papel | null; salas: string[] };
-type SalaMin = { id: string; nome: string };
+type SalaMin = LocalFisicoOpcao;
+const UNIDADES = ["CENTRAL", "SAÚDE", "EDUCAÇÃO"] as const;
 
 const NOMES: Record<Papel, string> = {
   admin: "Administrador",
@@ -37,22 +39,7 @@ const NOMES: Record<Papel, string> = {
   visualizador: "Visualizador",
 };
 
-function SeletorSalas({ salas, valor, onChange, id, required = false }: {
-  salas: SalaMin[];
-  valor: string[];
-  onChange: (v: string[]) => void;
-  id?: string;
-  required?: boolean;
-}) {
-  return (
-    <select id={id} required={required} aria-label="Local Físico"
-      className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm"
-      value={valor[0] ?? ""} onChange={(e) => onChange(e.target.value ? [e.target.value] : [])}>
-      <option value="">{salas.length ? "Selecione o Local Físico" : "Nenhum local cadastrado"}</option>
-      {salas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-    </select>
-  );
-}
+const SeletorSalas = SeletorLocalFisico;
 
 function UsuariosPage() {
   const { user } = useAuth();
@@ -60,15 +47,16 @@ function UsuariosPage() {
   const criar = useServerFn(criarUsuario);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [salas, setSalas] = useState<SalaMin[]>([]);
-  const [novo, setNovo] = useState({ nome: "", cpf: "", email: "", senha: "", role: "visualizador" as Papel, salas: [] as string[] });
+  const [novo, setNovo] = useState({ nome: "", cpf: "", email: "", senha: "", role: "visualizador" as Papel, unidade: "", salas: [] as string[] });
   const [salvando, setSalvando] = useState(false);
+  const locaisDaUnidade = novo.unidade ? salas.filter((s) => !s.unidade || s.unidade === novo.unidade) : [];
 
   async function carregar() {
     const [{ data: perfis }, { data: papeis }, { data: us }, { data: ss }] = await Promise.all([
       supabase.from("profiles").select("id,email,nome,cpf").order("created_at"),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("user_salas").select("user_id,sala_id"),
-      supabase.from("salas").select("id,nome").order("nome"),
+      supabase.from("salas").select("id,nome,unidade").order("nome"),
     ]);
     setSalas(ss ?? []);
     setLinhas(
@@ -117,10 +105,14 @@ function UsuariosPage() {
     if (!cpfValido(novo.cpf)) { toast.error("Informe um CPF válido"); return; }
     setSalvando(true);
     try {
-      if (!novo.salas.length) throw new Error("Selecione o Local Físico do usuário");
-      await criar({ data: novo });
-      toast.success("Usuário cadastrado");
-      setNovo({ nome: "", cpf: "", email: "", senha: "", role: "visualizador", salas: [] });
+      const unidade = UNIDADES.find((u) => u === novo.unidade);
+      if (!unidade) throw new Error("Selecione a Unidade do usuário");
+      if (!novo.salas.length || !locaisDaUnidade.some((s) => s.id === novo.salas[0])) {
+        throw new Error("Selecione um Local Físico da lista");
+      }
+      await criar({ data: { ...novo, unidade } });
+      toast.success("Usuário cadastrado e Local Físico vinculado à unidade");
+      setNovo({ nome: "", cpf: "", email: "", senha: "", role: "visualizador", unidade: "", salas: [] });
       carregar();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao cadastrar usuário");
@@ -174,9 +166,20 @@ function UsuariosPage() {
                   {(Object.keys(NOMES) as Papel[]).map((p) => <option key={p} value={p}>{NOMES[p]}</option>)}
                 </select>
               </div>
-              <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="nUnidade">Unidade</Label>
+                <select id="nUnidade" required className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  value={novo.unidade} onChange={(e) => setNovo({ ...novo, unidade: e.target.value, salas: [] })}>
+                  <option value="">Selecione a Unidade</option>
+                  {UNIDADES.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
+                </select>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
                 <Label htmlFor="nLocal">Local Físico</Label>
-                <SeletorSalas id="nLocal" required salas={salas} valor={novo.salas} onChange={(v) => setNovo({ ...novo, salas: v })} />
+                <SeletorSalas key={novo.unidade} id="nLocal" required limparAoDigitar disabled={!novo.unidade} salas={locaisDaUnidade}
+                  valor={novo.salas} onChange={(v) => setNovo({ ...novo, salas: v })} />
+                <p className="text-xs text-muted-foreground">Selecione a Unidade e digite parte do nome ou número, como 200 ou ALEX. Clique em um resultado para selecionar.</p>
+                <p className="text-xs text-muted-foreground">Locais ainda sem unidade também aparecem. Ao cadastrar o usuário, o local escolhido será vinculado à unidade selecionada.</p>
               </div>
               <div className="sm:col-span-2">
                 <Button type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Cadastrar usuário"}</Button>
