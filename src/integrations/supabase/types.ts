@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           codigo_red: string
           conferido: boolean
+          conferencia_finalizada: boolean
           created_at: string
           descricao: string
           id: string
@@ -32,6 +33,7 @@ export type Database = {
         Insert: {
           codigo_red: string
           conferido?: boolean
+          conferencia_finalizada?: boolean
           created_at?: string
           descricao: string
           id?: string
@@ -46,6 +48,7 @@ export type Database = {
         Update: {
           codigo_red?: string
           conferido?: boolean
+          conferencia_finalizada?: boolean
           created_at?: string
           descricao?: string
           id?: string
@@ -281,6 +284,10 @@ export type Database = {
       pode_ver_sala: {
         Args: { _sala_id: string; _user_id: string }
         Returns: boolean
+      }
+      salvar_conferencia: {
+        Args: { _sala_id: string; _bens_ids: string[]; _localizados: string[] }
+        Returns: undefined
       }
       salvar_observacao: {
         Args: { _bem_id: string; _obs: string }
