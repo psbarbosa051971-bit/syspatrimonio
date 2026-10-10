@@ -6,6 +6,29 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type SolicitacaoBem = {
+  id: string
+  bem_id: string | null
+  sala_id: string | null
+  user_id: string
+  tipo: "transferencia" | "inservivel"
+  destino: string | null
+  observacao: string
+  codigo_red: string
+  descricao: string
+  valor: number
+  local_origem: string
+  ativa: boolean
+  created_at: string
+  updated_at: string
+}
+
+type LeituraSolicitacao = {
+  solicitacao_id: string
+  admin_id: string
+  versao_lida: string
+}
+
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -14,6 +37,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      solicitacoes_bens: {
+        Row: SolicitacaoBem
+        Insert: Partial<SolicitacaoBem> & Pick<SolicitacaoBem, "tipo" | "codigo_red" | "descricao" | "local_origem">
+        Update: Partial<SolicitacaoBem>
+        Relationships: []
+      }
+      solicitacoes_bens_leituras: {
+        Row: LeituraSolicitacao
+        Insert: Omit<LeituraSolicitacao, "admin_id"> & { admin_id?: string }
+        Update: Partial<LeituraSolicitacao>
+        Relationships: []
+      }
       bens: {
         Row: {
           codigo_red: string
@@ -291,6 +326,10 @@ export type Database = {
       }
       salvar_observacao: {
         Args: { _bem_id: string; _obs: string }
+        Returns: undefined
+      }
+      salvar_observacao_solicitacao: {
+        Args: { _bem_id: string; _obs: string; _tipo: string | null; _destino?: string | null }
         Returns: undefined
       }
     }

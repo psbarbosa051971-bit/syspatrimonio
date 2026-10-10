@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useRole } from "@/hooks/use-role";
+import { RelatoriosBens } from "@/components/RelatoriosBens";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -8,6 +10,7 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { session, loading } = useAuth();
+  const { role } = useRole();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,5 +25,12 @@ function AuthenticatedLayout() {
     );
   }
 
-  return <Outlet />;
+  return <>
+    {role === "admin" && <div className="border-b border-border bg-background px-4 py-3">
+      <div className="mx-auto max-w-[1400px]">
+        <RelatoriosBens key={session.user.id} administrador />
+      </div>
+    </div>}
+    <Outlet />
+  </>;
 }

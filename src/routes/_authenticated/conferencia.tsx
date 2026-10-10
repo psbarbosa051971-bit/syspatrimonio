@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Tables } from "@/integrations/supabase/types";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ObservacoesBemDialog } from "@/components/ObservacoesBemDialog";
+import { RelatoriosBens } from "@/components/RelatoriosBens";
 
 export const Route = createFileRoute("/_authenticated/conferencia")({
   head: () => ({
@@ -37,7 +37,7 @@ function ConferenciaPage() {
   const [bens, setBens] = useState<Bem[]>([]);
   const [busca, setBusca] = useState("");
   const [obsBem, setObsBem] = useState<Bem | null>(null);
-  const [obsTexto, setObsTexto] = useState("");
+  const [atualizacaoRelatorios, setAtualizacaoRelatorios] = useState(0);
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [pendentes, setPendentes] = useState<string[]>([]);
@@ -110,15 +110,6 @@ function ConferenciaPage() {
     }
   }
 
-  async function salvarObs() {
-    if (!obsBem) return;
-    const { error } = await supabase.rpc("salvar_observacao", { _bem_id: obsBem.id, _obs: obsTexto });
-    if (error) { toast.error("Erro ao salvar observação"); return; }
-    setBens((p) => p.map((x) => (x.id === obsBem.id ? { ...x, observacao: obsTexto } : x)));
-    toast.success("Observação salva");
-    setObsBem(null);
-  }
-
   const localizados = bens.filter((b) => b.conferido).length;
   const valorTotal = bens.reduce((total, b) => total + Number(b.valor), 0);
   const naoLocalizados = bens.filter((b) => !b.conferido && b.conferencia_finalizada).length;
@@ -164,6 +155,7 @@ function ConferenciaPage() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">Marque “Sim” nos bens encontrados e clique em Salvar conferência para identificar os demais como NÃO LOCALIZADO.</p>
+            {sala && <RelatoriosBens salaId={sala.id} atualizacao={atualizacaoRelatorios} />}
           </CardHeader>
           <CardContent>
             <div role="region" aria-label="Lista de bens da conferência" tabIndex={0}
@@ -199,7 +191,7 @@ function ConferenciaPage() {
                     </TableCell>
                     <TableCell className="py-1 font-mono text-sm">
                       <button type="button" className="underline-offset-2 hover:underline"
-                        onClick={() => { setObsBem(b); setObsTexto(b.observacao ?? ""); }}>
+                        onClick={() => setObsBem(b)}>
                         {b.codigo_red}
                       </button>
                     </TableCell>
@@ -247,17 +239,11 @@ function ConferenciaPage() {
           </CardContent>
         </Card>
       </main>
-      <Dialog open={!!obsBem} onOpenChange={(o) => !o && setObsBem(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Observações — {obsBem?.codigo_red}</DialogTitle>
-            <DialogDescription>{obsBem ? limparDescricao(obsBem.descricao) : ""}</DialogDescription>
-          </DialogHeader>
-          <Textarea rows={5} maxLength={2000} value={obsTexto}
-            onChange={(e) => setObsTexto(e.target.value)} placeholder="Digite observações sobre o bem..." />
-          <Button onClick={salvarObs}>Salvar observação</Button>
-        </DialogContent>
-      </Dialog>
+      {obsBem && <ObservacoesBemDialog key={obsBem.id} bem={obsBem} onClose={() => setObsBem(null)}
+        onSaved={(id, observacao) => {
+          setBens((atuais) => atuais.map((bem) => bem.id === id ? { ...bem, observacao } : bem));
+          setAtualizacaoRelatorios((valor) => valor + 1);
+        }} />
     </div>
   );
 }
