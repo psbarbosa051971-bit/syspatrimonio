@@ -124,6 +124,9 @@ export function limparDescricao(d: string): string {
   // remove rótulos soltos
   s = s.replace(new RegExp(`\\b(?:${ROTULOS})\\s*:?`, "gi"), " ");
   s = s.replace(/\bMotivo\s*:\s*\d*/gi, " ");
+  s = s.replace(/\bObs\.?\s*:.*$/i, " ");
+  s = s.replace(/\d{2}\/\d{2}\/\d{4}(?:\s+(?:Aquisi\S*|Doa\S*|Transfer\S*|Comodato|Cess\S*))?/gi, " ");
+  s = s.replace(/\b(?:Aquisi[çc][ãa]o|Doa[çc][ãa]o)\b/gi, " ");
   s = s.replace(/\bR\$\s*$/i, "");
   return s.replace(/\s{2,}/g, " ").replace(/^[\s:\-–]+|[\s:\-–]+$/g, "").trim();
 }
@@ -150,8 +153,19 @@ export function parsearBens(texto: string): BemExtraido[] {
         const prox = (linhas[li + 1] ?? "").replace(STATUS, " ").trim();
         desc = limparDescricao(resto || (/^\d{4,}\s/.test(prox) ? "" : prox));
       }
+      // Incorporação (data) e Tipo (Aquisição/Doação...) podem vir grudados na descrição
+      let incorporacao: string | null = null;
+      let tipo: string | null = null;
+      const mt = (descricao + " " + linha.slice(re.lastIndex)).match(
+        /(\d{2}\/\d{2}\/\d{4})\s+(Aquisi\S*|Doa\S*|Transfer\S*|Comodato|Cess\S*|[A-ZÀ-Úa-zà-ú]{4,})?/,
+      );
+      if (mt) {
+        incorporacao = mt[1]!;
+        tipo = mt[2] ?? null;
+      }
+      desc = limparDescricao(desc);
       if (!desc) continue;
-      bens.push({ codigo_red: codigo, descricao: desc, valor });
+      bens.push({ codigo_red: codigo, descricao: desc, valor, incorporacao, tipo });
     }
   }
   return bens;
