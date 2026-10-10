@@ -141,6 +141,7 @@ function DepartamentosPage() {
       .then(({ data, error }) => {
         if (error) toast.error("Erro ao carregar departamentos");
         setDepartamentos(data ?? []);
+        if (data && data.length > 0) selecionarDepartamento(data[0]!);
       });
   }, [user]);
 
