@@ -179,12 +179,55 @@ function DepartamentosPage() {
     }
     setCabecalho({
       historico: "",
-      data: "",
+      data: salaSel?.data_termo ?? "",
       local: salaSel?.nome ?? "",
       endereco: salaSel?.endereco ?? "",
     });
     setResponsavel(salaSel?.responsavel ?? "");
   }, [salaSel]);
+
+  // resumo (quantidade e valor total) por sala
+  const [resumo, setResumo] = useState<Record<string, { qtd: number; total: number }>>({});
+  useEffect(() => {
+    const ids = salas.map((s) => s.id);
+    if (ids.length === 0) { setResumo({}); return; }
+    supabase
+      .from("bens")
+      .select("sala_id, valor")
+      .in("sala_id", ids)
+      .then(({ data }) => {
+        const r: Record<string, { qtd: number; total: number }> = {};
+        for (const b of data ?? []) {
+          if (!b.sala_id) continue;
+          const x = (r[b.sala_id] ??= { qtd: 0, total: 0 });
+          x.qtd += 1;
+          x.total += Number(b.valor);
+        }
+        setResumo(r);
+      });
+  }, [salas, bens]);
+
+  async function salvarCabecalho() {
+    if (!salaSel) return;
+    const nome = cabecalho.local.trim() || salaSel.nome;
+    const upd = {
+      nome,
+      endereco: cabecalho.endereco.trim() || null,
+      data_termo: cabecalho.data.trim() || null,
+    };
+    if (
+      upd.nome === salaSel.nome &&
+      upd.endereco === (salaSel.endereco ?? null) &&
+      upd.data_termo === (salaSel.data_termo ?? null)
+    ) return;
+    const { data, error } = await supabase
+      .from("salas").update(upd).eq("id", salaSel.id).select().single();
+    if (error) { toast.error("Erro ao salvar dados do local"); return; }
+    setSalas((prev) => prev.map((s) => (s.id === data.id ? data : s)));
+    cabecalhoPendente.current = { ...cabecalho, local: data.nome };
+    setSalaSel(data);
+    toast.success("Dados do local salvos");
+  }
 
   async function salvarResponsavel() {
     if (!salaSel || responsavel === (salaSel.responsavel ?? "")) return;
@@ -196,6 +239,7 @@ function DepartamentosPage() {
       .single();
     if (error) { toast.error("Erro ao salvar responsável"); return; }
     setSalas((prev) => prev.map((s) => (s.id === data.id ? data : s)));
+    cabecalhoPendente.current = { ...cabecalho };
     setSalaSel(data);
     toast.success("Responsável salvo");
   }
@@ -369,6 +413,14 @@ function DepartamentosPage() {
           .eq("id", sala.id)
           .select()
           .single();
+        if (upd) {
+          sala = upd;
+          setSalas((prev) => prev.map((s) => (s.id === upd.id ? upd : s)));
+        }
+      }
+      if (termo.cabecalho.data && termo.cabecalho.data !== sala.data_termo) {
+        const { data: upd } = await supabase
+          .from("salas").update({ data_termo: termo.cabecalho.data }).eq("id", sala.id).select().single();
         if (upd) {
           sala = upd;
           setSalas((prev) => prev.map((s) => (s.id === upd.id ? upd : s)));
@@ -648,41 +700,35 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-3 rounded-md border border-border bg-muted/40 p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cabHistorico">Histórico</Label>
-                  <textarea
-                    id="cabHistorico"
-                    rows={4}
-                    className="min-h-24 w-full flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={cabecalho.historico}
-                    onChange={(e) => setCabecalho({ ...cabecalho, historico: e.target.value })}
+                  <Label htmlFor="cabData">Data</Label>
+                  <Input
+                    id="cabData"
+                    disabled={!salaSel}
+                    value={cabecalho.data}
+                    onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
+                    onBlur={salvarCabecalho}
                   />
                 </div>
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="cabData">Data</Label>
-                    <Input
-                      id="cabData"
-                      value={cabecalho.data}
-                      onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="cabLocal">Local</Label>
-                    <Input
-                      id="cabLocal"
-                      value={cabecalho.local}
-                      onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
-                    />
-                  </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cabLocal">Local</Label>
+                  <Input
+                    id="cabLocal"
+                    disabled={!salaSel}
+                    value={cabecalho.local}
+                    onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
+                    onBlur={salvarCabecalho}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="cabEndereco">Endereço</Label>
                   <Input
                     id="cabEndereco"
+                    disabled={!salaSel}
                     value={cabecalho.endereco}
                     onChange={(e) => setCabecalho({ ...cabecalho, endereco: e.target.value })}
+                    onBlur={salvarCabecalho}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -842,17 +888,15 @@ function DepartamentosPage() {
                       onClick={() => setSalaSel(s)}
                     >
                       <span className="block font-medium">{s.nome}</span>
-                      {s.endereco && (
-                        <span
-                          className={`block text-xs ${
-                            salaSel?.id === s.id
-                              ? "text-primary-foreground/80"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {s.endereco}
-                        </span>
-                      )}
+                      <span
+                        className={`block text-xs ${
+                          salaSel?.id === s.id
+                            ? "text-primary-foreground/80"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {resumo[s.id]?.qtd ?? 0} item(ns) · {formataMoeda(resumo[s.id]?.total ?? 0)}
+                      </span>
                     </button>
                     <Button
                       variant="ghost"
