@@ -1,17 +1,20 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
+  CheckSquare,
   FileText,
   LogOut,
   Plus,
   Search,
   Trash2,
   Upload,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useRole } from "@/hooks/use-role";
 import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +70,13 @@ const formataMoeda = (v: number) =>
 function DepartamentosPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { role, loading: carregandoPapel } = useRole();
+  const [responsavel, setResponsavel] = useState("");
+  useEffect(() => {
+    if (!carregandoPapel && role !== "admin" && role !== "operador") {
+      navigate({ to: "/conferencia" });
+    }
+  }, [carregandoPapel, role, navigate]);
 
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [departamentoSel, setDepartamentoSel] = useState<Departamento | null>(null);
@@ -143,7 +153,22 @@ function DepartamentosPage() {
       local: salaSel?.nome ?? "",
       endereco: salaSel?.endereco ?? "",
     });
+    setResponsavel(salaSel?.responsavel ?? "");
   }, [salaSel]);
+
+  async function salvarResponsavel() {
+    if (!salaSel || responsavel === (salaSel.responsavel ?? "")) return;
+    const { data, error } = await supabase
+      .from("salas")
+      .update({ responsavel: responsavel || null })
+      .eq("id", salaSel.id)
+      .select()
+      .single();
+    if (error) { toast.error("Erro ao salvar responsável"); return; }
+    setSalas((prev) => prev.map((s) => (s.id === data.id ? data : s)));
+    setSalaSel(data);
+    toast.success("Responsável salvo");
+  }
 
   const salasFiltradas = useMemo(() => {
     const t = busca.trim().toLowerCase();
@@ -343,14 +368,34 @@ function DepartamentosPage() {
               SysPatrimônio
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={sair}
-            className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-          >
-            <LogOut className="mr-2 h-4 w-4" /> Sair
-          </Button>
+          <div className="flex items-center gap-1">
+            {role === "admin" && (
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+              >
+                <Link to="/usuarios"><Users className="mr-2 h-4 w-4" /> Usuários</Link>
+              </Button>
+            )}
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            >
+              <Link to="/conferencia"><CheckSquare className="mr-2 h-4 w-4" /> Conferência</Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={sair}
+              className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            >
+              <LogOut className="mr-2 h-4 w-4" /> Sair
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -534,39 +579,51 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-3 rounded-md border border-border bg-muted/40 p-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <div className="grid gap-3 rounded-md border border-border bg-muted/40 p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                <div className="flex flex-col gap-1.5">
                   <Label htmlFor="cabHistorico">Histórico</Label>
                   <textarea
                     id="cabHistorico"
                     rows={4}
-                    className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="min-h-24 w-full flex-1 resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={cabecalho.historico}
                     onChange={(e) => setCabecalho({ ...cabecalho, historico: e.target.value })}
                   />
                 </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="cabData">Data</Label>
+                    <Input
+                      id="cabData"
+                      value={cabecalho.data}
+                      onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="cabLocal">Local</Label>
+                    <Input
+                      id="cabLocal"
+                      value={cabecalho.local}
+                      onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
+                    />
+                  </div>
+                </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cabData">Data</Label>
-                  <Input
-                    id="cabData"
-                    value={cabecalho.data}
-                    onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <Label htmlFor="cabLocal">Local</Label>
-                  <Input
-                    id="cabLocal"
-                    value={cabecalho.local}
-                    onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <Label htmlFor="cabEndereco">Endereço</Label>
                   <Input
                     id="cabEndereco"
                     value={cabecalho.endereco}
                     onChange={(e) => setCabecalho({ ...cabecalho, endereco: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cabResp">Nome do responsável pelo local</Label>
+                  <Input
+                    id="cabResp"
+                    disabled={!salaSel}
+                    value={responsavel}
+                    onChange={(e) => setResponsavel(e.target.value)}
+                    onBlur={salvarResponsavel}
                   />
                 </div>
               </div>
