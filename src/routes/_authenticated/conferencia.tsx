@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Tables } from "@/integrations/supabase/types";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/conferencia")({
   head: () => ({
@@ -34,6 +36,8 @@ function ConferenciaPage() {
   const [sala, setSala] = useState<Sala | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
   const [busca, setBusca] = useState("");
+  const [obsBem, setObsBem] = useState<Bem | null>(null);
+  const [obsTexto, setObsTexto] = useState("");
 
   useEffect(() => {
     supabase.from("salas").select("*").order("nome").then(({ data }) => setSalas(data ?? []));
@@ -56,6 +60,15 @@ function ConferenciaPage() {
       toast.error("Erro ao salvar conferência");
       setBens((p) => p.map((x) => (x.id === b.id ? { ...x, conferido: !v } : x)));
     }
+  }
+
+  async function salvarObs() {
+    if (!obsBem) return;
+    const { error } = await supabase.rpc("salvar_observacao", { _bem_id: obsBem.id, _obs: obsTexto });
+    if (error) { toast.error("Erro ao salvar observação"); return; }
+    setBens((p) => p.map((x) => (x.id === obsBem.id ? { ...x, observacao: obsTexto } : x)));
+    toast.success("Observação salva");
+    setObsBem(null);
   }
 
   const localizados = bens.filter((b) => b.conferido).length;
@@ -104,13 +117,18 @@ function ConferenciaPage() {
                   </TableRow>
                 )}
                 {bens.map((b) => (
-                  <TableRow key={b.id}>
+                  <TableRow key={b.id} className={b.conferido ? "text-blue-600" : "text-red-600"}>
                     <TableCell className="py-1">
                       <input type="checkbox" className="h-4 w-4 accent-primary"
                         aria-label={`Bem ${b.codigo_red} localizado`}
                         checked={b.conferido} onChange={(e) => marcar(b, e.target.checked)} />
                     </TableCell>
-                    <TableCell className="py-1 font-mono text-sm">{b.codigo_red}</TableCell>
+                    <TableCell className="py-1 font-mono text-sm">
+                      <button type="button" className="underline-offset-2 hover:underline"
+                        onClick={() => { setObsBem(b); setObsTexto(b.observacao ?? ""); }}>
+                        {b.codigo_red}
+                      </button>
+                    </TableCell>
                     <TableCell className="py-1">{limparDescricao(b.descricao)}</TableCell>
                     <TableCell className="py-1 text-right">{moeda(Number(b.valor))}</TableCell>
                   </TableRow>
@@ -143,6 +161,17 @@ function ConferenciaPage() {
           </CardContent>
         </Card>
       </main>
+      <Dialog open={!!obsBem} onOpenChange={(o) => !o && setObsBem(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Observações — {obsBem?.codigo_red}</DialogTitle>
+            <DialogDescription>{obsBem ? limparDescricao(obsBem.descricao) : ""}</DialogDescription>
+          </DialogHeader>
+          <Textarea rows={5} maxLength={2000} value={obsTexto}
+            onChange={(e) => setObsTexto(e.target.value)} placeholder="Digite observações sobre o bem..." />
+          <Button onClick={salvarObs}>Salvar observação</Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

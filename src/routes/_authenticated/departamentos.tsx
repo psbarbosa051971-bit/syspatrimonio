@@ -981,6 +981,32 @@ function DepartamentosPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!salaExcluir} onOpenChange={(o) => !o && setSalaExcluir(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Excluir sala</DialogTitle>
+            <DialogDescription>
+              A sala "{salaExcluir?.nome}" e todos os seus bens serão excluídos. Informe o e-mail e a senha do administrador.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={confirmarExclusaoSala} className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="admEmail">E-mail do administrador</Label>
+              <Input id="admEmail" type="email" required value={credAdmin.email}
+                onChange={(e) => setCredAdmin({ ...credAdmin, email: e.target.value })} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="admSenha">Senha do administrador</Label>
+              <Input id="admSenha" type="password" required value={credAdmin.senha}
+                onChange={(e) => setCredAdmin({ ...credAdmin, senha: e.target.value })} />
+            </div>
+            <Button type="submit" variant="destructive" disabled={excluindo}>
+              {excluindo ? "Excluindo..." : "Excluir sala"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
