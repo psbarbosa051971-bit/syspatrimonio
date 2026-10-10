@@ -58,7 +58,10 @@ function UsuariosPage() {
     const { error } = await supabase
       .from("user_roles")
       .upsert({ user_id: id, role: novo }, { onConflict: "user_id" });
-    if (error) return toast.error("Erro ao alterar permissão");
+    if (error) {
+      toast.error("Erro ao alterar permissão");
+      return;
+    }
     toast.success("Permissão atualizada");
     carregar();
   }
