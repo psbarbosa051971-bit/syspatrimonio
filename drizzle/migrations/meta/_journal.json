@@ -15,6 +15,13 @@
       "when": 1791644240876,
       "tag": "0001_roles_and_conferencia",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791644960249,
+      "tag": "0002_visualizador_salas",
+      "breakpoints": true
     }
   ]
 }

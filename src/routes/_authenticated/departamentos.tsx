@@ -107,6 +107,7 @@ function DepartamentosPage() {
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cabecalhoPendente = useRef<{ historico: string; data: string; local: string; endereco: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -147,6 +148,12 @@ function DepartamentosPage() {
   }, [salaSel]);
 
   useEffect(() => {
+    if (cabecalhoPendente.current) {
+      setCabecalho(cabecalhoPendente.current);
+      cabecalhoPendente.current = null;
+      setResponsavel(salaSel?.responsavel ?? "");
+      return;
+    }
     setCabecalho({
       historico: "",
       data: "",
@@ -302,40 +309,89 @@ function DepartamentosPage() {
   async function importarPdf(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !user || !salaSel) {
-      if (!salaSel) toast.error("Selecione uma sala antes de importar o PDF");
+    if (!file || !user || !departamentoSel) {
+      if (!departamentoSel) toast.error("Selecione ou salve um departamento antes de importar o PDF");
       return;
     }
     setImportando(true);
     try {
       const termo = await extrairTermoDePdf(file);
       const extraidos = termo.bens;
-      setCabecalho({
+      const nomeLocal = (termo.cabecalho.local || salaSel?.nome || "").trim();
+      if (!nomeLocal) {
+        toast.error("Local não encontrado no PDF. Selecione uma sala e tente de novo.");
+        return;
+      }
+      // procura sala com o mesmo Local (acumula os PDFs no mesmo local)
+      const norm = (s: string) => s.normalize("NFC").replace(/\s+/g, " ").trim().toUpperCase();
+      let sala = salas.find((s) => norm(s.nome) === norm(nomeLocal)) ?? null;
+      if (!sala) {
+        const { data: nova, error: errSala } = await supabase
+          .from("salas")
+          .insert({
+            user_id: user.id,
+            departamento_id: departamentoSel.id,
+            nome: nomeLocal,
+            endereco: termo.cabecalho.endereco || null,
+          })
+          .select()
+          .single();
+        if (errSala) throw errSala;
+        sala = nova;
+        setSalas((prev) => [...prev, nova]);
+      } else if (!sala.endereco && termo.cabecalho.endereco) {
+        const { data: upd } = await supabase
+          .from("salas")
+          .update({ endereco: termo.cabecalho.endereco })
+          .eq("id", sala.id)
+          .select()
+          .single();
+        if (upd) {
+          sala = upd;
+          setSalas((prev) => prev.map((s) => (s.id === upd.id ? upd : s)));
+        }
+      }
+      const salaAlvo = sala;
+      setNovaSala({ nome: salaAlvo.nome, endereco: salaAlvo.endereco ?? termo.cabecalho.endereco });
+      cabecalhoPendente.current = {
         historico: termo.cabecalho.historico,
         data: termo.cabecalho.data,
-        local: termo.cabecalho.local || salaSel.nome,
-        endereco: termo.cabecalho.endereco || (salaSel.endereco ?? ""),
-      });
+        local: salaAlvo.nome,
+        endereco: termo.cabecalho.endereco || (salaAlvo.endereco ?? ""),
+      };
       if (extraidos.length === 0) {
+        setSalaSel(salaAlvo);
         toast.error("Nenhum bem encontrado no PDF", {
           description:
             "O PDF deve conter linhas com código, descrição e valor (ex.: 123456 CADEIRA 1.234,56).",
         });
         return;
       }
-      const { data, error } = await supabase
+      const { data: existentes } = await supabase
         .from("bens")
-        .insert(
-          extraidos.map((b) => ({
-            ...b,
-            user_id: user.id,
-            sala_id: salaSel.id,
-          })),
-        )
-        .select();
-      if (error) throw error;
-      setBens((prev) => [...prev, ...(data ?? [])]);
-      toast.success(`${data?.length ?? 0} bens importados do PDF`);
+        .select("codigo_red")
+        .eq("sala_id", salaAlvo.id);
+      const ja = new Set((existentes ?? []).map((b) => b.codigo_red));
+      const novos = extraidos.filter((b) => !ja.has(b.codigo_red));
+      if (novos.length > 0) {
+        const { error } = await supabase
+          .from("bens")
+          .insert(novos.map((b) => ({ ...b, user_id: user.id, sala_id: salaAlvo.id })));
+        if (error) throw error;
+      }
+      if (salaSel?.id === salaAlvo.id) {
+        const { data: todos } = await supabase
+          .from("bens").select("*").eq("sala_id", salaAlvo.id).order("codigo_red");
+        setBens(todos ?? []);
+        setCabecalho(cabecalhoPendente.current);
+        cabecalhoPendente.current = null;
+      } else {
+        setSalaSel(salaAlvo);
+      }
+      toast.success(
+        `${novos.length} bem(ns) adicionados ao local "${salaAlvo.nome}"` +
+          (extraidos.length > novos.length ? ` (${extraidos.length - novos.length} já existiam)` : ""),
+      );
     } catch {
       toast.error("Não foi possível ler o PDF");
     } finally {
@@ -569,7 +625,7 @@ function DepartamentosPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!salaSel || importando}
+                    disabled={!departamentoSel || importando}
                     onClick={() => fileRef.current?.click()}
                   >
                     <Upload className="mr-1 h-4 w-4" />
