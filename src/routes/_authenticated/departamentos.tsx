@@ -73,6 +73,8 @@ function DepartamentosPage() {
   const [salas, setSalas] = useState<Sala[]>([]);
   const [salaSel, setSalaSel] = useState<Sala | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
+  const [selecionados, setSelecionados] = useState<string[]>([]);
+  useEffect(() => setSelecionados([]), [bens.length === 0]);
   const [busca, setBusca] = useState("");
 
   // formulário de departamento (cabeçalho)
@@ -258,6 +260,18 @@ function DepartamentosPage() {
     const { error } = await supabase.from("bens").delete().eq("id", id);
     if (error) { toast.error("Erro ao remover bem"); return; }
     setBens((prev) => prev.filter((b) => b.id !== id));
+    setSelecionados((prev) => prev.filter((x) => x !== id));
+  }
+
+  async function removerSelecionados() {
+    if (selecionados.length === 0) return;
+    if (!confirm(`Excluir ${selecionados.length} bem(ns) selecionado(s)?`)) return;
+    const ids = selecionados;
+    const { error } = await supabase.from("bens").delete().in("id", ids);
+    if (error) { toast.error("Erro ao excluir bens"); return; }
+    setBens((prev) => prev.filter((b) => !ids.includes(b.id)));
+    setSelecionados([]);
+    toast.success(`${ids.length} bem(ns) excluído(s)`);
   }
 
   async function importarPdf(e: React.ChangeEvent<HTMLInputElement>) {
@@ -556,53 +570,46 @@ function DepartamentosPage() {
                   />
                 </div>
               </div>
-              <form
-                onSubmit={adicionarBem}
-                className="grid gap-3 sm:grid-cols-[160px_1fr_140px_auto]"
-              >
-                <Input
-                  required
-                  placeholder="Código RED."
-                  value={novoBem.codigo_red}
-                  onChange={(e) =>
-                    setNovoBem({ ...novoBem, codigo_red: e.target.value })
-                  }
-                />
-                <Input
-                  required
-                  placeholder="Descrição do bem"
-                  value={novoBem.descricao}
-                  onChange={(e) =>
-                    setNovoBem({ ...novoBem, descricao: e.target.value })
-                  }
-                />
-                <Input
-                  required
-                  placeholder="Valor (R$)"
-                  value={novoBem.valor}
-                  onChange={(e) =>
-                    setNovoBem({ ...novoBem, valor: e.target.value })
-                  }
-                />
-                <Button type="submit" disabled={!salaSel}>
-                  <Plus className="mr-1 h-4 w-4" /> Incluir
-                </Button>
-              </form>
-
+              {bens.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {selecionados.length} selecionado(s)
+                  </span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={selecionados.length === 0}
+                    onClick={removerSelecionados}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" /> Excluir selecionados
+                  </Button>
+                </div>
+              )}
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-36">Código RED.</TableHead>
-                    <TableHead>Descrição do bem</TableHead>
-                    <TableHead className="w-32 text-right">Valor</TableHead>
-                    <TableHead className="w-12" />
+                  <TableRow className="h-8">
+                    <TableHead className="h-8 w-10 py-1">
+                      <input
+                        type="checkbox"
+                        aria-label="Selecionar todos"
+                        className="h-4 w-4 accent-primary"
+                        checked={bens.length > 0 && selecionados.length === bens.length}
+                        onChange={(e) =>
+                          setSelecionados(e.target.checked ? bens.map((b) => b.id) : [])
+                        }
+                      />
+                    </TableHead>
+                    <TableHead className="h-8 w-36 py-1">Código RED.</TableHead>
+                    <TableHead className="h-8 py-1">Descrição do bem</TableHead>
+                    <TableHead className="h-8 w-32 py-1 text-right">Valor</TableHead>
+                    <TableHead className="h-8 w-12 py-1" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {bens.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={5}
                         className="text-center text-sm text-muted-foreground"
                       >
                         {salaSel
@@ -613,7 +620,20 @@ function DepartamentosPage() {
                   )}
                   {bens.map((b) => (
                     <TableRow key={b.id}>
-                      <TableCell>
+                      <TableCell className="py-1">
+                        <input
+                          type="checkbox"
+                          aria-label={`Selecionar ${b.codigo_red}`}
+                          className="h-4 w-4 accent-primary"
+                          checked={selecionados.includes(b.id)}
+                          onChange={(e) =>
+                            setSelecionados((prev) =>
+                              e.target.checked ? [...prev, b.id] : prev.filter((x) => x !== b.id),
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="py-1">
                         <button
                           type="button"
                           className="font-mono text-sm font-medium text-primary underline"
@@ -622,14 +642,15 @@ function DepartamentosPage() {
                           {b.codigo_red}
                         </button>
                       </TableCell>
-                      <TableCell>{limparDescricao(b.descricao)}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="py-1">{limparDescricao(b.descricao)}</TableCell>
+                      <TableCell className="py-1 text-right">
                         {formataMoeda(Number(b.valor))}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-1">
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-7 w-7"
                           onClick={() => removerBem(b.id)}
                           aria-label="Remover bem"
                         >
