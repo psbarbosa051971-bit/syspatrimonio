@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           descricao: string
           id: string
+          observacao: string | null
           sala_id: string | null
           user_id: string
           valor: number
@@ -31,6 +32,7 @@ export type Database = {
           created_at?: string
           descricao: string
           id?: string
+          observacao?: string | null
           sala_id?: string | null
           user_id: string
           valor?: number
@@ -41,6 +43,7 @@ export type Database = {
           created_at?: string
           descricao?: string
           id?: string
+          observacao?: string | null
           sala_id?: string | null
           user_id?: string
           valor?: number
@@ -69,13 +72,13 @@ export type Database = {
         }
         Insert: {
           almoxarifado: string
-          cpd: string
+          cpd?: string
           created_at?: string
           departamento: string
           diretor: string
           endereco?: string | null
           id?: string
-          local: string
+          local?: string
           user_id: string
         }
         Update: {
@@ -209,6 +212,10 @@ export type Database = {
       pode_ver_sala: {
         Args: { _sala_id: string; _user_id: string }
         Returns: boolean
+      }
+      salvar_observacao: {
+        Args: { _bem_id: string; _obs: string }
+        Returns: undefined
       }
     }
     Enums: {
