@@ -36,11 +36,13 @@ export function parsearBens(texto: string): BemExtraido[] {
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(linha)) !== null) {
-      const valor = parseFloat(m[3].replace(/\./g, "").replace(",", "."));
+      const [, codigo, descricao, valorStr] = m;
+      if (!codigo || !descricao || !valorStr) continue;
+      const valor = parseFloat(valorStr.replace(/\./g, "").replace(",", "."));
       if (Number.isNaN(valor)) continue;
       bens.push({
-        codigo_red: m[1],
-        descricao: m[2].trim(),
+        codigo_red: codigo,
+        descricao: descricao.trim(),
         valor,
       });
     }
