@@ -55,11 +55,30 @@ export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
     texto.match(
       /HIST\S{0,2}RICO\s*:?\s*([\s\S]+?)(?=\s*\b(?:Data|Local|Endere\S{1,2}o|C\S{0,2}d(?:igo)?\.?\s*RED)\b|$)/i,
     )?.[1] ?? "";
-  const historico = historicoBruto
+  let historico = historicoBruto
     .replace(/\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}/g, "")
     .replace(/\s{2,}/g, " ")
     .replace(/[\s,;:\-–]+$/, "")
     .trim();
+  // Se veio lixo (ex.: "3459 Código Mov."), procura a frase longa em maiúsculas do histórico
+  const palavras = historico.split(/\s+/).filter((w) => /[A-Za-zÀ-ú]{3,}/.test(w));
+  if (palavras.length < 5 || /C\S{0,2}d(?:igo)?\.?\s*Mov/i.test(historico)) {
+    const linhas = texto.split("\n").map((l) => l.trim());
+    const inicio = Math.max(0, linhas.findIndex((l) => /HIST\S{0,2}RICO/i.test(l)));
+    const ehFrase = (l: string) =>
+      l.length >= 25 &&
+      /[A-ZÀ-Ú]{3,}(?:\s+[A-ZÀ-Ú0-9ºª°.,/\-–]+){4,}/.test(l) &&
+      !/[a-zà-ú]{3,}/.test(l.replace(/\b(?:de|da|do|das|dos|e|para|nº)\b/g, "")) &&
+      !/\d,\d{2}\b/.test(l) &&
+      !/^\d+\s*-/.test(l);
+    const ordem = [...linhas.slice(inicio), ...linhas.slice(0, inicio)];
+    const idx = ordem.findIndex(ehFrase);
+    if (idx >= 0) {
+      const partes = [ordem[idx]!];
+      for (let k = idx + 1; k < ordem.length && ehFrase(ordem[k]!); k++) partes.push(ordem[k]!);
+      historico = partes.join(" ").replace(/\s{2,}/g, " ").trim();
+    }
+  }
   // Local: linha inteira após o rótulo (ex.: "12-SECRETARIA MUNICIPAL DE EDUCAÇÃO - SEMED")
   let local =
     texto.match(/\bLocal\s*:?\s*([^\n]+?)(?=\s+(?:Endere\S{1,2}o|Data|Hist\S{0,2}rico)\s*:|\n|$)/i)?.[1]?.trim() ??
