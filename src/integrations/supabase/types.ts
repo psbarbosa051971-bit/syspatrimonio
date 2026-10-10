@@ -14,7 +14,115 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bens: {
+        Row: {
+          codigo_red: string
+          created_at: string
+          descricao: string
+          id: string
+          sala_id: string | null
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          codigo_red: string
+          created_at?: string
+          descricao: string
+          id?: string
+          sala_id?: string | null
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          codigo_red?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          sala_id?: string | null
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bens_sala_id_fkey"
+            columns: ["sala_id"]
+            isOneToOne: false
+            referencedRelation: "salas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      departamentos: {
+        Row: {
+          almoxarifado: string
+          cpd: string
+          created_at: string
+          departamento: string
+          diretor: string
+          endereco: string | null
+          id: string
+          local: string
+          user_id: string
+        }
+        Insert: {
+          almoxarifado: string
+          cpd: string
+          created_at?: string
+          departamento: string
+          diretor: string
+          endereco?: string | null
+          id?: string
+          local: string
+          user_id: string
+        }
+        Update: {
+          almoxarifado?: string
+          cpd?: string
+          created_at?: string
+          departamento?: string
+          diretor?: string
+          endereco?: string | null
+          id?: string
+          local?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      salas: {
+        Row: {
+          created_at: string
+          departamento_id: string | null
+          endereco: string | null
+          id: string
+          nome: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          departamento_id?: string | null
+          endereco?: string | null
+          id?: string
+          nome: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          departamento_id?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salas_departamento_id_fkey"
+            columns: ["departamento_id"]
+            isOneToOne: false
+            referencedRelation: "departamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
