@@ -154,7 +154,7 @@ function DepartamentosPage() {
         .eq("id", departamentoSel.id)
         .select()
         .single();
-      if (error) return toast.error("Erro ao salvar departamento");
+      if (error) { toast.error("Erro ao salvar departamento"); return; }
       setDepartamentos((prev) =>
         prev.map((d) => (d.id === data.id ? data : d)),
       );
@@ -166,7 +166,7 @@ function DepartamentosPage() {
         .insert(payload)
         .select()
         .single();
-      if (error) return toast.error("Erro ao cadastrar departamento");
+      if (error) { toast.error("Erro ao cadastrar departamento"); return; }
       setDepartamentos((prev) => [...prev, data]);
       setDepartamentoSel(data);
       toast.success("Departamento cadastrado");
@@ -215,7 +215,7 @@ function DepartamentosPage() {
       })
       .select()
       .single();
-    if (error) return toast.error("Erro ao adicionar sala");
+    if (error) { toast.error("Erro ao adicionar sala"); return; }
     setSalas((prev) => [...prev, data]);
     setNovaSala({ nome: "", endereco: "" });
     toast.success("Sala adicionada");
@@ -239,14 +239,14 @@ function DepartamentosPage() {
       })
       .select()
       .single();
-    if (error) return toast.error("Erro ao adicionar bem");
+    if (error) { toast.error("Erro ao adicionar bem"); return; }
     setBens((prev) => [...prev, data]);
     setNovoBem({ codigo_red: "", descricao: "", valor: "" });
   }
 
   async function removerBem(id: string) {
     const { error } = await supabase.from("bens").delete().eq("id", id);
-    if (error) return toast.error("Erro ao remover bem");
+    if (error) { toast.error("Erro ao remover bem"); return; }
     setBens((prev) => prev.filter((b) => b.id !== id));
   }
 
