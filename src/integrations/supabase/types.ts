@@ -165,6 +165,29 @@ export type Database = {
         }
         Relationships: []
       }
+      user_salas: {
+        Row: {
+          sala_id: string
+          user_id: string
+        }
+        Insert: {
+          sala_id: string
+          user_id: string
+        }
+        Update: {
+          sala_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_salas_sala_id_fkey"
+            columns: ["sala_id"]
+            isOneToOne: false
+            referencedRelation: "salas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -182,6 +205,10 @@ export type Database = {
       marcar_conferido: {
         Args: { _bem_id: string; _valor: boolean }
         Returns: undefined
+      }
+      pode_ver_sala: {
+        Args: { _sala_id: string; _user_id: string }
+        Returns: boolean
       }
     }
     Enums: {
