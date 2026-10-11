@@ -31,7 +31,14 @@ const departamento = {
   local: "", cpd: "", endereco: null,
 };
 const sala = { id: "sala", departamento_id: "dep", nome: "Sala existente", endereco: null };
-const bem = { id: "bem", sala_id: "sala", codigo_red: "123", descricao: "Mesa cadastrada", valor: 10 };
+const bem = {
+  id: "bem", sala_id: "sala", codigo_red: "123", descricao: "Mesa cadastrada", valor: 10,
+  incorporacao: "01/2025", tipo: "Mobiliário", observacao: "Conservação regular",
+};
+const outroBem = {
+  id: "outro-bem", sala_id: "sala", codigo_red: "456", descricao: "Cadeira azul", valor: 25.5,
+  incorporacao: "02/2024", tipo: "Assento", observacao: null,
+};
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -44,7 +51,7 @@ beforeEach(() => {
       || (tabela === "departamentos" && mocks.falharDepartamentos);
     const resultado = falha
       ? { data: null, error: { message: "Falha de conexão" } }
-      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? [sala] : [bem], error: null };
+      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? [sala] : [bem, outroBem], error: null };
     const consulta: Record<string, unknown> = {};
     for (const metodo of ["select", "order", "eq", "in", "range"]) consulta[metodo] = () => consulta;
     consulta["then"] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
@@ -54,6 +61,36 @@ beforeEach(() => {
 });
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it.each(["123", "mesa", "01/2025", "mobiliario", "10,00", "conservacao"])(
+    "pesquisa bens pelo termo %s sem exigir acentos ou maiúsculas",
+    async (termo) => {
+      render(<Page />);
+      await screen.findByText("Mesa cadastrada");
+      fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), { target: { value: termo } });
+      expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+      expect(screen.queryByText("Cadeira azul")).not.toBeInTheDocument();
+      expect(screen.getByText("Quantidade de bens: 1 de 2")).toBeInTheDocument();
+    },
+  );
+
+  it("seleciona apenas os resultados visíveis e limpa a seleção ao mudar a pesquisa", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const pesquisa = screen.getByRole("searchbox", { name: "Pesquisar bens da sala" });
+    fireEvent.change(pesquisa, { target: { value: "cadeira" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent("1 selecionado(s)");
+    fireEvent.change(pesquisa, { target: { value: "inexistente" } });
+    expect(screen.getByText("Nenhum bem encontrado para esta pesquisa.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
+    fireEvent.change(pesquisa, { target: { value: "" } });
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.getByText("Cadeira azul")).toBeInTheDocument();
+    expect(screen.getByText("Quantidade de bens: 2")).toBeInTheDocument();
+  });
+
   it("abre o departamento e seleciona uma sala para mostrar seus bens", async () => {
     render(<Page />);
     expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();

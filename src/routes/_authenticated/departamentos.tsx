@@ -116,6 +116,27 @@ function DepartamentosPage() {
   const [selecionados, setSelecionados] = useState<string[]>([]);
   useEffect(() => setSelecionados([]), [bens.length === 0]);
   const [busca, setBusca] = useState("");
+  const [buscaBens, setBuscaBens] = useState("");
+  useEffect(() => {
+    setBuscaBens("");
+    setSelecionados([]);
+  }, [salaSel?.id]);
+
+  const bensFiltrados = useMemo(() => {
+    const normalizar = (texto: string) => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const termos = normalizar(buscaBens).trim().split(/\s+/).filter(Boolean);
+    if (!termos.length) return bens;
+    return bens.filter((bem) => {
+      const campos = normalizar([
+        bem.codigo_red, limparDescricao(bem.descricao), bem.incorporacao, bem.tipo,
+        bem.valor, formataMoeda(Number(bem.valor)), Number(bem.valor).toFixed(2).replace(".", ","),
+        bem.observacao,
+      ].filter((campo) => campo != null).join(" "));
+      return termos.every((termo) => campos.includes(termo));
+    });
+  }, [bens, buscaBens]);
+  const idsBensFiltrados = bensFiltrados.map((bem) => bem.id);
+  const todosFiltradosSelecionados = idsBensFiltrados.length > 0 && idsBensFiltrados.every((id) => selecionados.includes(id));
 
   // formulário de departamento (cabeçalho)
   const [form, setForm] = useState({
@@ -584,8 +605,8 @@ function DepartamentosPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1600px] gap-6 px-6 py-6 lg:grid-cols-[1fr_320px]">
-        <div className="flex flex-col gap-6">
+      <main className="mx-auto grid max-w-[1600px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="flex min-w-0 flex-col gap-6">
           {/* Formulário principal — cabeçalho */}
           <Card>
             <CardHeader>
@@ -750,6 +771,7 @@ function DepartamentosPage() {
                   <Label htmlFor="cabLocal">Local Físico</Label>
                   <Input
                     id="cabLocal"
+                    className="text-xs md:text-xs"
                     disabled={!salaSel}
                     value={cabecalho.local}
                     onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
@@ -770,10 +792,24 @@ function DepartamentosPage() {
                 </div>
               </div>
               {bens.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {selecionados.length} selecionado(s)
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="mr-auto text-sm text-muted-foreground" role="status">
+                    {selecionados.length} selecionado(s) · Exibindo {bensFiltrados.length} de {bens.length}
                   </span>
+                  <div className="relative min-w-0 flex-1 basis-64 sm:max-w-md">
+                    <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="search"
+                      className="pl-8"
+                      aria-label="Pesquisar bens da sala"
+                      placeholder="Pesquisar em qualquer campo dos bens..."
+                      value={buscaBens}
+                      onChange={(e) => {
+                        setBuscaBens(e.target.value);
+                        setSelecionados([]);
+                      }}
+                    />
+                  </div>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -793,9 +829,9 @@ function DepartamentosPage() {
                         type="checkbox"
                         aria-label="Selecionar todos"
                         className="h-4 w-4 accent-primary"
-                        checked={bens.length > 0 && selecionados.length === bens.length}
+                        checked={todosFiltradosSelecionados}
                         onChange={(e) =>
-                          setSelecionados(e.target.checked ? bens.map((b) => b.id) : [])
+                          setSelecionados(e.target.checked ? idsBensFiltrados : [])
                         }
                       />
                     </TableHead>
@@ -829,7 +865,14 @@ function DepartamentosPage() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {bens.map((b) => (
+                  {bens.length > 0 && bensFiltrados.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-4 text-center text-sm text-muted-foreground">
+                        Nenhum bem encontrado para esta pesquisa.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {bensFiltrados.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell className="py-1">
                         <input
@@ -876,9 +919,9 @@ function DepartamentosPage() {
               </Table>
               </div>
               <div className="flex items-center justify-between rounded-md border-2 border-primary/30 bg-accent px-3 py-2 text-sm font-medium text-foreground">
-                <span>Quantidade de bens: {bens.length}</span>
+                <span>Quantidade de bens: {bensFiltrados.length}{buscaBens.trim() ? ` de ${bens.length}` : ""}</span>
                 <span>
-                  Total: {formataMoeda(bens.reduce((acc, b) => acc + Number(b.valor), 0))}
+                  {buscaBens.trim() ? "Total filtrado" : "Total"}: {formataMoeda(bensFiltrados.reduce((acc, b) => acc + Number(b.valor), 0))}
                 </span>
               </div>
             </CardContent>
