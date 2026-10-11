@@ -605,7 +605,7 @@ function DepartamentosPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1600px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <main className="mx-auto grid max-w-[1600px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_480px] xl:grid-cols-[minmax(0,1fr)_560px]">
         <div className="flex min-w-0 flex-col gap-6">
           {/* Formulário principal — cabeçalho */}
           <Card>
@@ -947,7 +947,7 @@ function DepartamentosPage() {
               <div
                 role="listbox"
                 aria-label="Salas"
-                className="flex max-h-[480px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1"
+                className="flex h-[560px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1 lg:h-[680px]"
               >
                 {(carregandoDepartamentos || carregandoSalas) && (
                   <p role="status" className="p-3 text-center text-sm text-muted-foreground">Carregando salas salvas...</p>
