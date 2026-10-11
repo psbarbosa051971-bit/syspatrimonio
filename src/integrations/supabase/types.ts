@@ -467,6 +467,10 @@ export type Database = {
         Args: { _transferencia: string; _itens: string[]; _pedido: string }
         Returns: Json
       }
+      estornar_bens_inserviveis: {
+        Args: { _solicitacoes: string[]; _sala_id: string }
+        Returns: number
+      }
       salvar_conferencia: {
         Args: { _bens_ids: string[]; _localizados: string[]; _sala_id: string }
         Returns: undefined

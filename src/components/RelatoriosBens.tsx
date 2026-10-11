@@ -107,7 +107,15 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
       {selecionado && (administrador ? <TransferenciaBensDialog grupo={selecionado} onClose={() => setSelecionado(null)}
         onSaved={(_sala, _termo, ids) => {
           setItens((atuais) => atuais.filter((item) => !item.bem_id || !ids?.includes(item.bem_id)));
-        }} /> : <RelatorioBensDialog grupo={selecionado} onClose={() => setSelecionado(null)} />)}
+        }} /> : <RelatorioBensDialog key={selecionado.chave} grupo={selecionado} onClose={() => setSelecionado(null)}
+          onEstornados={(ids) => {
+            setItens((atuais) => atuais.filter((item) => !ids.includes(item.id)));
+            setSelecionado((atual) => {
+              if (!atual) return null;
+              const restantes = atual.itens.filter((item) => !ids.includes(item.id));
+              return restantes.length ? { ...atual, itens: restantes } : null;
+            });
+          }} />)}
     </section>
   );
 }
