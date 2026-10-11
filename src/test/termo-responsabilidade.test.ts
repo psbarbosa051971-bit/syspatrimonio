@@ -28,11 +28,14 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(numeroDoTermo(registro({ termo_ano: null, created_at: "2027-01-01T01:00:00Z" }))).toBe("2561/2026");
   });
 
-  it("renderiza os dados do HTML, grupos, total e espaços de assinatura", () => {
+  it("renderiza os bens sem subtotais de grupo, em paisagem, com total e assinaturas", () => {
     const html = htmlDoTermo(registro());
     expect(html).toContain("TERMO DE RESPONSABILIDADE Nº 2561/2026");
     expect(html).toContain("200 C.M.E.I. ALEX HONÓRIO DA SILVA");
-    expect(html).toContain("LISTADO(S) POR GRUPO: 2");
+    expect(html).not.toContain("LISTADO(S) POR GRUPO");
+    expect(html).not.toContain("VALOR POR GRUPO");
+    expect(html).toContain("size: A4 landscape");
+    expect(html).toContain("max-width: 273mm");
     expect(html).toContain("LISTADO(S) GERAL: 3");
     expect(html.replace(/\u00a0/g, " ")).toContain("R$ 650,00");
     expect(html.indexOf("73541")).toBeLessThan(html.indexOf("73542"));

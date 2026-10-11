@@ -549,38 +549,49 @@ function DepartamentosPage() {
           {/* Formulário principal — cabeçalho */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle>Cadastro de Departamento</CardTitle>
                   <CardDescription>
                     Dados do cabeçalho do termo de responsabilidade
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={novoDepartamento}>
-                  <Plus className="mr-1 h-4 w-4" /> Novo
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={novoDepartamento}>
+                    <Plus className="mr-1 h-4 w-4" /> Novo
+                  </Button>
+                  <Button type="submit" form="cadastro-departamento" size="sm">
+                    {departamentoSel ? "Salvar alterações" : "Cadastrar departamento"}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              {departamentos.length > 0 && (
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {departamentos.map((d) => (
-                    <Button
-                      key={d.id}
-                      size="sm"
-                      variant={departamentoSel?.id === d.id ? "default" : "outline"}
-                      onClick={() => selecionarDepartamento(d)}
-                    >
-                      {d.departamento}
-                    </Button>
-                  ))}
+              {(departamentos.length > 1 || (!departamentoSel && departamentos.length > 0)) && (
+                <div className="mb-3 flex flex-col gap-1.5">
+                  <Label htmlFor="departamento-cadastrado">Departamento cadastrado</Label>
+                  <select
+                    id="departamento-cadastrado"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={departamentoSel?.id ?? ""}
+                    onChange={(e) => {
+                      const selecionado = departamentos.find((d) => d.id === e.target.value);
+                      if (selecionado) selecionarDepartamento(selecionado);
+                    }}
+                  >
+                    <option value="" disabled>Selecione um departamento</option>
+                    {departamentos.map((d) => (
+                      <option key={d.id} value={d.id}>{d.departamento}</option>
+                    ))}
+                  </select>
                 </div>
               )}
               <form
+                id="cadastro-departamento"
                 onSubmit={salvarDepartamento}
-                className="grid gap-4 sm:grid-cols-2"
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
               >
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <Label htmlFor="diretor">Diretor</Label>
                   <Input
                     id="diretor"
@@ -610,11 +621,6 @@ function DepartamentosPage() {
                       setForm({ ...form, almoxarifado: e.target.value })
                     }
                   />
-                </div>
-                <div className="sm:col-span-2">
-                  <Button type="submit">
-                    {departamentoSel ? "Salvar alterações" : "Cadastrar departamento"}
-                  </Button>
                 </div>
               </form>
             </CardContent>

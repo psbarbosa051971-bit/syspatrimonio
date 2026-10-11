@@ -54,16 +54,15 @@ export function htmlDoTermo(termo: TermoResponsabilidade): string {
   const linhas = [...grupos.values()].map((itens) => {
     const ordenados = [...itens].sort((a, b) => a.codigo_red.localeCompare(b.codigo_red, "pt-BR", { numeric: true }));
     return ordenados.map((b) => `<tr><td>${escapar(b.codigo_red)}</td><td>${escapar(b.descricao)}</td>
-      <td>${escapar(b.tipo ?? "")}</td><td>${escapar(b.incorporacao ?? "")}</td><td class="valor">${moeda(b.valor)}</td></tr>`).join("") +
-      `<tr class="subtotal"><td colspan="3">LISTADO(S) POR GRUPO: ${itens.length}</td><td colspan="2" class="valor">VALOR POR GRUPO: ${moeda(itens.reduce((s, b) => s + b.valor, 0))}</td></tr>`;
+      <td>${escapar(b.tipo ?? "")}</td><td>${escapar(b.incorporacao ?? "")}</td><td class="valor">${moeda(b.valor)}</td></tr>`).join("");
   }).join("");
   const cpf = d.cpf.replace(/\D/g, "").replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termo de responsabilidade ${escapar(numeroDoTermo(termo))}</title>
     <style>
-      @page { size: A4 portrait; margin: 12mm; }
+      @page { size: A4 landscape; margin: 12mm; }
       * { box-sizing: border-box; }
       body { margin: 0; color: oklch(0 0 0); background: oklch(1 0 0); font: 11px Arial, sans-serif; }
-      .documento { max-width: 186mm; margin: auto; }
+      .documento { max-width: 273mm; margin: auto; }
       h1 { font-size: 23px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 0; }
       header { text-align: center; padding: 8px 0 12px; } header p { margin: 3px 0; }
       .local { border: 1px solid; text-align: center; padding: 10px; } .local p { margin: 5px 0 0; }
@@ -72,7 +71,7 @@ export function htmlDoTermo(termo: TermoResponsabilidade): string {
       th { background: oklch(0.78 0 0); text-align: left; font-size: 10px; }
       th, td { padding: 4px; vertical-align: top; overflow-wrap: anywhere; } tbody tr { break-inside: avoid; }
       thead { display: table-header-group; } .valor { text-align: right; white-space: nowrap; }
-      .subtotal, .total { font-weight: bold; background: oklch(0.9 0 0); }
+      .total { font-weight: bold; background: oklch(0.9 0 0); }
       .assinaturas { display: flex; gap: 12px; margin-top: 18px; break-inside: avoid; }
       .assinatura { border: 1px solid; width: 50%; padding: 10px; min-height: 210px; }
       .linha { border-top: 1px solid; margin-top: 55px; padding-top: 5px; text-align: center; }
