@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -139,7 +139,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     const unidade = screen.getByRole("combobox", { name: "Unidade" });
     expect(unidade.parentElement?.previousElementSibling).toContainElement(screen.getByLabelText("Local Físico"));
     expect(unidade).toHaveValue("");
-    expect(screen.queryByRole("option", { name: "Todas as unidades" })).not.toBeInTheDocument();
+    expect(within(unidade).queryByRole("option", { name: "Todas as unidades" })).not.toBeInTheDocument();
     for (const valor of ["CENTRAL", "SAÚDE", "EDUCAÇÃO"]) {
       fireEvent.change(unidade, { target: { value: valor } });
       await waitFor(() => expect(unidade).toHaveValue(valor));
@@ -156,6 +156,40 @@ describe("Carregamento dos registros em Departamentos", () => {
     fireEvent.change(screen.getByPlaceholderText("Buscar sala ou endereço..."), { target: { value: "recep" } });
     expect(screen.getByText("Quantidade de salas listadas: 1")).toBeInTheDocument();
     expect(screen.getByLabelText("Local Físico")).toHaveValue("Sala existente");
+  });
+
+  it("filtra a lista pela unidade sem alterar o cadastro e combina com a busca", async () => {
+    mocks.salas = [
+      sala,
+      { ...sala, id: "central", nome: "Recepção", unidade: "CENTRAL" },
+      { ...sala, id: "saude", nome: "Consultório", unidade: "SAÚDE" },
+      { ...sala, id: "educacao", nome: "Escola municipal", endereco: "Rua das Flores", unidade: "EDUCAÇÃO" },
+    ];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const filtro = screen.getByRole("combobox", { name: "Filtrar por unidade" });
+    const lista = within(screen.getByRole("listbox", { name: "Salas" }));
+    expect(filtro).toHaveValue("");
+    expect(lista.getAllByRole("option")).toHaveLength(4);
+    for (const [valor, nome] of [["CENTRAL", "Recepção"], ["SAÚDE", "Consultório"], ["EDUCAÇÃO", "Escola municipal"]]) {
+      fireEvent.change(filtro, { target: { value: valor } });
+      expect(lista.getAllByRole("option")).toHaveLength(1);
+      expect(lista.getByRole("button", { name: new RegExp(`^${nome}`) })).toBeInTheDocument();
+      expect(screen.getByText("Quantidade de salas listadas: 1")).toBeInTheDocument();
+    }
+    const pesquisa = screen.getByPlaceholderText("Buscar sala ou endereço...");
+    fireEvent.change(pesquisa, { target: { value: "Flores" } });
+    expect(lista.getAllByRole("option")).toHaveLength(1);
+    fireEvent.change(pesquisa, { target: { value: "Recepção" } });
+    expect(lista.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.getByText("Nenhuma sala encontrada.")).toBeInTheDocument();
+    expect(screen.getByText("Quantidade de salas listadas: 0")).toBeInTheDocument();
+    fireEvent.change(pesquisa, { target: { value: "" } });
+    fireEvent.change(filtro, { target: { value: "" } });
+    expect(lista.getAllByRole("option")).toHaveLength(4);
+    expect(screen.getByLabelText("Local Físico")).toHaveValue("Sala existente");
+    expect(screen.getByRole("combobox", { name: "Unidade" })).toHaveValue("");
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
   });
 
   it("mantém a unidade anterior e informa quando o salvamento falha", async () => {

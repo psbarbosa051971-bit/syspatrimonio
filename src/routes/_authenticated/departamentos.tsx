@@ -116,6 +116,7 @@ function DepartamentosPage() {
   const [selecionados, setSelecionados] = useState<string[]>([]);
   useEffect(() => setSelecionados([]), [bens.length === 0]);
   const [busca, setBusca] = useState("");
+  const [filtroUnidade, setFiltroUnidade] = useState("");
   const [cadastroAberto, setCadastroAberto] = useState(false);
   const [salvandoUnidade, setSalvandoUnidade] = useState(false);
   const [buscaBens, setBuscaBens] = useState("");
@@ -356,10 +357,11 @@ function DepartamentosPage() {
   const salasFiltradas = useMemo(() => {
     const t = busca.trim().toLowerCase();
     return salas.filter(
-      (s) => !t || s.nome.toLowerCase().includes(t) ||
-        (s.endereco ?? "").toLowerCase().includes(t),
+      (s) => (!filtroUnidade || s.unidade === filtroUnidade) &&
+        (!t || s.nome.toLowerCase().includes(t) ||
+          (s.endereco ?? "").toLowerCase().includes(t)),
     );
-  }, [salas, busca]);
+  }, [salas, busca, filtroUnidade]);
 
   async function salvarUnidade(unidade: string) {
     if (!salaSel || salvandoUnidade || !["CENTRAL", "SAÚDE", "EDUCAÇÃO"].includes(unidade)) return;
@@ -983,6 +985,20 @@ function DepartamentosPage() {
               <CardTitle className="text-base">Localizar salas</CardTitle>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="filtroUnidadeSalas">Filtrar por unidade</Label>
+                <select
+                  id="filtroUnidadeSalas"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                  value={filtroUnidade}
+                  onChange={(e) => setFiltroUnidade(e.target.value)}
+                >
+                  <option value="">Todas as unidades</option>
+                  <option value="CENTRAL">CENTRAL</option>
+                  <option value="SAÚDE">SAÚDE</option>
+                  <option value="EDUCAÇÃO">EDUCAÇÃO</option>
+                </select>
+              </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
