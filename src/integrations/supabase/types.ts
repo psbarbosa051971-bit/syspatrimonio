@@ -6,29 +6,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type SolicitacaoBem = {
-  id: string
-  bem_id: string | null
-  sala_id: string | null
-  user_id: string
-  tipo: "transferencia" | "inservivel"
-  destino: string | null
-  observacao: string
-  codigo_red: string
-  descricao: string
-  valor: number
-  local_origem: string
-  ativa: boolean
-  created_at: string
-  updated_at: string
-}
-
-type LeituraSolicitacao = {
-  solicitacao_id: string
-  admin_id: string
-  versao_lida: string
-}
-
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -37,23 +14,11 @@ export type Database = {
   }
   public: {
     Tables: {
-      solicitacoes_bens: {
-        Row: SolicitacaoBem
-        Insert: Partial<SolicitacaoBem> & Pick<SolicitacaoBem, "tipo" | "codigo_red" | "descricao" | "local_origem">
-        Update: Partial<SolicitacaoBem>
-        Relationships: []
-      }
-      solicitacoes_bens_leituras: {
-        Row: LeituraSolicitacao
-        Insert: Omit<LeituraSolicitacao, "admin_id"> & { admin_id?: string }
-        Update: Partial<LeituraSolicitacao>
-        Relationships: []
-      }
       bens: {
         Row: {
           codigo_red: string
-          conferido: boolean
           conferencia_finalizada: boolean
+          conferido: boolean
           created_at: string
           descricao: string
           id: string
@@ -67,8 +32,8 @@ export type Database = {
         }
         Insert: {
           codigo_red: string
-          conferido?: boolean
           conferencia_finalizada?: boolean
+          conferido?: boolean
           created_at?: string
           descricao: string
           id?: string
@@ -82,8 +47,8 @@ export type Database = {
         }
         Update: {
           codigo_red?: string
-          conferido?: boolean
           conferencia_finalizada?: boolean
+          conferido?: boolean
           created_at?: string
           descricao?: string
           id?: string
@@ -97,55 +62,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "bens_sala_id_fkey"
-            columns: ["sala_id"]
-            isOneToOne: false
-            referencedRelation: "salas"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bens_importacao_id_fkey"
             columns: ["importacao_id"]
             isOneToOne: false
             referencedRelation: "importacoes"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      importacoes: {
-        Row: {
-          id: string
-          numero: number
-          sala_id: string
-          user_id: string
-          arquivo: string
-          created_at: string
-          termo_ano: number | null
-          termo_snapshot: Json | null
-        }
-        Insert: {
-          id?: string
-          numero?: never
-          sala_id: string
-          user_id?: string
-          arquivo: string
-          created_at?: string
-          termo_ano?: number | null
-          termo_snapshot?: Json | null
-        }
-        Update: {
-          id?: string
-          numero?: never
-          sala_id?: string
-          user_id?: string
-          arquivo?: string
-          created_at?: string
-          termo_ano?: number | null
-          termo_snapshot?: Json | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "importacoes_sala_id_fkey"
+            foreignKeyName: "bens_sala_id_fkey"
             columns: ["sala_id"]
             isOneToOne: false
             referencedRelation: "salas"
@@ -189,27 +113,68 @@ export type Database = {
         }
         Relationships: []
       }
+      importacoes: {
+        Row: {
+          arquivo: string
+          created_at: string
+          id: string
+          numero: number
+          sala_id: string
+          termo_ano: number | null
+          termo_snapshot: Json | null
+          user_id: string
+        }
+        Insert: {
+          arquivo: string
+          created_at?: string
+          id?: string
+          numero?: never
+          sala_id: string
+          termo_ano?: number | null
+          termo_snapshot?: Json | null
+          user_id?: string
+        }
+        Update: {
+          arquivo?: string
+          created_at?: string
+          id?: string
+          numero?: never
+          sala_id?: string
+          termo_ano?: number | null
+          termo_snapshot?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "importacoes_sala_id_fkey"
+            columns: ["sala_id"]
+            isOneToOne: false
+            referencedRelation: "salas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          cpf: string | null
           created_at: string
           email: string | null
           id: string
           nome: string | null
-          cpf: string | null
         }
         Insert: {
+          cpf?: string | null
           created_at?: string
           email?: string | null
           id: string
           nome?: string | null
-          cpf?: string | null
         }
         Update: {
+          cpf?: string | null
           created_at?: string
           email?: string | null
           id?: string
           nome?: string | null
-          cpf?: string | null
         }
         Relationships: []
       }
@@ -253,6 +218,98 @@ export type Database = {
             columns: ["departamento_id"]
             isOneToOne: false
             referencedRelation: "departamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solicitacoes_bens: {
+        Row: {
+          ativa: boolean
+          bem_id: string | null
+          codigo_red: string
+          created_at: string
+          descricao: string
+          destino: string | null
+          id: string
+          local_origem: string
+          observacao: string
+          sala_id: string | null
+          tipo: string
+          updated_at: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          ativa?: boolean
+          bem_id?: string | null
+          codigo_red: string
+          created_at?: string
+          descricao: string
+          destino?: string | null
+          id?: string
+          local_origem: string
+          observacao?: string
+          sala_id?: string | null
+          tipo: string
+          updated_at?: string
+          user_id?: string
+          valor?: number
+        }
+        Update: {
+          ativa?: boolean
+          bem_id?: string | null
+          codigo_red?: string
+          created_at?: string
+          descricao?: string
+          destino?: string | null
+          id?: string
+          local_origem?: string
+          observacao?: string
+          sala_id?: string | null
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitacoes_bens_bem_id_fkey"
+            columns: ["bem_id"]
+            isOneToOne: true
+            referencedRelation: "bens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitacoes_bens_sala_id_fkey"
+            columns: ["sala_id"]
+            isOneToOne: false
+            referencedRelation: "salas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solicitacoes_bens_leituras: {
+        Row: {
+          admin_id: string
+          solicitacao_id: string
+          versao_lida: string
+        }
+        Insert: {
+          admin_id?: string
+          solicitacao_id: string
+          versao_lida: string
+        }
+        Update: {
+          admin_id?: string
+          solicitacao_id?: string
+          versao_lida?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitacoes_bens_leituras_solicitacao_id_fkey"
+            columns: ["solicitacao_id"]
+            isOneToOne: false
+            referencedRelation: "solicitacoes_bens"
             referencedColumns: ["id"]
           },
         ]
@@ -304,19 +361,11 @@ export type Database = {
     }
     Functions: {
       can_edit: { Args: { _user_id: string }; Returns: boolean }
-      excluir_sala_vazia: { Args: { _sala_id: string }; Returns: undefined }
-      importar_bens_pdf: {
-        Args: { _sala_id: string; _arquivo: string; _bens: Json }
-        Returns: Json
-      }
-      importar_bens_html: {
-        Args: { _sala_id: string; _arquivo: string; _bens: Json; _cabecalho: Json }
-        Returns: Json
-      }
       excluir_importacoes_sala: {
-        Args: { _sala_id: string; _modo: string; _importacao_id?: string }
+        Args: { _importacao_id?: string; _modo: string; _sala_id: string }
         Returns: undefined
       }
+      excluir_sala_vazia: { Args: { _sala_id: string }; Returns: undefined }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -324,6 +373,19 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      importar_bens_html: {
+        Args: {
+          _arquivo: string
+          _bens: Json
+          _cabecalho: Json
+          _sala_id: string
+        }
+        Returns: Json
+      }
+      importar_bens_pdf: {
+        Args: { _arquivo: string; _bens: Json; _sala_id: string }
+        Returns: Json
       }
       marcar_conferido: {
         Args: { _bem_id: string; _valor: boolean }
@@ -334,7 +396,7 @@ export type Database = {
         Returns: boolean
       }
       salvar_conferencia: {
-        Args: { _sala_id: string; _bens_ids: string[]; _localizados: string[] }
+        Args: { _bens_ids: string[]; _localizados: string[]; _sala_id: string }
         Returns: undefined
       }
       salvar_observacao: {
@@ -342,7 +404,12 @@ export type Database = {
         Returns: undefined
       }
       salvar_observacao_solicitacao: {
-        Args: { _bem_id: string; _obs: string; _tipo: string | null; _destino?: string | null }
+        Args: {
+          _bem_id: string
+          _destino?: string
+          _obs: string
+          _tipo: string
+        }
         Returns: undefined
       }
     }
