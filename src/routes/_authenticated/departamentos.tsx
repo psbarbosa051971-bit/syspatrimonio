@@ -787,7 +787,7 @@ function DepartamentosPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
+            <CardContent className="flex flex-col gap-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
               <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1.5fr)]">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabData">Data da última importação</Label>
