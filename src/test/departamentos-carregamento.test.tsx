@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   falharUnidade: false,
   falharSalas: false,
   falharDepartamentos: false,
+  bens: [] as Record<string, unknown>[],
   salas: [] as { id: string; departamento_id: string; nome: string; endereco: string | null; unidade: string | null }[],
 }));
 vi.mock("@tanstack/react-router", () => ({
@@ -53,12 +54,13 @@ beforeEach(() => {
   mocks.falharDepartamentos = false;
   mocks.falharUnidade = false;
   mocks.salas = [sala];
+  mocks.bens = [bem, outroBem];
   mocks.from.mockImplementation((tabela: string) => {
     const falha = (tabela === "salas" && mocks.falharSalas)
       || (tabela === "departamentos" && mocks.falharDepartamentos);
     const resultado = falha
       ? { data: null, error: { message: "Falha de conexão" } }
-      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : [bem, outroBem], error: null };
+      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : mocks.bens, error: null };
     const consulta: Record<string, unknown> = {};
     let alteracao: { unidade: string } | null = null;
     let salaId = "";
@@ -83,6 +85,38 @@ beforeEach(() => {
 });
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it.each(["admin", "operador"])(
+    "mostra os não localizados em vermelho e substitui o tipo apenas após salvar a conferência para %s",
+    async (role) => {
+      mocks.papel = { role, loading: false };
+      mocks.bens = [
+        { ...bem, tipo: "Aquisição", conferido: false, conferencia_finalizada: true },
+        { ...outroBem, tipo: "Aquisição", conferido: true, conferencia_finalizada: true },
+        { ...bem, id: "pendente", codigo_red: "789", descricao: "Armário a conferir", tipo: "Aquisição", conferido: false, conferencia_finalizada: false },
+      ];
+      render(<Page />);
+      const descricao = await screen.findByText("Mesa cadastrada");
+      const linhaNaoLocalizada = descricao.closest("tr")!;
+      expect(linhaNaoLocalizada).toHaveClass("text-destructive");
+      expect(within(linhaNaoLocalizada).getByText("123")).toHaveClass("text-destructive");
+      expect(within(linhaNaoLocalizada).getByText("Não localizado")).toBeInTheDocument();
+      expect(within(linhaNaoLocalizada).queryByText("Aquisição")).not.toBeInTheDocument();
+      for (const texto of ["Cadeira azul", "Armário a conferir"]) {
+        const linha = screen.getByText(texto).closest("tr")!;
+        expect(linha).not.toHaveClass("text-destructive");
+        expect(within(linha).getByText("Aquisição")).toBeInTheDocument();
+        expect(within(linha).queryByText("Não localizado")).not.toBeInTheDocument();
+      }
+      fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), {
+        target: { value: "nao localizado" },
+      });
+      expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+      expect(screen.queryByText("Cadeira azul")).not.toBeInTheDocument();
+      expect(screen.queryByText("Armário a conferir")).not.toBeInTheDocument();
+      expect(screen.getByText("Quantidade de bens: 1 de 3")).toBeInTheDocument();
+    },
+  );
+
   it.each(["123", "mesa", "01/2025", "mobiliario", "10,00", "conservacao"])(
     "pesquisa bens pelo termo %s sem exigir acentos ou maiúsculas",
     async (termo) => {

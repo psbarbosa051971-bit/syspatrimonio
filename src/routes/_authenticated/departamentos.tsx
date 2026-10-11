@@ -76,6 +76,9 @@ type Bem = Tables<"bens">;
 const formataMoeda = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const bemNaoLocalizado = (bem: Bem) => bem.conferencia_finalizada && !bem.conferido;
+const tipoExibido = (bem: Bem) => bemNaoLocalizado(bem) ? "Não localizado" : bem.tipo ?? "";
+
 async function carregarBensDaSala(salaId: string): Promise<Bem[]> {
   const todos: Bem[] = [];
   for (let inicio = 0; ; inicio += 500) {
@@ -138,7 +141,7 @@ function DepartamentosPage() {
     if (!termos.length) return bens;
     return bens.filter((bem) => {
       const campos = normalizar([
-        bem.codigo_red, limparDescricao(bem.descricao), bem.incorporacao, bem.tipo,
+        bem.codigo_red, limparDescricao(bem.descricao), bem.incorporacao, tipoExibido(bem),
         bem.valor, formataMoeda(Number(bem.valor)), Number(bem.valor).toFixed(2).replace(".", ","),
         bem.observacao,
       ].filter((campo) => campo != null).join(" "));
@@ -966,7 +969,7 @@ function DepartamentosPage() {
                     </TableRow>
                   )}
                   {bensFiltrados.map((b) => (
-                    <TableRow key={b.id}>
+                    <TableRow key={b.id} className={bemNaoLocalizado(b) ? "text-destructive" : undefined}>
                       <TableCell className="py-1">
                         <input
                           type="checkbox"
@@ -983,7 +986,7 @@ function DepartamentosPage() {
                       <TableCell className="py-1">
                         <button
                           type="button"
-                          className="font-mono text-sm font-medium text-primary underline"
+                          className={`font-mono text-sm font-medium underline ${bemNaoLocalizado(b) ? "text-destructive" : "text-primary"}`}
                           onClick={() => setTermoBem(b)}
                         >
                           {b.codigo_red}
@@ -991,7 +994,7 @@ function DepartamentosPage() {
                       </TableCell>
                       <TableCell className="py-1">{limparDescricao(b.descricao)}</TableCell>
                       <TableCell className="py-1 whitespace-nowrap">{b.incorporacao ?? ""}</TableCell>
-                      <TableCell className="py-1">{b.tipo ?? ""}</TableCell>
+                      <TableCell className="py-1">{tipoExibido(b)}</TableCell>
                       <TableCell className="py-1 text-right">
                         {formataMoeda(Number(b.valor))}
                       </TableCell>
