@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { SolicitacaoBem } from "@/integrations/supabase/types";
+import type { Tables } from "@/integrations/supabase/types";
+
+export type SolicitacaoBem = Tables<"solicitacoes_bens">;
 
 export type GrupoSolicitacoes = {
   chave: string;

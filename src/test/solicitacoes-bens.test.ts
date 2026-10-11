@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SolicitacaoBem } from "@/integrations/supabase/types";
-
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { agruparSolicitacoes, csvSolicitacoes, tituloSolicitacao } from "@/lib/solicitacoes-bens";
+import { agruparSolicitacoes, csvSolicitacoes, tituloSolicitacao, type SolicitacaoBem } from "@/lib/solicitacoes-bens";
 
 const registro = (alteracoes: Partial<SolicitacaoBem> = {}): SolicitacaoBem => ({
   id: "solicitacao-1",
@@ -32,11 +30,11 @@ describe("relatórios de transferências e inservíveis", () => {
       registro({ id: "4", sala_id: "sala-2", local_origem: "300 Outra escola" }),
     ]);
     expect(grupos).toHaveLength(3);
-    expect(grupos[0].itens.map((item) => item.destino)).toEqual([
+    expect(grupos[0]!.itens.map((item) => item.destino)).toEqual([
       "201 Escola de destino", "202 Outro destino",
     ]);
-    expect(grupos[1].tipo).toBe("inservivel");
-    expect(grupos[2].local).toBe("300 Outra escola");
+    expect(grupos[1]!.tipo).toBe("inservivel");
+    expect(grupos[2]!.local).toBe("300 Outra escola");
   });
 
   it("mantém separados os locais removidos usando os nomes registrados", () => {

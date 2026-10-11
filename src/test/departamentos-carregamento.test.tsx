@@ -47,7 +47,7 @@ beforeEach(() => {
       : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? [sala] : [bem], error: null };
     const consulta: Record<string, unknown> = {};
     for (const metodo of ["select", "order", "eq", "in", "range"]) consulta[metodo] = () => consulta;
-    consulta.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+    consulta["then"] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
       Promise.resolve(resultado).then(resolve, reject);
     return consulta;
   });

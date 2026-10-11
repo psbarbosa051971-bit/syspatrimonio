@@ -21,7 +21,7 @@ const PAPEIS: Record<Papel, string> = { admin: "Administrador", operador: "Opera
 
 export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
   usuarios: UsuarioGerenciavel[];
-  usuarioAtualId?: string;
+  usuarioAtualId?: string | undefined;
   onAtualizar: () => Promise<void>;
 }) {
   const editar = useServerFn(editarUsuario);
