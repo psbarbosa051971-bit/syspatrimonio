@@ -517,9 +517,9 @@ function DepartamentosPage() {
         local: salaAlvo.nome, endereco: salaAlvo.endereco ?? "",
       };
       setSalaSel(salaAlvo);
-      setUltimaImportacao(String(resultado.importacao_id ?? resultado.numero));
-      toast.success(`Termo de responsabilidade nº ${String(resultado.termo_numero)} criado. ` +
-        `${Number(resultado.novos)} bem(ns) adicionados; ${Number(resultado.repetidos)} já cadastrados. ` +
+      setUltimaImportacao(String(resultado["importacao_id"] ?? resultado["numero"]));
+      toast.success(`Termo de responsabilidade nº ${String(resultado["termo_numero"])} criado. ` +
+        `${Number(resultado["novos"])} bem(ns) adicionados; ${Number(resultado["repetidos"])} já cadastrados. ` +
         `Use “Imprimir termo de Responsabilidade” para imprimir os ${extraidos.length} bens do HTML.`);
     } catch (erro) {
       toast.error(erro instanceof Error ? erro.message : "Não foi possível concluir a importação do HTML");

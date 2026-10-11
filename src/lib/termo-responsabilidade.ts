@@ -16,16 +16,16 @@ export type TermoResponsabilidade = Pick<Tables<"importacoes">,
 const objeto = (v: Json | undefined): v is Record<string, Json | undefined> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 export function lerDadosTermo(valor: Json | null): DadosTermo {
-  if (!objeto(valor) || !Array.isArray(valor.bens) || valor.bens.length === 0) {
+  if (!objeto(valor) || !Array.isArray(valor["bens"]) || valor["bens"].length === 0) {
     throw new Error("Os dados deste termo não estão disponíveis.");
   }
   const texto = (campo: string) => typeof valor[campo] === "string" ? valor[campo] as string : "";
-  const bens = valor.bens.map((b) => {
-    if (!objeto(b) || typeof b.codigo_red !== "string" || typeof b.descricao !== "string" ||
-      typeof b.valor !== "number" || !Number.isFinite(b.valor)) throw new Error("Termo com dados de bens inválidos.");
-    return { codigo_red: b.codigo_red, descricao: b.descricao, valor: b.valor,
-      incorporacao: typeof b.incorporacao === "string" ? b.incorporacao : null,
-      tipo: typeof b.tipo === "string" ? b.tipo : null };
+  const bens = valor["bens"].map((b) => {
+    if (!objeto(b) || typeof b["codigo_red"] !== "string" || typeof b["descricao"] !== "string" ||
+      typeof b["valor"] !== "number" || !Number.isFinite(b["valor"])) throw new Error("Termo com dados de bens inválidos.");
+    return { codigo_red: b["codigo_red"], descricao: b["descricao"], valor: b["valor"],
+      incorporacao: typeof b["incorporacao"] === "string" ? b["incorporacao"] : null,
+      tipo: typeof b["tipo"] === "string" ? b["tipo"] : null };
   });
   return { local: texto("local"), endereco: texto("endereco"), historico: texto("historico"),
     data_origem: texto("data_origem"), departamento: texto("departamento"), diretor: texto("diretor"),
