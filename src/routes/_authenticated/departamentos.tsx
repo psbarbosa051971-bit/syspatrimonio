@@ -103,6 +103,15 @@ function DepartamentosPage() {
   const [departamentoSel, setDepartamentoSel] = useState<Departamento | null>(null);
   const [salas, setSalas] = useState<Sala[]>([]);
   const [salaSel, setSalaSel] = useState<Sala | null>(null);
+  const [carregandoDepartamentos, setCarregandoDepartamentos] = useState(true);
+  const [carregandoSalas, setCarregandoSalas] = useState(false);
+  const [erroDepartamentos, setErroDepartamentos] = useState<string | null>(null);
+  const [erroSalas, setErroSalas] = useState<string | null>(null);
+  const [tentativaCarga, setTentativaCarga] = useState(0);
+  const [tentativaSalas, setTentativaSalas] = useState(0);
+  const [tentativaBens, setTentativaBens] = useState(0);
+  const [carregandoBens, setCarregandoBens] = useState(false);
+  const [erroBens, setErroBens] = useState<string | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   useEffect(() => setSelecionados([]), [bens.length === 0]);
@@ -155,42 +164,73 @@ function DepartamentosPage() {
   const cabecalhoPendente = useRef<{ historico: string; data: string; local: string; endereco: string } | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("departamentos")
-      .select("*")
-      .order("created_at")
-      .then(({ data, error }) => {
-        if (error) toast.error("Erro ao carregar departamentos");
+    if (!user?.id || carregandoPapel || (role !== "admin" && role !== "operador")) return;
+    let ativo = true;
+    setCarregandoDepartamentos(true);
+    setErroDepartamentos(null);
+    async function carregarDepartamentos() {
+      try {
+        const { data, error } = await supabase.from("departamentos").select("*").order("created_at");
+        if (error) throw error;
+        if (!ativo) return;
         setDepartamentos(data ?? []);
-        if (data && data.length > 0) selecionarDepartamento(data[0]!);
-      });
-  }, [user]);
+        if (data?.length) selecionarDepartamento(data[0]!);
+      } catch {
+        if (ativo) setErroDepartamentos("Não foi possível carregar os departamentos. Isso não significa que os registros foram apagados. Tente novamente.");
+      } finally {
+        if (ativo) setCarregandoDepartamentos(false);
+      }
+    }
+    void carregarDepartamentos();
+    return () => { ativo = false; };
+  }, [user?.id, carregandoPapel, role, tentativaCarga]);
 
   useEffect(() => {
     if (!departamentoSel) {
       setSalas([]);
+      setSalaSel(null);
+      setErroSalas(null);
+      setCarregandoSalas(false);
       return;
     }
-    supabase
-      .from("salas")
-      .select("*")
-      .eq("departamento_id", departamentoSel.id)
-      .order("nome")
-      .then(({ data }) => setSalas(data ?? []));
-  }, [departamentoSel]);
+    const departamentoId = departamentoSel.id;
+    let ativo = true;
+    setCarregandoSalas(true);
+    setErroSalas(null);
+    async function carregarSalas() {
+      try {
+        const { data, error } = await supabase.from("salas").select("*")
+          .eq("departamento_id", departamentoId).order("nome");
+        if (error) throw error;
+        if (!ativo) return;
+        const locais = data ?? [];
+        setSalas(locais);
+        setSalaSel((atual) => locais.find((local) => local.id === atual?.id) ?? locais[0] ?? null);
+      } catch {
+        if (ativo) setErroSalas("Não foi possível carregar as salas. Tente novamente para consultar os registros salvos.");
+      } finally {
+        if (ativo) setCarregandoSalas(false);
+      }
+    }
+    void carregarSalas();
+    return () => { ativo = false; };
+  }, [departamentoSel?.id, tentativaSalas]);
 
   useEffect(() => {
+    setBens([]);
+    setErroBens(null);
     if (!salaSel) {
-      setBens([]);
+      setCarregandoBens(false);
       return;
     }
     let ativo = true;
+    setCarregandoBens(true);
     carregarBensDaSala(salaSel.id)
       .then((data) => { if (ativo) setBens(data); })
-      .catch(() => { if (ativo) toast.error("Não foi possível carregar todos os bens do local"); });
+      .catch(() => { if (ativo) setErroBens("Não foi possível carregar os bens deste local. Tente novamente; os registros não foram excluídos."); })
+      .finally(() => { if (ativo) setCarregandoBens(false); });
     return () => { ativo = false; };
-  }, [salaSel]);
+  }, [salaSel, tentativaBens]);
 
   useEffect(() => {
     if (cabecalhoPendente.current) {
@@ -557,16 +597,32 @@ function DepartamentosPage() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={novoDepartamento}>
+                  <Button variant="outline" size="sm" onClick={novoDepartamento}
+                    disabled={carregandoDepartamentos || !!erroDepartamentos}>
                     <Plus className="mr-1 h-4 w-4" /> Novo
                   </Button>
-                  <Button type="submit" form="cadastro-departamento" size="sm">
+                  <Button type="submit" form="cadastro-departamento" size="sm"
+                    disabled={carregandoDepartamentos || !!erroDepartamentos}>
                     {departamentoSel ? "Salvar alterações" : "Cadastrar departamento"}
                   </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
+              {carregandoDepartamentos && (
+                <p role="status" className="mb-3 text-sm text-muted-foreground">Carregando departamentos salvos...</p>
+              )}
+              {erroDepartamentos && (
+                <div role="alert" className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-destructive p-3 text-sm">
+                  <p className="flex-1">{erroDepartamentos}</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setTentativaCarga((n) => n + 1)}>
+                    Tentar novamente
+                  </Button>
+                </div>
+              )}
+              {!carregandoDepartamentos && !erroDepartamentos && departamentos.length === 0 && (
+                <p role="status" className="mb-3 text-sm text-muted-foreground">Nenhum departamento disponível para esta conta. Se você já tinha registros, confirme se entrou com a mesma conta e se ela tem acesso de administrador ou operador.</p>
+              )}
               {(departamentos.length > 1 || (!departamentoSel && departamentos.length > 0)) && (
                 <div className="mb-3 flex flex-col gap-1.5">
                   <Label htmlFor="departamento-cadastrado">Departamento cadastrado</Label>
@@ -639,7 +695,7 @@ function DepartamentosPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="destructive" size="sm"
-                    disabled={!salaSel || bens.length > 0 || importando || excluindoSala}
+                    disabled={!salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
                     onClick={excluirSalaVazia}>
                     <Trash2 className="mr-1 h-4 w-4" />
                     {excluindoSala ? "Excluindo..." : "Excluir sala vazia"}
@@ -758,9 +814,18 @@ function DepartamentosPage() {
                         colSpan={7}
                         className="text-center text-sm text-muted-foreground"
                       >
-                        {salaSel
-                          ? "Nenhum bem cadastrado nesta sala."
-                          : "Selecione uma sala na caixa de listagem ao lado."}
+                        {carregandoDepartamentos || carregandoSalas || carregandoBens
+                          ? "Carregando registros salvos..."
+                          : erroBens ? (
+                            <div role="alert" className="flex flex-col items-center gap-2 py-2">
+                              <p>{erroBens}</p>
+                              <Button type="button" variant="outline" size="sm" onClick={() => setTentativaBens((n) => n + 1)}>
+                                Tentar novamente
+                              </Button>
+                            </div>
+                          ) : salaSel
+                            ? "Nenhum bem cadastrado nesta sala."
+                            : "Selecione uma sala na caixa de listagem ao lado."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -841,7 +906,18 @@ function DepartamentosPage() {
                 aria-label="Salas"
                 className="flex max-h-[480px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1"
               >
-                {salasFiltradas.length === 0 && (
+                {(carregandoDepartamentos || carregandoSalas) && (
+                  <p role="status" className="p-3 text-center text-sm text-muted-foreground">Carregando salas salvas...</p>
+                )}
+                {erroSalas && (
+                  <div role="alert" className="p-3 text-sm">
+                    <p>{erroSalas}</p>
+                    <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setTentativaSalas((n) => n + 1)}>
+                      Tentar novamente
+                    </Button>
+                  </div>
+                )}
+                {!carregandoDepartamentos && !carregandoSalas && !erroDepartamentos && !erroSalas && salasFiltradas.length === 0 && (
                   <p className="p-3 text-center text-sm text-muted-foreground">
                     {departamentoSel
                       ? "Nenhuma sala encontrada."
