@@ -96,6 +96,37 @@ describe("formulário de transferência", () => {
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
+  it("abre os bens do alerta sem busca e transfere somente os marcados", async () => {
+    const onSaved = vi.fn();
+    const grupo = { chave: "origem", local: "Sala origem", tipo: "transferencia" as const,
+      itens: [primeiro, segundo].map((bem, indice) => ({
+        id: `solicitacao-${indice}`, bem_id: bem.id, sala_id: bem.sala_id,
+        codigo_red: bem.codigo_red, descricao: bem.descricao, valor: bem.valor,
+        tipo: indice ? "inservivel" : "transferencia", destino: null,
+        observacao: "", local_origem: "Sala origem", user_id: "usuario",
+        ativa: true, created_at: "2026-10-10T12:00:00Z", updated_at: "2026-10-10T12:00:00Z",
+      })),
+    };
+    render(<TransferenciaBensDialog grupo={grupo} onClose={vi.fn()} onSaved={onSaved} />);
+    expect(screen.getByText("Transferir bens — Sala origem")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Códigos RED separados por vírgulas")).not.toBeInTheDocument();
+    expect(screen.getByText("Mesa")).toBeInTheDocument();
+    expect(screen.getByText("Cadeira")).toBeInTheDocument();
+    const campo = await screen.findByRole("combobox");
+    fireEvent.focus(campo);
+    expect(screen.queryByRole("option", { name: /Sala origem/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: /Sala destino/ }));
+    await screen.findByDisplayValue("Maria Silva");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Selecionar RED 123/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
+    await screen.findByTitle("Termo de responsabilidade 12/2026");
+    expect(mocks.buscar).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
+      _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
+    });
+    expect(onSaved).toHaveBeenCalledWith("destino", "termo-1", ["bem-1"]);
+  });
+
   it("limpa as listas ao trocar a sala de destino", async () => {
     render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={vi.fn()} />);
     await aceitarTodos();

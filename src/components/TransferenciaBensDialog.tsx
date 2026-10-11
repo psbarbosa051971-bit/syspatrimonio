@@ -13,9 +13,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type Props = { onClose: () => void; onSaved: (salaId: string, termoId: string) => void };
+import type { GrupoSolicitacoes } from "@/lib/solicitacoes-bens";
 
-export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
+function bensDoAlerta(grupo?: GrupoSolicitacoes): BemTransferencia[] {
+  return (grupo?.itens ?? []).filter((item) => item.bem_id && item.sala_id).map((item) => ({
+    id: item.bem_id!, sala_id: item.sala_id, codigo_red: item.codigo_red,
+    descricao: item.descricao, valor: item.valor, user_id: item.user_id,
+    created_at: item.created_at, observacao: item.observacao, conferido: false,
+    conferencia_finalizada: false, incorporacao: null, tipo: null, importacao_id: null,
+  }));
+}
+
+type Props = { onClose: () => void; onSaved: (salaId: string, termoId: string, bemIds?: string[]) => void; grupo?: GrupoSolicitacoes };
+
+export function TransferenciaBensDialog({ onClose, onSaved, grupo }: Props) {
   const consultarResponsavel = useServerFn(responsavelDoLocal);
   const [salas, setSalas] = useState<SalaTransferencia[]>([]);
   const [carregandoSalas, setCarregandoSalas] = useState(true);
@@ -28,7 +39,7 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
   const [busca, setBusca] = useState("");
   const [encontrados, setEncontrados] = useState<BemTransferencia[]>([]);
   const [marcadosBusca, setMarcadosBusca] = useState<string[]>([]);
-  const [aceitos, setAceitos] = useState<BemTransferencia[]>([]);
+  const [aceitos, setAceitos] = useState<BemTransferencia[]>(() => bensDoAlerta(grupo));
   const [marcadosSalvar, setMarcadosSalvar] = useState<string[]>([]);
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
@@ -67,7 +78,7 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
   function escolherDestino(ids: string[]) {
     if (bloqueado) return;
     setDestino(ids[0] ?? ""); setEncontrados([]); setMarcadosBusca([]);
-    setAceitos([]); setMarcadosSalvar([]); setAviso(""); setErro(""); setPerfil(null);
+    setAceitos(bensDoAlerta(grupo)); setMarcadosSalvar([]); setAviso(""); setErro(""); setPerfil(null);
   }
 
   async function filtrar(e: React.FormEvent) {
@@ -105,6 +116,7 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
     if (!pedido.current) {
       const itens = aceitos.filter((b) => marcadosSalvar.includes(b.id));
       if (!destino || !itens.length || carregandoPerfil || erroPerfil) return;
+      if (itens.length > 500) { setErro("Selecione no máximo 500 bens por transferência. Os demais continuarão pendentes no alerta."); return; }
       pedido.current = { id: crypto.randomUUID(), destino, itens: itens.map((b) => ({ id: b.id, sala_id: b.sala_id })) };
     }
     const atual = pedido.current;
@@ -123,7 +135,9 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
       }
       const gerado = lerTermoTransferencia(data);
       setTermo(gerado); setPendente(false); setPronto(false);
-      onSaved(atual.destino, gerado.id);
+      if (grupo) onSaved(atual.destino, gerado.id, atual.itens.map((item) => item.id));
+      else onSaved(atual.destino, gerado.id);
+      window.dispatchEvent(new Event("bens-transferidos"));
       toast.success("Transferência realizada. Confira o termo de responsabilidade.");
     } catch {
       setPendente(true);
@@ -139,8 +153,8 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando && !filtrando && !pendente) onClose(); }}>
     <DialogContent onInteractOutside={(e) => e.preventDefault()} className="flex max-h-[94vh] w-[96vw] max-w-6xl flex-col overflow-y-auto [&_input:not([type=checkbox])]:text-base [&_label]:text-base">
       <DialogHeader>
-        <DialogTitle>{termo ? `Transferência realizada — Termo ${numeroDoTermo(termo)}` : "Gerar transferência"}</DialogTitle>
-        <DialogDescription>{termo ? "Os bens foram movidos para a sala de destino. O termo contém somente os bens salvos nesta transferência." : "Escolha o destino, filtre os códigos RED e aceite os bens. A movimentação só será realizada após a segunda seleção e o salvamento."}</DialogDescription>
+        <DialogTitle>{termo ? `Transferência realizada — Termo ${numeroDoTermo(termo)}` : grupo ? `Transferir bens — ${grupo.local}` : "Gerar transferência"}</DialogTitle>
+        <DialogDescription>{termo ? "Os bens foram movidos para a sala de destino. O termo contém somente os bens salvos nesta transferência." : grupo ? "Escolha o local de destino no cabeçalho, marque alguns ou todos os bens e clique em Salvar transferência. Os bens não selecionados permanecem pendentes no alerta." : "Escolha o destino, filtre os códigos RED e aceite os bens. A movimentação só será realizada após a segunda seleção e o salvamento."}</DialogDescription>
       </DialogHeader>
       {termo ? <>
         <div className="flex flex-wrap justify-end gap-2">
@@ -153,9 +167,9 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
         <section className="space-y-3 rounded-md border-2 border-primary/30 bg-accent p-4" aria-label="Destino da transferência">
           <div className="space-y-1.5"><Label htmlFor="transferencia-destino">Local / sala de destino</Label>
             {carregandoSalas ? <p role="status">Carregando salas...</p> : erroSalas ? <div role="alert"><p className="text-destructive">{erroSalas}</p><Button variant="outline" onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button></div> : <SeletorLocalFisico
-              id="transferencia-destino" salas={salas} valor={destino ? [destino] : []} onChange={escolherDestino} disabled={bloqueado} />}
+              id="transferencia-destino" salas={grupo ? salas.filter((s) => !grupo.itens.some((item) => item.sala_id === s.id)) : salas} valor={destino ? [destino] : []} onChange={escolherDestino} disabled={bloqueado} />}
           </div>
-          <p className="text-sm text-muted-foreground">Ao trocar o destino, as duas listas são limpas para evitar uma transferência para a sala errada.</p>
+          <p className="text-sm text-muted-foreground">{grupo ? "Ao trocar o destino, confira e selecione novamente os bens. Limite de 500 bens por transferência." : "Ao trocar o destino, as duas listas são limpas para evitar uma transferência para a sala errada."}</p>
           <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
             <div className="space-y-1.5"><Label htmlFor="transferencia-responsavel">Nome do responsável</Label>
               <Input id="transferencia-responsavel" readOnly value={perfil?.nome ?? sala?.responsavel ?? ""} placeholder={carregandoPerfil ? "Consultando responsável..." : "Responsável não cadastrado"} /></div>
@@ -165,7 +179,7 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
           {erroPerfil && <div role="alert" className="flex flex-wrap items-center gap-2"><p className="text-destructive">{erroPerfil}</p><Button variant="outline" disabled={bloqueado} onClick={() => setTentativa((n) => n + 1)}>Consultar novamente</Button></div>}
           {destino && !carregandoPerfil && !erroPerfil && (!perfil?.nome || !perfil?.cpf) && <p className="text-sm text-muted-foreground">Nome e CPF são obtidos do usuário vinculado ao local em Cadastrar usuário. Dados ausentes ficarão em branco no termo.</p>}
         </section>
-        <form onSubmit={filtrar} className="flex flex-wrap items-end gap-2">
+        {!grupo && <><form onSubmit={filtrar} className="flex flex-wrap items-end gap-2">
           <div className="min-w-0 flex-1 basis-72 space-y-1.5"><Label htmlFor="transferencia-codigos">Códigos RED separados por vírgulas</Label>
             <Input id="transferencia-codigos" value={busca} disabled={bloqueado || !destino} placeholder="Ex.: 12345, 67890, 13579"
               onChange={(e) => { setBusca(e.target.value); setEncontrados([]); setMarcadosBusca([]); setAviso(""); setErro(""); }} /></div>
@@ -174,13 +188,14 @@ export function TransferenciaBensDialog({ onClose, onSaved }: Props) {
         <p className="text-sm text-muted-foreground">Busca exata em todas as salas acessíveis. Confira o local de origem se um código aparecer mais de uma vez. Limite de 500 bens por transferência.</p>
         {aviso && <p role="status" className="rounded-md bg-muted p-3 text-sm">{aviso}</p>}
         <TabelaBensTransferencia titulo="Bens encontrados" bens={encontrados} salas={salas} selecionados={marcadosBusca} onChange={setMarcadosBusca} disabled={bloqueado} />
-        <div className="flex justify-end"><Button variant="outline" onClick={aceitar} disabled={bloqueado || !marcadosBusca.length}>Aceitar selecionados</Button></div>
+        <div className="flex justify-end"><Button variant="outline" onClick={aceitar} disabled={bloqueado || !marcadosBusca.length}>Aceitar selecionados</Button></div></>}
+        {grupo && <p className="text-sm text-muted-foreground">Origem: {grupo.local} · {grupo.itens.some((item) => item.tipo === "inservivel") ? "Inclui bens inservíveis. Esta ação transfere os bens; não realiza baixa patrimonial." : "Bens informados para transferência na conferência."}{grupo.itens.some((item) => !item.bem_id || !item.sala_id) ? " Há registros sem vínculo com um bem ou sala: eles não podem ser transferidos por este formulário." : ""}</p>}
         <div className="space-y-3 rounded-md border-2 border-primary/30 p-3">
           <p className="font-semibold">Destino: {sala?.nome ?? "Selecione uma sala acima"}</p>
-          <TabelaBensTransferencia titulo="Bens aceitos para transferência" bens={aceitos} salas={salas} selecionados={marcadosSalvar} onChange={setMarcadosSalvar} disabled={bloqueado} />
+          <TabelaBensTransferencia titulo={grupo ? "Bens pendentes do local" : "Bens aceitos para transferência"} bens={aceitos} salas={salas} selecionados={marcadosSalvar} onChange={setMarcadosSalvar} disabled={bloqueado} />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">Marque novamente os bens que deseja salvar. Os não marcados não serão transferidos.</p>
-            <Button variant="outline" disabled={bloqueado || !marcadosSalvar.length} onClick={() => { setAceitos((lista) => lista.filter((b) => !marcadosSalvar.includes(b.id))); setMarcadosSalvar([]); }}>Retirar marcados da lista</Button>
+            <p className="text-sm text-muted-foreground">{grupo ? "Selecione alguns ou todos os bens usando as caixas à esquerda. Os não marcados continuam no alerta." : "Marque novamente os bens que deseja salvar. Os não marcados não serão transferidos."}</p>
+            {!grupo && <Button variant="outline" disabled={bloqueado || !marcadosSalvar.length} onClick={() => { setAceitos((lista) => lista.filter((b) => !marcadosSalvar.includes(b.id))); setMarcadosSalvar([]); }}>Retirar marcados da lista</Button>}
           </div>
         </div>
         {erro && <p role="alert" className="rounded-md border border-destructive p-3 text-destructive">{erro}</p>}

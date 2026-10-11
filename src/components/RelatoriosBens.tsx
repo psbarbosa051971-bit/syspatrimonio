@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, FileText } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { agruparSolicitacoes, carregarSolicitacoes, tituloSolicitacao, type GrupoSolicitacoes, type SolicitacaoBem } from "@/lib/solicitacoes-bens";
 import { Button } from "@/components/ui/button";
 import { RelatorioBensDialog } from "@/components/RelatorioBensDialog";
+import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 
 export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 }: {
   salaId?: string;
@@ -12,7 +11,6 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
   atualizacao?: number;
 }) {
   const [itens, setItens] = useState<SolicitacaoBem[]>([]);
-  const [leituras, setLeituras] = useState<Record<string, string>>({});
   const [aberto, setAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<GrupoSolicitacoes | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -23,7 +21,6 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
     let cancelado = false;
     let emCurso = false;
     setItens([]);
-    setLeituras({});
     setSelecionado(null);
     setCarregando(true);
     async function carregar() {
@@ -31,19 +28,8 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
       emCurso = true;
       try {
         const dados = await carregarSolicitacoes(salaId);
-        const mapa: Record<string, string> = {};
-        if (administrador) {
-          for (let inicio = 0; ; inicio += 1000) {
-            const { data, error } = await supabase.from("solicitacoes_bens_leituras")
-              .select("solicitacao_id,versao_lida").order("solicitacao_id").range(inicio, inicio + 999);
-            if (error) throw error;
-            for (const leitura of data ?? []) mapa[leitura.solicitacao_id] = leitura.versao_lida;
-            if (!data || data.length < 1000) break;
-          }
-        }
         if (!cancelado) {
           setItens(dados);
-          setLeituras(mapa);
           setErro(false);
         }
       } catch {
@@ -66,57 +52,62 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
     };
   }, [salaId, administrador, atualizacao, tentativa]);
 
-  const grupos = useMemo(() => agruparSolicitacoes(itens), [itens]);
-  const naoLido = (item: SolicitacaoBem) => !leituras[item.id] || leituras[item.id] !== item.updated_at;
-  const pendentes = administrador ? itens.filter(naoLido).length : 0;
-
-  async function abrirRelatorio(grupo: GrupoSolicitacoes) {
-    setSelecionado(grupo);
-    if (!administrador) return;
-    const versoes = grupo.itens.filter(naoLido).map((item) => ({
-      solicitacao_id: item.id, versao_lida: item.updated_at,
-    }));
-    if (!versoes.length) return;
-    try {
-      const { error } = await supabase.from("solicitacoes_bens_leituras")
-        .upsert(versoes, { onConflict: "solicitacao_id,admin_id" });
-      if (error) throw error;
-      setLeituras((atuais) => ({ ...atuais, ...Object.fromEntries(versoes.map((v) => [v.solicitacao_id, v.versao_lida])) }));
-    } catch {
-      toast.error("O relatório foi aberto, mas não foi possível marcar o alerta como lido.");
+  const grupos = useMemo(() => {
+    if (!administrador) return agruparSolicitacoes(itens);
+    const locais = new Map<string, GrupoSolicitacoes>();
+    for (const item of itens) {
+      const chave = item.sala_id ?? item.local_origem;
+      const grupo = locais.get(chave) ?? { chave, local: item.local_origem, tipo: item.tipo, itens: [] };
+      grupo.itens.push(item);
+      locais.set(chave, grupo);
     }
-  }
+    return [...locais.values()].sort((a, b) => a.local.localeCompare(b.local, "pt-BR", { numeric: true }));
+  }, [itens, administrador]);
 
   return (
-    <section aria-label={administrador ? "Alertas dos administradores" : "Relatórios deste local"}
+    <section aria-label={administrador ? "Alerta de bens para transferências" : "Relatórios deste local"}
       className="rounded-lg border border-primary/30 bg-card p-3 text-card-foreground">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-2 font-semibold" aria-live="polite">
+        <h2 className="flex items-center gap-2 font-semibold">
           {administrador ? <Bell className="h-5 w-5 text-primary" /> : <FileText className="h-5 w-5 text-primary" />}
-          {administrador ? `Alertas de bens: ${pendentes} novo(s)` : "Transferências e inservíveis"}
-        </p>
-        <Button variant="outline" size="sm" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}>
+          {administrador ? "ALERTA DE BENS PARA TRANSFERÊNCIAS" : "Transferências e inservíveis"}
+        </h2>
+        {!administrador && <Button variant="outline" size="sm" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}>
           {aberto ? "Recolher relatórios" : "Ver relatórios"}
-        </Button>
+        </Button>}
       </div>
-      {administrador && <p className="mt-2 text-xs text-muted-foreground">Alertas atualizados automaticamente a cada 15 segundos enquanto o sistema estiver aberto. Clique na mensagem para consultar o relatório.</p>}
+      {administrador && <>
+        <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}
+          className="mt-2 w-full rounded-md bg-muted p-3 text-left font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-live="polite">
+          {carregando ? "Carregando alertas..." : `Existe(em) ${String(grupos.length).padStart(2, "0")} Salas com bens inservíveis ou para transferência de localidades.`}
+        </button>
+        <p className="mt-2 text-xs text-muted-foreground">Clique na mensagem para ver os locais. Abrir o formulário não remove o alerta: ele desaparece quando todos os bens pendentes do local forem transferidos. Atualização automática a cada 15 segundos.</p>
+      </>}
       {erro && <p role="alert" className="mt-2 text-sm text-destructive">
         Não foi possível atualizar os relatórios. <button type="button" className="underline"
           onClick={() => setTentativa((v) => v + 1)}>Tentar novamente</button>
       </p>}
-      {(aberto || pendentes > 0) && <div className="mt-3 max-h-60 space-y-2 overflow-y-auto">
+      {aberto && <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
         {carregando && <p className="text-sm text-muted-foreground">Carregando relatórios...</p>}
         {!carregando && !erro && !grupos.length && <p className="text-sm text-muted-foreground">Nenhum bem registrado para transferência ou como inservível.</p>}
-        {grupos.filter((grupo) => aberto || grupo.itens.some(naoLido)).map((grupo) => {
-          const novos = administrador ? grupo.itens.filter(naoLido).length : 0;
-          return <button type="button" key={grupo.chave} onClick={() => void abrirRelatorio(grupo)}
-            className="block w-full rounded-md border border-border bg-muted/40 p-3 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="block font-bold text-primary">{tituloSolicitacao(grupo.tipo)}: {grupo.local}</span>
-            <span className="mt-1 block text-muted-foreground">{grupo.itens.length} bem(ns){novos > 0 ? ` • ${novos} novo(s)` : ""} • Clique para abrir o relatório</span>
-          </button>;
-        })}
+        {grupos.map((grupo) => <div key={grupo.chave} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-primary">{administrador ? grupo.local : `${tituloSolicitacao(grupo.tipo)}: ${grupo.local}`}</p>
+            <p className="mt-1 text-muted-foreground">{grupo.itens.length} bem(ns) pendente(s)</p>
+          </div>
+          {administrador && <div className="flex flex-wrap gap-2 font-medium">
+            {grupo.itens.some((item) => item.tipo === "inservivel") && <span>(Inservíveis)</span>}
+            {grupo.itens.some((item) => item.tipo === "transferencia") && <span>(Transferência)</span>}
+          </div>}
+          <Button variant="outline" size="sm" onClick={() => setSelecionado(grupo)} aria-label={`${administrador ? "Abrir formulário" : "Abrir relatório"} — ${grupo.local}`}>
+            {administrador ? "Abrir formulário" : "Abrir relatório"}
+          </Button>
+        </div>)}
       </div>}
-      {selecionado && <RelatorioBensDialog grupo={selecionado} onClose={() => setSelecionado(null)} />}
+      {selecionado && (administrador ? <TransferenciaBensDialog grupo={selecionado} onClose={() => setSelecionado(null)}
+        onSaved={(_sala, _termo, ids) => {
+          setItens((atuais) => atuais.filter((item) => !item.bem_id || !ids?.includes(item.bem_id)));
+        }} /> : <RelatorioBensDialog grupo={selecionado} onClose={() => setSelecionado(null)} />)}
     </section>
   );
 }

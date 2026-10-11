@@ -112,6 +112,11 @@ function DepartamentosPage() {
   const [tentativaCarga, setTentativaCarga] = useState(0);
   const [tentativaSalas, setTentativaSalas] = useState(0);
   const [tentativaBens, setTentativaBens] = useState(0);
+  useEffect(() => {
+    const atualizarBens = () => setTentativaBens((valor) => valor + 1);
+    window.addEventListener("bens-transferidos", atualizarBens);
+    return () => window.removeEventListener("bens-transferidos", atualizarBens);
+  }, []);
   const [carregandoBens, setCarregandoBens] = useState(false);
   const [erroBens, setErroBens] = useState<string | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
