@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SolicitacaoBem } from "@/integrations/supabase/types";
-
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { agruparSolicitacoes, csvSolicitacoes, tituloSolicitacao } from "@/lib/solicitacoes-bens";
+import { agruparSolicitacoes, csvSolicitacoes, tituloSolicitacao, type SolicitacaoBem } from "@/lib/solicitacoes-bens";
 
 const registro = (alteracoes: Partial<SolicitacaoBem> = {}): SolicitacaoBem => ({
   id: "solicitacao-1",
