@@ -117,7 +117,7 @@ function DepartamentosPage() {
   useEffect(() => setSelecionados([]), [bens.length === 0]);
   const [busca, setBusca] = useState("");
   const [cadastroAberto, setCadastroAberto] = useState(false);
-  const [unidadeFiltro, setUnidadeFiltro] = useState("");
+  const [salvandoUnidade, setSalvandoUnidade] = useState(false);
   const [buscaBens, setBuscaBens] = useState("");
   useEffect(() => {
     setBuscaBens("");
@@ -356,19 +356,29 @@ function DepartamentosPage() {
   const salasFiltradas = useMemo(() => {
     const t = busca.trim().toLowerCase();
     return salas.filter(
-      (s) =>
-        (!unidadeFiltro || s.unidade === unidadeFiltro) &&
-        (!t || s.nome.toLowerCase().includes(t) ||
-          (s.endereco ?? "").toLowerCase().includes(t)),
+      (s) => !t || s.nome.toLowerCase().includes(t) ||
+        (s.endereco ?? "").toLowerCase().includes(t),
     );
-  }, [salas, busca, unidadeFiltro]);
+  }, [salas, busca]);
 
-  useEffect(() => {
-    setSalaSel((atual) => {
-      const locais = unidadeFiltro ? salas.filter((s) => s.unidade === unidadeFiltro) : salas;
-      return locais.find((s) => s.id === atual?.id) ?? locais[0] ?? null;
-    });
-  }, [salas, unidadeFiltro]);
+  async function salvarUnidade(unidade: string) {
+    if (!salaSel || salvandoUnidade || !["CENTRAL", "SAÚDE", "EDUCAÇÃO"].includes(unidade)) return;
+    const alvo = salaSel;
+    if (unidade === alvo.unidade) return;
+    setSalvandoUnidade(true);
+    try {
+      const { data, error } = await supabase.from("salas")
+        .update({ unidade }).eq("id", alvo.id).select().single();
+      if (error) throw error;
+      setSalas((prev) => prev.map((s) => s.id === alvo.id ? { ...s, unidade: data.unidade } : s));
+      setSalaSel((atual) => atual?.id === alvo.id ? { ...atual, unidade: data.unidade } : atual);
+      toast.success("Unidade do local salva");
+    } catch {
+      toast.error("Não foi possível salvar a unidade do local. Tente novamente.");
+    } finally {
+      setSalvandoUnidade(false);
+    }
+  }
 
   async function salvarDepartamento(e: React.FormEvent) {
     e.preventDefault();
@@ -624,13 +634,13 @@ function DepartamentosPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1600px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_480px] xl:grid-cols-[minmax(0,1fr)_560px]">
-        <div className="flex min-w-0 flex-col gap-6">
+      <main className="mx-auto grid max-w-[1800px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="flex min-w-0 flex-col gap-6 lg:contents">
           {carregandoDepartamentos && (
-            <p role="status" className="text-sm text-muted-foreground">Carregando departamentos salvos...</p>
+            <p role="status" className="text-sm text-muted-foreground lg:col-span-2">Carregando departamentos salvos...</p>
           )}
           {erroDepartamentos && (
-            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-md border border-destructive p-3 text-sm">
+            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-md border border-destructive p-3 text-sm lg:col-span-2">
               <p className="flex-1">{erroDepartamentos}</p>
               <Button type="button" variant="outline" size="sm" onClick={() => setTentativaCarga((n) => n + 1)}>
                 Tentar novamente
@@ -638,11 +648,11 @@ function DepartamentosPage() {
             </div>
           )}
           {!carregandoDepartamentos && !erroDepartamentos && departamentos.length === 0 && (
-            <p role="status" className="text-sm text-muted-foreground">Nenhum departamento disponível para esta conta. Se você já tinha registros, confirme se entrou com a mesma conta e se ela tem acesso de administrador ou operador.</p>
+            <p role="status" className="text-sm text-muted-foreground lg:col-span-2">Nenhum departamento disponível para esta conta. Se você já tinha registros, confirme se entrou com a mesma conta e se ela tem acesso de administrador ou operador.</p>
           )}
           {/* Formulário principal — cabeçalho */}
           {cadastroAberto && (
-          <Card id="painel-cadastro-departamento">
+          <Card id="painel-cadastro-departamento" className="min-w-0 lg:col-span-2">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -725,7 +735,7 @@ function DepartamentosPage() {
           )}
 
           {/* Subformulário de bens */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -799,21 +809,22 @@ function DepartamentosPage() {
                   />
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor="filtro-unidade-salas">Unidade</Label>
+                  <Label htmlFor="cabUnidade">Unidade</Label>
                   <select
-                    id="filtro-unidade-salas"
+                    id="cabUnidade"
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    value={unidadeFiltro}
-                    onChange={(e) => setUnidadeFiltro(e.target.value)}
+                    disabled={!salaSel || salvandoUnidade || carregandoSalas || !!erroSalas || importando}
+                    value={salaSel?.unidade ?? ""}
+                    onChange={(e) => void salvarUnidade(e.target.value)}
                   >
-                    <option value="">Todas as unidades</option>
+                    <option value="" disabled>Selecione a Unidade</option>
                     <option value="CENTRAL">CENTRAL</option>
                     <option value="SAÚDE">SAÚDE</option>
                     <option value="EDUCAÇÃO">EDUCAÇÃO</option>
                   </select>
-                  {salas.some((s) => !s.unidade) && (
-                    <p className="text-xs text-muted-foreground">Salas sem unidade vinculada aparecem somente em “Todas as unidades”.</p>
-                  )}
+                  <p className="text-xs text-muted-foreground" aria-live="polite">
+                    {salvandoUnidade ? "Salvando unidade..." : "A unidade selecionada é salva neste Local Físico."}
+                  </p>
                 </div>
                 <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
                   <div className="flex min-w-0 flex-col gap-1.5">
@@ -966,12 +977,12 @@ function DepartamentosPage() {
         </div>
 
         {/* Caixa de listagem de salas + busca */}
-        <div className="flex flex-col gap-4">
-          <Card>
+        <div className="flex min-h-0 min-w-0 flex-col gap-4">
+          <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
               <CardTitle className="text-base">Localizar salas</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -984,7 +995,7 @@ function DepartamentosPage() {
               <div
                 role="listbox"
                 aria-label="Salas"
-                className="flex h-[320px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1 lg:h-[420px]"
+                className="flex h-[320px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1 lg:h-0 lg:min-h-0 lg:flex-1 [&>[role=option]]:shrink-0"
               >
                 {(carregandoDepartamentos || carregandoSalas) && (
                   <p role="status" className="p-3 text-center text-sm text-muted-foreground">Carregando salas salvas...</p>
