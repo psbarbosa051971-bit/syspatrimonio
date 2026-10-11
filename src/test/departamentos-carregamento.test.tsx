@@ -117,19 +117,24 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     const filtro = screen.getByRole("combobox", { name: "Unidade" });
+    expect(filtro.parentElement?.previousElementSibling).toContainElement(screen.getByLabelText("Local Físico"));
+    expect(screen.getByText("Quantidade de salas listadas: 4")).toBeInTheDocument();
     for (const [unidade, nome] of [["CENTRAL", "Recepção"], ["SAÚDE", "Consultório"], ["EDUCAÇÃO", "Escola municipal"]]) {
       fireEvent.change(filtro, { target: { value: unidade } });
       expect(filtro).toHaveValue(unidade);
       const salasVisiveis = screen.getByRole("listbox", { name: "Salas" });
       expect(salasVisiveis).toHaveTextContent(nome);
       expect(salasVisiveis.querySelectorAll('[role="option"]')).toHaveLength(1);
+      expect(screen.getByText("Quantidade de salas listadas: 1")).toBeInTheDocument();
       expect(screen.getByLabelText("Local Físico")).toHaveValue(nome);
     }
     fireEvent.change(screen.getByPlaceholderText("Buscar sala ou endereço..."), { target: { value: "inexistente" } });
     expect(screen.getByText("Nenhuma sala encontrada.")).toBeInTheDocument();
+    expect(screen.getByText("Quantidade de salas listadas: 0")).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText("Buscar sala ou endereço..."), { target: { value: "" } });
     fireEvent.change(filtro, { target: { value: "" } });
     expect(screen.getByRole("listbox", { name: "Salas" }).querySelectorAll('[role="option"]')).toHaveLength(4);
+    expect(screen.getByText("Quantidade de salas listadas: 4")).toBeInTheDocument();
   });
 
   it("não inclui salas sem unidade em uma unidade específica", async () => {

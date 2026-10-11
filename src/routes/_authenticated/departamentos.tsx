@@ -776,7 +776,7 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+              <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1.5fr)]">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabData">Data da última importação</Label>
                   <Input
@@ -798,7 +798,24 @@ function DepartamentosPage() {
                     onBlur={salvarCabecalho}
                   />
                 </div>
-                <div className="grid gap-3 sm:col-span-2 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <Label htmlFor="filtro-unidade-salas">Unidade</Label>
+                  <select
+                    id="filtro-unidade-salas"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={unidadeFiltro}
+                    onChange={(e) => setUnidadeFiltro(e.target.value)}
+                  >
+                    <option value="">Todas as unidades</option>
+                    <option value="CENTRAL">CENTRAL</option>
+                    <option value="SAÚDE">SAÚDE</option>
+                    <option value="EDUCAÇÃO">EDUCAÇÃO</option>
+                  </select>
+                  {salas.some((s) => !s.unidade) && (
+                    <p className="text-xs text-muted-foreground">Salas sem unidade vinculada aparecem somente em “Todas as unidades”.</p>
+                  )}
+                </div>
+                <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <Label htmlFor="cabResp">Nome do responsável pelo local</Label>
                     <Input id="cabResp" readOnly value={responsavelAtual?.nome ?? salaSel?.responsavel ?? ""}
@@ -955,23 +972,6 @@ function DepartamentosPage() {
               <CardTitle className="text-base">Localizar salas</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="filtro-unidade-salas">Unidade</Label>
-                <select
-                  id="filtro-unidade-salas"
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={unidadeFiltro}
-                  onChange={(e) => setUnidadeFiltro(e.target.value)}
-                >
-                  <option value="">Todas as unidades</option>
-                  <option value="CENTRAL">CENTRAL</option>
-                  <option value="SAÚDE">SAÚDE</option>
-                  <option value="EDUCAÇÃO">EDUCAÇÃO</option>
-                </select>
-                {salas.some((s) => !s.unidade) && (
-                  <p className="text-xs text-muted-foreground">Salas sem unidade vinculada aparecem somente em “Todas as unidades”.</p>
-                )}
-              </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -1060,6 +1060,13 @@ function DepartamentosPage() {
                     </Button>
                   </div>
                 ))}
+              </div>
+              <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm font-semibold" aria-live="polite">
+                {carregandoDepartamentos || carregandoSalas
+                  ? "Carregando quantidade de salas..."
+                  : erroDepartamentos || erroSalas
+                    ? "Quantidade de salas indisponível. Tente novamente."
+                    : `Quantidade de salas listadas: ${salasFiltradas.length}`}
               </div>
             </CardContent>
           </Card>
