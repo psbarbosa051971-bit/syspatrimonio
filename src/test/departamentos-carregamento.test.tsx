@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   papel: { role: "admin", loading: false },
   falharSalas: false,
   falharDepartamentos: false,
+  salas: [] as { id: string; departamento_id: string; nome: string; endereco: string | null; unidade: string | null }[],
 }));
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
@@ -30,7 +31,7 @@ const departamento = {
   id: "dep", diretor: "Diretor", departamento: "Patrimônio", almoxarifado: "Central",
   local: "", cpd: "", endereco: null,
 };
-const sala = { id: "sala", departamento_id: "dep", nome: "Sala existente", endereco: null };
+const sala = { id: "sala", departamento_id: "dep", nome: "Sala existente", endereco: null, unidade: null };
 const bem = {
   id: "bem", sala_id: "sala", codigo_red: "123", descricao: "Mesa cadastrada", valor: 10,
   incorporacao: "01/2025", tipo: "Mobiliário", observacao: "Conservação regular",
@@ -46,12 +47,13 @@ beforeEach(() => {
   mocks.papel = { role: "admin", loading: false };
   mocks.falharSalas = false;
   mocks.falharDepartamentos = false;
+  mocks.salas = [sala];
   mocks.from.mockImplementation((tabela: string) => {
     const falha = (tabela === "salas" && mocks.falharSalas)
       || (tabela === "departamentos" && mocks.falharDepartamentos);
     const resultado = falha
       ? { data: null, error: { message: "Falha de conexão" } }
-      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? [sala] : [bem, outroBem], error: null };
+      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : [bem, outroBem], error: null };
     const consulta: Record<string, unknown> = {};
     for (const metodo of ["select", "order", "eq", "in", "range"]) consulta[metodo] = () => consulta;
     consulta["then"] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
@@ -91,11 +93,51 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(screen.getByText("Quantidade de bens: 2")).toBeInTheDocument();
   });
 
-  it("abre o departamento e seleciona uma sala para mostrar seus bens", async () => {
+  it("mantém o cadastro recolhido e permite abrir e fechar sem perder a sala", async () => {
     render(<Page />);
     expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.queryByText("Cadastro de Departamento")).not.toBeInTheDocument();
+    const botao = screen.getByRole("button", { name: "Departamento", exact: true });
+    expect(botao).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(botao);
     expect(screen.getByLabelText("Departamento")).toHaveValue("Patrimônio");
     expect(screen.getByLabelText("Local Físico")).toHaveValue("Sala existente");
+    fireEvent.click(botao);
+    expect(screen.queryByLabelText("Departamento")).not.toBeInTheDocument();
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+  });
+
+  it("filtra as salas pela unidade escolhida e combina com a pesquisa", async () => {
+    mocks.salas = [
+      sala,
+      { ...sala, id: "central", nome: "Recepção", unidade: "CENTRAL" },
+      { ...sala, id: "saude", nome: "Consultório", unidade: "SAÚDE" },
+      { ...sala, id: "educacao", nome: "Escola municipal", unidade: "EDUCAÇÃO" },
+    ];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const filtro = screen.getByRole("combobox", { name: "Unidade" });
+    for (const [unidade, nome] of [["CENTRAL", "Recepção"], ["SAÚDE", "Consultório"], ["EDUCAÇÃO", "Escola municipal"]]) {
+      fireEvent.change(filtro, { target: { value: unidade } });
+      expect(filtro).toHaveValue(unidade);
+      const salasVisiveis = screen.getByRole("listbox", { name: "Salas" });
+      expect(salasVisiveis).toHaveTextContent(nome);
+      expect(salasVisiveis.querySelectorAll('[role="option"]')).toHaveLength(1);
+      expect(screen.getByLabelText("Local Físico")).toHaveValue(nome);
+    }
+    fireEvent.change(screen.getByPlaceholderText("Buscar sala ou endereço..."), { target: { value: "inexistente" } });
+    expect(screen.getByText("Nenhuma sala encontrada.")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Buscar sala ou endereço..."), { target: { value: "" } });
+    fireEvent.change(filtro, { target: { value: "" } });
+    expect(screen.getByRole("listbox", { name: "Salas" }).querySelectorAll('[role="option"]')).toHaveLength(4);
+  });
+
+  it("não inclui salas sem unidade em uma unidade específica", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(screen.getByRole("combobox", { name: "Unidade" }), { target: { value: "CENTRAL" } });
+    expect(screen.getByText("Nenhuma sala encontrada.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Local Físico")).toHaveValue("");
   });
 
   it("aguarda a confirmação do acesso antes de consultar os departamentos", async () => {
@@ -121,6 +163,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     mocks.falharDepartamentos = true;
     render(<Page />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível carregar os departamentos");
+    fireEvent.click(screen.getByRole("button", { name: "Departamento", exact: true }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Novo" })).toBeDisabled());
     expect(screen.getByRole("button", { name: "Cadastrar departamento" })).toBeDisabled();
   });

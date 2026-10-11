@@ -116,6 +116,8 @@ function DepartamentosPage() {
   const [selecionados, setSelecionados] = useState<string[]>([]);
   useEffect(() => setSelecionados([]), [bens.length === 0]);
   const [busca, setBusca] = useState("");
+  const [cadastroAberto, setCadastroAberto] = useState(false);
+  const [unidadeFiltro, setUnidadeFiltro] = useState("");
   const [buscaBens, setBuscaBens] = useState("");
   useEffect(() => {
     setBuscaBens("");
@@ -353,13 +355,20 @@ function DepartamentosPage() {
 
   const salasFiltradas = useMemo(() => {
     const t = busca.trim().toLowerCase();
-    if (!t) return salas;
     return salas.filter(
       (s) =>
-        s.nome.toLowerCase().includes(t) ||
-        (s.endereco ?? "").toLowerCase().includes(t),
+        (!unidadeFiltro || s.unidade === unidadeFiltro) &&
+        (!t || s.nome.toLowerCase().includes(t) ||
+          (s.endereco ?? "").toLowerCase().includes(t)),
     );
-  }, [salas, busca]);
+  }, [salas, busca, unidadeFiltro]);
+
+  useEffect(() => {
+    setSalaSel((atual) => {
+      const locais = unidadeFiltro ? salas.filter((s) => s.unidade === unidadeFiltro) : salas;
+      return locais.find((s) => s.id === atual?.id) ?? locais[0] ?? null;
+    });
+  }, [salas, unidadeFiltro]);
 
   async function salvarDepartamento(e: React.FormEvent) {
     e.preventDefault();
@@ -574,7 +583,17 @@ function DepartamentosPage() {
               SysPatrimônio
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCadastroAberto((aberto) => !aberto)}
+              aria-expanded={cadastroAberto}
+              aria-controls="painel-cadastro-departamento"
+              className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            >
+              <Building2 className="mr-2 h-4 w-4" /> Departamento
+            </Button>
             {role === "admin" && (
               <Button
                 asChild
@@ -607,8 +626,23 @@ function DepartamentosPage() {
 
       <main className="mx-auto grid max-w-[1600px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_480px] xl:grid-cols-[minmax(0,1fr)_560px]">
         <div className="flex min-w-0 flex-col gap-6">
+          {carregandoDepartamentos && (
+            <p role="status" className="text-sm text-muted-foreground">Carregando departamentos salvos...</p>
+          )}
+          {erroDepartamentos && (
+            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-md border border-destructive p-3 text-sm">
+              <p className="flex-1">{erroDepartamentos}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => setTentativaCarga((n) => n + 1)}>
+                Tentar novamente
+              </Button>
+            </div>
+          )}
+          {!carregandoDepartamentos && !erroDepartamentos && departamentos.length === 0 && (
+            <p role="status" className="text-sm text-muted-foreground">Nenhum departamento disponível para esta conta. Se você já tinha registros, confirme se entrou com a mesma conta e se ela tem acesso de administrador ou operador.</p>
+          )}
           {/* Formulário principal — cabeçalho */}
-          <Card>
+          {cadastroAberto && (
+          <Card id="painel-cadastro-departamento">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -630,20 +664,6 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {carregandoDepartamentos && (
-                <p role="status" className="mb-3 text-sm text-muted-foreground">Carregando departamentos salvos...</p>
-              )}
-              {erroDepartamentos && (
-                <div role="alert" className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-destructive p-3 text-sm">
-                  <p className="flex-1">{erroDepartamentos}</p>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setTentativaCarga((n) => n + 1)}>
-                    Tentar novamente
-                  </Button>
-                </div>
-              )}
-              {!carregandoDepartamentos && !erroDepartamentos && departamentos.length === 0 && (
-                <p role="status" className="mb-3 text-sm text-muted-foreground">Nenhum departamento disponível para esta conta. Se você já tinha registros, confirme se entrou com a mesma conta e se ela tem acesso de administrador ou operador.</p>
-              )}
               {(departamentos.length > 1 || (!departamentoSel && departamentos.length > 0)) && (
                 <div className="mb-3 flex flex-col gap-1.5">
                   <Label htmlFor="departamento-cadastrado">Departamento cadastrado</Label>
@@ -702,7 +722,7 @@ function DepartamentosPage() {
               </form>
             </CardContent>
           </Card>
-
+          )}
 
           {/* Subformulário de bens */}
           <Card>
@@ -935,6 +955,23 @@ function DepartamentosPage() {
               <CardTitle className="text-base">Localizar salas</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="filtro-unidade-salas">Unidade</Label>
+                <select
+                  id="filtro-unidade-salas"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={unidadeFiltro}
+                  onChange={(e) => setUnidadeFiltro(e.target.value)}
+                >
+                  <option value="">Todas as unidades</option>
+                  <option value="CENTRAL">CENTRAL</option>
+                  <option value="SAÚDE">SAÚDE</option>
+                  <option value="EDUCAÇÃO">EDUCAÇÃO</option>
+                </select>
+                {salas.some((s) => !s.unidade) && (
+                  <p className="text-xs text-muted-foreground">Salas sem unidade vinculada aparecem somente em “Todas as unidades”.</p>
+                )}
+              </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -947,7 +984,7 @@ function DepartamentosPage() {
               <div
                 role="listbox"
                 aria-label="Salas"
-                className="flex h-[560px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1 lg:h-[680px]"
+                className="flex h-[320px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1 lg:h-[420px]"
               >
                 {(carregandoDepartamentos || carregandoSalas) && (
                   <p role="status" className="p-3 text-center text-sm text-muted-foreground">Carregando salas salvas...</p>
