@@ -360,6 +360,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      transferir_bens: {
+        Args: { _destino: string; _itens: Json; _pedido: string }
+        Returns: Json
+      }
       can_edit: { Args: { _user_id: string }; Returns: boolean }
       excluir_importacoes_sala: {
         Args: { _importacao_id?: string; _modo: string; _sala_id: string }

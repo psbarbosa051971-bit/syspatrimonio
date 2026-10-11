@@ -1,0 +1,109 @@
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(), carregar: vi.fn(), buscar: vi.fn(), responsavel: vi.fn(),
+}));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mocks.rpc } }));
+vi.mock("@tanstack/react-start", () => ({ useServerFn: () => mocks.responsavel }));
+vi.mock("@/lib/usuarios.functions", () => ({ responsavelDoLocal: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/transferencias", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/transferencias")>(),
+  carregarSalasTransferencia: mocks.carregar, buscarBensTransferencia: mocks.buscar,
+}));
+import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
+
+const primeiro = { id: "bem-1", sala_id: "origem", codigo_red: "123", descricao: "Mesa", valor: 10 };
+const segundo = { id: "bem-2", sala_id: "origem", codigo_red: "456", descricao: "Cadeira", valor: 20 };
+const termo = { id: "termo-1", numero: 12, termo_ano: 2026, arquivo: "Transferência de bens", created_at: "2026-10-10T12:00:00Z",
+  termo_snapshot: { local: "Sala destino", responsavel: "Maria Silva", cpf: "12345678900", bens: [{ codigo_red: "123", descricao: "Mesa", valor: 10 }] } };
+
+afterEach(cleanup);
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.carregar.mockResolvedValue([
+    { id: "origem", nome: "Sala origem", unidade: "CENTRAL" },
+    { id: "destino", nome: "Sala destino", unidade: "EDUCAÇÃO" },
+  ]);
+  mocks.responsavel.mockResolvedValue({ nome: "Maria Silva", cpf: "12345678900" });
+  mocks.buscar.mockResolvedValue([primeiro, segundo]);
+  mocks.rpc.mockResolvedValue({ data: termo, error: null });
+});
+
+async function escolherDestino() {
+  const campo = await screen.findByRole("combobox");
+  fireEvent.focus(campo);
+  fireEvent.click(screen.getByRole("option", { name: /Sala destino/ }));
+  await screen.findByDisplayValue("Maria Silva");
+}
+async function filtrar() {
+  fireEvent.change(screen.getByLabelText("Códigos RED separados por vírgulas"), { target: { value: "123,456" } });
+  fireEvent.click(screen.getByRole("button", { name: "Filtrar" }));
+  await screen.findByRole("checkbox", { name: "Selecionar RED 123 — Sala origem — Bens encontrados" });
+}
+async function aceitarTodos() {
+  await escolherDestino(); await filtrar();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos — Bens encontrados" }));
+  fireEvent.click(screen.getByRole("button", { name: "Aceitar selecionados" }));
+}
+
+describe("formulário de transferência", () => {
+  it("mostra responsável/CPF, aceita sem mover e salva somente a segunda seleção", async () => {
+    const onSaved = vi.fn();
+    render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={onSaved} />);
+    await aceitarTodos();
+    expect(screen.getByLabelText("CPF")).toHaveValue("123.456.789-00");
+    expect(mocks.buscar).toHaveBeenCalledWith(["123", "456"]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Salvar transferência" })).toBeDisabled();
+    const lista = screen.getByRole("region", { name: "Bens aceitos para transferência" });
+    expect(within(lista).getByText("Mesa")).toBeInTheDocument();
+    expect(within(lista).getByText("Cadeira")).toBeInTheDocument();
+    fireEvent.click(within(lista).getByRole("checkbox", { name: /Selecionar RED 123/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
+    await screen.findByTitle("Termo de responsabilidade 12/2026");
+    expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
+      _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
+    });
+    expect(onSaved).toHaveBeenCalledWith("destino", "termo-1");
+  });
+
+  it("mantém a seleção quando o banco impede a transferência", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: "P0001", message: "O destino já contém um dos códigos RED selecionados" } });
+    render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={vi.fn()} />);
+    await aceitarTodos();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos — Bens aceitos para transferência" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("O destino já contém");
+    expect(screen.queryByTitle("Termo de responsabilidade 12/2026")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Selecionar todos — Bens aceitos para transferência" })).toBeChecked();
+  });
+
+  it("verifica o mesmo pedido após falha de conexão sem duplicar a transferência", async () => {
+    mocks.rpc.mockRejectedValueOnce(new Error("Conexão interrompida"));
+    const onSaved = vi.fn();
+    render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={onSaved} />);
+    await aceitarTodos();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos — Bens aceitos para transferência" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
+    const verificar = await screen.findByRole("button", { name: "Verificar transferência" });
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
+    fireEvent.click(verificar);
+    await screen.findByTitle("Termo de responsabilidade 12/2026");
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.rpc.mock.calls[0]).toEqual(mocks.rpc.mock.calls[1]);
+    expect(onSaved).toHaveBeenCalledOnce();
+  });
+
+  it("limpa as listas ao trocar a sala de destino", async () => {
+    render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={vi.fn()} />);
+    await aceitarTodos();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: /Sala origem/ }));
+    expect(screen.queryByText("Mesa")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cadeira")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salvar transferência" })).toBeDisabled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});

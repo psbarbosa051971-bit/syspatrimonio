@@ -23,6 +23,7 @@ import { limparDescricao } from "@/lib/pdf-parse";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
+import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -161,6 +162,7 @@ function DepartamentosPage() {
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
   const [dialogTermos, setDialogTermos] = useState(false);
+  const [dialogTransferencia, setDialogTransferencia] = useState(false);
   const [ultimaImportacao, setUltimaImportacao] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [salaExcluir, setSalaExcluir] = useState<Sala | null>(null);
@@ -778,6 +780,18 @@ function DepartamentosPage() {
                     <Printer className="mr-1 h-4 w-4" />
                     Imprimir termo de Responsabilidade
                   </Button>
+                  <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
+                    Gerar transferência
+                  </Button>
+                  {dialogTransferencia && <TransferenciaBensDialog
+                    onClose={() => setDialogTransferencia(false)}
+                    onSaved={(destinoId, termoId) => {
+                      setTentativaBens((valor) => valor + 1);
+                      setSelecionados([]);
+                      if (salaSel?.id === destinoId) setUltimaImportacao(termoId);
+                      setSalas((atuais) => [...atuais]);
+                    }}
+                  />}
                   <TermosResponsabilidadeDialog
                     open={dialogTermos}
                     onOpenChange={setDialogTermos}
