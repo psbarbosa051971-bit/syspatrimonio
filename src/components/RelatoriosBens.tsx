@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bell, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { SolicitacaoBem } from "@/integrations/supabase/types";
-import { agruparSolicitacoes, carregarSolicitacoes, tituloSolicitacao, type GrupoSolicitacoes } from "@/lib/solicitacoes-bens";
+import { agruparSolicitacoes, carregarSolicitacoes, tituloSolicitacao, type GrupoSolicitacoes, type SolicitacaoBem } from "@/lib/solicitacoes-bens";
 import { Button } from "@/components/ui/button";
 import { RelatorioBensDialog } from "@/components/RelatorioBensDialog";
 

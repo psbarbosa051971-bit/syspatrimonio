@@ -34,7 +34,8 @@ export function ObservacoesBemDialog({ bem, onClose, onSaved }: Props) {
           .select("tipo,destino").eq("bem_id", bem.id).eq("ativa", true).maybeSingle();
         if (error) throw error;
         if (!cancelado) {
-          setOpcao(data?.tipo ?? "observacao");
+          const tipo = data?.tipo;
+          setOpcao(tipo === "transferencia" || tipo === "inservivel" ? tipo : "observacao");
           setDestino(data?.destino ?? "");
         }
       } catch {
@@ -59,7 +60,7 @@ export function ObservacoesBemDialog({ bem, onClose, onSaved }: Props) {
         _obs: texto,
         _tipo: opcao === "observacao" ? null : opcao,
         _destino: opcao === "transferencia" ? destino.trim() : null,
-      });
+      } as { _bem_id: string; _obs: string; _tipo: string; _destino?: string });
       if (error) throw error;
       onSaved(bem.id, texto);
       toast.success(opcao === "observacao" ? "Observação salva." : "Registro salvo no relatório e encaminhado aos administradores.");
