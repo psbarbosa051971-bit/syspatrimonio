@@ -10,9 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Registro = Omit<TermoResponsabilidade, "termo_snapshot">;
-type Props = { open: boolean; onOpenChange: (open: boolean) => void; salaId: string | null; ultimaImportacao: string };
+type Props = { open: boolean; onOpenChange: (open: boolean) => void; salaId: string | null; ultimaImportacao: string; consultarPorNumero?: boolean };
 
-export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultimaImportacao }: Props) {
+export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultimaImportacao, consultarPorNumero = false }: Props) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [selecionado, setSelecionado] = useState("");
   const [confirmado, setConfirmado] = useState("");
@@ -23,8 +23,8 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
   const [erro, setErro] = useState("");
   const [pronto, setPronto] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
-  const recente = registros.find((r) => r.id === ultimaImportacao)?.id ?? "";
-  const pedirNumero = selecionado !== recente || !recente;
+  const recente = consultarPorNumero ? "" : registros.find((r) => r.id === ultimaImportacao)?.id ?? "";
+  const pedirNumero = consultarPorNumero || selecionado !== recente || !recente;
 
   useEffect(() => {
     if (!open || !salaId) return;
@@ -42,14 +42,14 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
         if (!data || data.length < 500) break;
       }
       if (ativo) {
-        const novo = todos.find((r) => r.id === ultimaImportacao);
+        const novo = consultarPorNumero ? undefined : todos.find((r) => r.id === ultimaImportacao);
         setRegistros(todos); setSelecionado(novo?.id ?? todos[0]?.id ?? ""); setConfirmado(novo?.id ?? "");
       }
     }
     carregar().catch(() => { if (ativo) setErro("Não foi possível carregar os termos. Feche e tente novamente."); })
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
-  }, [open, salaId, ultimaImportacao]);
+  }, [open, salaId, ultimaImportacao, consultarPorNumero]);
 
   useEffect(() => {
     if (!open || !selecionado || confirmado !== selecionado || !salaId) return;
@@ -95,24 +95,24 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${documento.html ? "max-w-5xl" : "max-w-xl"}`}>
       <DialogHeader>
-        <DialogTitle>Termos de responsabilidade</DialogTitle>
-        <DialogDescription>{pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado para imprimir ou salvar em PDF. Os dados originais são preservados."}</DialogDescription>
+        <DialogTitle>{consultarPorNumero ? "Termo de Responsabilidade" : "Termos de responsabilidade"}</DialogTitle>
+        <DialogDescription>{consultarPorNumero ? "Informe o número do termo deste Local Físico e clique em Imprimir para abrir o documento." : pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado para imprimir ou salvar em PDF. Os dados originais são preservados."}</DialogDescription>
       </DialogHeader>
       {carregando ? <p className="text-sm text-muted-foreground">Carregando termos...</p> : registros.length > 0 ? <>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {!consultarPorNumero && <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <Label htmlFor="termo-importacao">Termo / arquivo importado</Label>
             <Select value={selecionado} onValueChange={escolher}>
               <SelectTrigger id="termo-importacao"><SelectValue placeholder="Selecione um termo" /></SelectTrigger>
               <SelectContent>{registros.map((r) => <SelectItem key={r.id} value={r.id}>{numeroDoTermo(r)} — {r.arquivo}</SelectItem>)}</SelectContent>
             </Select>
-          </div>
+          </div>}
           {documento.html && <Button onClick={imprimir} disabled={!pronto}><Printer className="mr-2 h-4 w-4" /> Imprimir / Salvar PDF</Button>}
         </div>
         {pedirNumero && <form onSubmit={visualizar} className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1.5"><Label htmlFor="numero-termo">Número do termo</Label>
             <Input id="numero-termo" autoFocus className="w-48 text-base md:text-base" placeholder="Ex.: 15 ou 15/2026" value={numero} onChange={(e) => { setNumero(e.target.value); setErro(""); }} />
-          </div><Button type="submit">Visualizar impressão</Button>
+          </div><Button type="submit">{consultarPorNumero ? "Imprimir" : "Visualizar impressão"}</Button>
         </form>}
         {documento.html && <iframe ref={frame} title={`Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}`} sandbox="allow-same-origin allow-modals" srcDoc={documento.html} onLoad={() => setPronto(true)} className="h-[58vh] w-full rounded-md border bg-background" />}
         {confirmado === selecionado && !termo && !erro && <p className="text-sm text-muted-foreground">Preparando documento...</p>}

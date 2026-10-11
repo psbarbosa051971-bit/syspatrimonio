@@ -91,4 +91,25 @@ describe("visualização de termos recentes e anteriores", () => {
     expect(await screen.findByRole("textbox", { name: "Número do termo" })).toBeInTheDocument();
     expect(mocks.consultas).not.toHaveBeenCalled();
   });
+
+  it("no novo botão pede o número mesmo com um HTML recém-importado", async () => {
+    render(<TermosResponsabilidadeDialog open onOpenChange={vi.fn()} salaId="sala" ultimaImportacao="nova" consultarPorNumero />);
+    const campo = await screen.findByRole("textbox", { name: "Número do termo" });
+    expect(mocks.consultas).not.toHaveBeenCalled();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Termo de responsabilidade/)).not.toBeInTheDocument();
+    fireEvent.change(campo, { target: { value: "15/2026" } });
+    fireEvent.click(screen.getByRole("button", { name: "Imprimir", exact: true }));
+    expect(await screen.findByTitle("Termo de responsabilidade 15/2026")).toBeInTheDocument();
+    expect(mocks.consultas).toHaveBeenCalledWith("antiga");
+  });
+
+  it("permite abrir por número também o termo recém-importado", async () => {
+    render(<TermosResponsabilidadeDialog open onOpenChange={vi.fn()} salaId="sala" ultimaImportacao="nova" consultarPorNumero />);
+    await screen.findByRole("textbox", { name: "Número do termo" });
+    enviar("20");
+    expect(await screen.findByTitle("Termo de responsabilidade 20/2026")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Número do termo" })).toBeInTheDocument();
+    expect(mocks.consultas).toHaveBeenCalledWith("nova");
+  });
 });

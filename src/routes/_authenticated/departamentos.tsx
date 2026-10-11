@@ -162,6 +162,7 @@ function DepartamentosPage() {
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
   const [dialogTermos, setDialogTermos] = useState(false);
+  const [consultarTermoPorNumero, setConsultarTermoPorNumero] = useState(false);
   const [dialogTransferencia, setDialogTransferencia] = useState(false);
   const [ultimaImportacao, setUltimaImportacao] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -775,10 +776,19 @@ function DepartamentosPage() {
                     variant="outline"
                     size="sm"
                     disabled={!salaSel || importando}
-                    onClick={() => setDialogTermos(true)}
+                    onClick={() => { setConsultarTermoPorNumero(false); setDialogTermos(true); }}
                   >
                     <Printer className="mr-1 h-4 w-4" />
                     Imprimir termo de Responsabilidade
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!salaSel || importando}
+                    onClick={() => { setConsultarTermoPorNumero(true); setDialogTermos(true); }}
+                  >
+                    <Printer className="mr-1 h-4 w-4" />
+                    Termo de Responsabilidade
                   </Button>
                   <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
                     Gerar transferência
@@ -797,6 +807,7 @@ function DepartamentosPage() {
                     onOpenChange={setDialogTermos}
                     salaId={salaSel?.id ?? null}
                     ultimaImportacao={ultimaImportacao}
+                    consultarPorNumero={consultarTermoPorNumero}
                   />
                 </div>
               </div>
