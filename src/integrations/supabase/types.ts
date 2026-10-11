@@ -120,6 +120,8 @@ export type Database = {
           user_id: string
           arquivo: string
           created_at: string
+          termo_ano: number | null
+          termo_snapshot: Json | null
         }
         Insert: {
           id?: string
@@ -128,6 +130,8 @@ export type Database = {
           user_id?: string
           arquivo: string
           created_at?: string
+          termo_ano?: number | null
+          termo_snapshot?: Json | null
         }
         Update: {
           id?: string
@@ -136,6 +140,8 @@ export type Database = {
           user_id?: string
           arquivo?: string
           created_at?: string
+          termo_ano?: number | null
+          termo_snapshot?: Json | null
         }
         Relationships: [
           {
@@ -301,6 +307,10 @@ export type Database = {
       excluir_sala_vazia: { Args: { _sala_id: string }; Returns: undefined }
       importar_bens_pdf: {
         Args: { _sala_id: string; _arquivo: string; _bens: Json }
+        Returns: Json
+      }
+      importar_bens_html: {
+        Args: { _sala_id: string; _arquivo: string; _bens: Json; _cabecalho: Json }
         Returns: Json
       }
       excluir_importacoes_sala: {

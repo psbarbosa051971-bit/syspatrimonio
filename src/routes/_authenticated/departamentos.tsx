@@ -9,6 +9,7 @@ import {
   FileText,
   LogOut,
   Plus,
+  Printer,
   Search,
   Trash2,
   Upload,
@@ -21,6 +22,7 @@ import { useRole } from "@/hooks/use-role";
 import { limparDescricao } from "@/lib/pdf-parse";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
+import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -125,6 +127,8 @@ function DepartamentosPage() {
   const [bensDialogSala, setBensDialogSala] = useState<Bem[]>([]);
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
+  const [dialogTermos, setDialogTermos] = useState(false);
+  const [ultimaImportacao, setUltimaImportacao] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [salaExcluir, setSalaExcluir] = useState<Sala | null>(null);
   async function atualizarAposExclusao() {
@@ -459,8 +463,9 @@ function DepartamentosPage() {
         setSalas((prev) => prev.map((s) => s.id === atualizada.id ? atualizada : s));
       }
       const salaAlvo = sala;
-      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_pdf", {
+      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_html", {
         _sala_id: salaAlvo.id, _arquivo: file.name, _bens: extraidos.map((b) => ({ ...b })),
+        _cabecalho: { ...termo.cabecalho },
       });
       if (erroImportacao) throw erroImportacao;
       if (!resultado || typeof resultado !== "object" || Array.isArray(resultado)) {
@@ -472,8 +477,10 @@ function DepartamentosPage() {
         local: salaAlvo.nome, endereco: salaAlvo.endereco ?? "",
       };
       setSalaSel(salaAlvo);
-      toast.success(`Importação nº ${Number(resultado.numero)}: ${Number(resultado.novos)} bem(ns) adicionados. ` +
-        `${extraidos.length} códigos lidos no HTML; ${Number(resultado.repetidos)} já cadastrados.`);
+      setUltimaImportacao(String(resultado.importacao_id ?? resultado.numero));
+      toast.success(`Termo de responsabilidade nº ${String(resultado.termo_numero)} criado. ` +
+        `${Number(resultado.novos)} bem(ns) adicionados; ${Number(resultado.repetidos)} já cadastrados. ` +
+        `Use “Imprimir termo de Responsabilidade” para imprimir os ${extraidos.length} bens do HTML.`);
     } catch (erro) {
       toast.error(erro instanceof Error ? erro.message : "Não foi possível concluir a importação do HTML");
     } finally {
@@ -647,6 +654,21 @@ function DepartamentosPage() {
                     <Upload className="mr-1 h-4 w-4" />
                     {importando ? "Lendo HTML..." : "Importar HTML do Sonner"}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!salaSel || importando}
+                    onClick={() => setDialogTermos(true)}
+                  >
+                    <Printer className="mr-1 h-4 w-4" />
+                    Imprimir termo de Responsabilidade
+                  </Button>
+                  <TermosResponsabilidadeDialog
+                    open={dialogTermos}
+                    onOpenChange={setDialogTermos}
+                    salaId={salaSel?.id ?? null}
+                    ultimaImportacao={ultimaImportacao}
+                  />
                 </div>
               </div>
             </CardHeader>
