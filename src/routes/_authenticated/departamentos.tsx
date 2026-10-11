@@ -24,6 +24,7 @@ import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
+import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,6 +165,7 @@ function DepartamentosPage() {
   const [dialogTermos, setDialogTermos] = useState(false);
   const [consultarTermoPorNumero, setConsultarTermoPorNumero] = useState(false);
   const [dialogTransferencia, setDialogTransferencia] = useState(false);
+  const [dialogEstorno, setDialogEstorno] = useState(false);
   const [ultimaImportacao, setUltimaImportacao] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [salaExcluir, setSalaExcluir] = useState<Sala | null>(null);
@@ -793,6 +795,17 @@ function DepartamentosPage() {
                   <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
                     Gerar transferência
                   </Button>
+                  <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogEstorno(true)}>
+                    Estornar transferência
+                  </Button>
+                  {dialogEstorno && <EstornoTransferenciaDialog
+                    onClose={() => setDialogEstorno(false)}
+                    onSaved={() => {
+                      setTentativaBens((valor) => valor + 1);
+                      setSelecionados([]);
+                      setSalas((atuais) => [...atuais]);
+                    }}
+                  />}
                   {dialogTransferencia && <TransferenciaBensDialog
                     onClose={() => setDialogTransferencia(false)}
                     onSaved={(destinoId, termoId) => {

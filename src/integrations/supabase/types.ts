@@ -332,6 +332,66 @@ export type Database = {
         }
         Relationships: []
       }
+      transferencias_bens_itens: {
+        Row: {
+          id: number
+          transferencia_id: string
+          numero: number
+          termo_ano: number | null
+          bem_id: string
+          codigo_red: string
+          descricao: string
+          valor: number
+          origem_sala_id: string | null
+          origem_nome: string
+          origem_importacao_id: string | null
+          destino_sala_id: string
+          destino_nome: string
+          created_at: string
+          estornado_em: string | null
+          estornado_por: string | null
+          estorno_pedido: string | null
+        }
+        Insert: {
+          id?: never
+          transferencia_id: string
+          numero: number
+          termo_ano?: number | null
+          bem_id: string
+          codigo_red: string
+          descricao: string
+          valor: number
+          origem_sala_id?: string | null
+          origem_nome: string
+          origem_importacao_id?: string | null
+          destino_sala_id: string
+          destino_nome: string
+          created_at?: string
+          estornado_em?: string | null
+          estornado_por?: string | null
+          estorno_pedido?: string | null
+        }
+        Update: {
+          id?: never
+          transferencia_id?: string
+          numero?: number
+          termo_ano?: number | null
+          bem_id?: string
+          codigo_red?: string
+          descricao?: string
+          valor?: number
+          origem_sala_id?: string | null
+          origem_nome?: string
+          origem_importacao_id?: string | null
+          destino_sala_id?: string
+          destino_nome?: string
+          created_at?: string
+          estornado_em?: string | null
+          estornado_por?: string | null
+          estorno_pedido?: string | null
+        }
+        Relationships: []
+      }
       user_salas: {
         Row: {
           sala_id: string
@@ -398,6 +458,14 @@ export type Database = {
       pode_ver_sala: {
         Args: { _sala_id: string; _user_id: string }
         Returns: boolean
+      }
+      buscar_ultima_transferencia: {
+        Args: { _codigo: string }
+        Returns: Json
+      }
+      estornar_transferencia: {
+        Args: { _transferencia: string; _itens: string[]; _pedido: string }
+        Returns: Json
       }
       salvar_conferencia: {
         Args: { _bens_ids: string[]; _localizados: string[]; _sala_id: string }
