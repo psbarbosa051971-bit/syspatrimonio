@@ -600,15 +600,15 @@ function DepartamentosPage() {
 
   return (
     <div className="min-h-screen bg-muted/40">
-      <header className="border-b border-border bg-primary px-6 py-3">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between">
+      <header className="border-b border-border bg-primary px-3 py-2 sm:px-6 sm:py-3">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Building2 className="h-6 w-6 text-primary-foreground" />
             <span className="text-lg font-bold text-primary-foreground">
               SysPatrimônio
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-1">
+          <div className="flex flex-wrap items-center justify-start gap-1 sm:justify-end">
             <Button
               variant="ghost"
               size="sm"
@@ -649,7 +649,7 @@ function DepartamentosPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1800px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]">
+      <main className="mx-auto grid max-w-[1800px] gap-4 px-3 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]">
         <div className="flex min-w-0 flex-col gap-6 lg:contents">
           {carregandoDepartamentos && (
             <p role="status" className="text-sm text-muted-foreground lg:col-span-2">Carregando departamentos salvos...</p>

@@ -160,11 +160,11 @@ function ConferenciaPage() {
 
   return (
     <div className="min-h-screen bg-muted/40">
-      <header className="border-b border-border bg-primary px-6 py-3">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between">
-          <div className="flex items-center gap-2">
+      <header className="border-b border-border bg-primary px-3 py-2 sm:px-6 sm:py-3">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Building2 className="h-6 w-6 text-primary-foreground" />
-            <span className="text-lg font-bold text-primary-foreground">SysPatrimônio — Conferência</span>
+            <span className="truncate text-base font-bold sm:text-lg text-primary-foreground">SysPatrimônio — Conferência</span>
           </div>
           <Button variant="ghost" size="sm"
             className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
@@ -173,7 +173,7 @@ function ConferenciaPage() {
           </Button>
         </div>
       </header>
-      <main className="mx-auto max-w-[1400px] px-6 py-6">
+      <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-6 sm:py-6">
         <Card className="min-w-0 self-start">
           <CardHeader className="gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">

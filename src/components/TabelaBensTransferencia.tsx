@@ -17,8 +17,8 @@ export function TabelaBensTransferencia({ titulo, bens, salas, selecionados, onC
       <h3 className="font-semibold">{titulo}</h3>
       <span className="text-sm text-muted-foreground">{selecionados.length} selecionado(s) de {bens.length}</span>
     </div>
-    <div className="max-h-64 overflow-auto rounded-md border">
-      <Table className="text-base">
+    <div className="max-h-64 overflow-auto rounded-md border [-webkit-overflow-scrolling:touch]">
+      <Table className="text-sm sm:text-base">
         <TableHeader className="sticky top-0 z-10 bg-card"><TableRow>
           <TableHead className="w-10"><input type="checkbox" className="h-4 w-4 accent-primary"
             aria-label={`Selecionar todos — ${titulo}`} checked={todos} disabled={disabled || !bens.length}
