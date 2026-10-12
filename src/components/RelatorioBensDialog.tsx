@@ -25,7 +25,7 @@ export function RelatorioBensDialog({ grupo, onClose, onEstornados }: {
 
   async function estornar() {
     if (salvando || !escolhidos.length) return;
-    const sala = escolhidos[0].sala_id!;
+    const sala = escolhidos[0]!.sala_id!;
     if (escolhidos.some((item) => item.sala_id !== sala)) {
       setErro("Selecione bens de um mesmo local de origem.");
       return;
