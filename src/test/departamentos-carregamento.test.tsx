@@ -112,6 +112,23 @@ beforeEach(() => {
 });
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("exibe o cabeçalho dos bens como o modelo e preserva as seleções em lote acima da tabela", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const cabecalho = screen.getByRole("columnheader", { name: "EXC.", exact: true }).closest("thead")!;
+    expect(within(cabecalho).getAllByRole("columnheader").map((coluna) => coluna.textContent)).toEqual([
+      "EXC.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "VALOR", "",
+    ]);
+    expect(cabecalho).toHaveClass("bg-room-assets-header");
+    expect(within(cabecalho).queryByRole("checkbox")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos", exact: true }));
+    expect(screen.getByRole("checkbox", { name: "Selecionar 123", exact: true })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456", exact: true })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos para transferência" }));
+    expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("123, 456, ");
+  });
+
   it("separa seleção de exclusão da transferência e preenche os códigos mascarados no formulário", async () => {
     mocks.bens = [{ ...bem, codigo_red: "60651" }, { ...outroBem, codigo_red: "60785" }];
     render(<Page />);

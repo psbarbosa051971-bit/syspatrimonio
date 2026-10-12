@@ -1001,6 +1001,29 @@ function DepartamentosPage() {
                   <span className="mr-auto text-sm text-muted-foreground" role="status">
                     {selecionados.length} selecionado(s) · Exibindo {bensFiltrados.length} de {bensExibidos.length}
                   </span>
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todos"
+                      className="h-4 w-4 accent-primary"
+                      checked={todosFiltradosSelecionados}
+                      onChange={(e) => setSelecionados(e.target.checked ? idsBensFiltrados : [])}
+                    />
+                    Todos para exclusão
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      aria-label="Selecionar todos para transferência"
+                      checked={bensFiltrados.length > 0 && bensFiltrados.every((b) => bensParaTransferir.some((item) => item.id === b.id))}
+                      disabled={!bensFiltrados.length}
+                      onChange={(e) => setBensParaTransferir((atuais) => e.target.checked
+                        ? [...atuais, ...bensFiltrados.filter((b) => !atuais.some((item) => item.id === b.id))]
+                        : atuais.filter((b) => !idsBensFiltrados.includes(b.id)))}
+                    />
+                    Todos para transferência
+                  </label>
                   <div className="relative min-w-0 flex-1 basis-64 sm:max-w-md">
                     <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -1035,36 +1058,15 @@ function DepartamentosPage() {
               </div>}
               <div className="max-h-[480px] overflow-y-auto rounded-md border border-border">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-card">
-                  <TableRow className="h-8">
-                    <TableHead className="h-8 w-10 py-1">
-                      <input
-                        type="checkbox"
-                        aria-label="Selecionar todos"
-                        className="h-4 w-4 accent-primary"
-                        checked={todosFiltradosSelecionados}
-                        onChange={(e) =>
-                          setSelecionados(e.target.checked ? idsBensFiltrados : [])
-                        }
-                      />
-                    </TableHead>
-                    <TableHead className="h-8 w-24 py-1">
-                      <label className="flex items-center gap-1 text-xs">
-                        <input type="checkbox" className="h-4 w-4 accent-primary"
-                          aria-label="Selecionar todos para transferência"
-                          checked={bensFiltrados.length > 0 && bensFiltrados.every((b) => bensParaTransferir.some((item) => item.id === b.id))}
-                          disabled={!bensFiltrados.length}
-                          onChange={(e) => setBensParaTransferir((atuais) => e.target.checked
-                            ? [...atuais, ...bensFiltrados.filter((b) => !atuais.some((item) => item.id === b.id))]
-                            : atuais.filter((b) => !idsBensFiltrados.includes(b.id)))} />
-                        Transferir
-                      </label>
-                    </TableHead>
-                    <TableHead className="h-8 w-36 py-1">Código RED.</TableHead>
-                    <TableHead className="h-8 py-1">Descrição do bem</TableHead>
-                    <TableHead className="h-8 w-28 py-1">Incorporação</TableHead>
-                    <TableHead className="h-8 w-24 py-1">Tipo</TableHead>
-                    <TableHead className="h-8 w-32 py-1 text-right">Valor</TableHead>
+                <TableHeader className="sticky top-0 z-10 bg-room-assets-header [&_th]:border-y-2 [&_th]:border-room-assets-header-border [&_th]:font-bold [&_th]:text-room-assets-header-foreground [&_th]:whitespace-nowrap [&_th:first-child]:border-l-2 [&_th:last-child]:border-r-2">
+                  <TableRow className="h-8 hover:bg-room-assets-header">
+                    <TableHead className="h-8 w-12 py-1 text-center">EXC.</TableHead>
+                    <TableHead className="h-8 w-16 py-1 text-center">TRAN</TableHead>
+                    <TableHead className="h-8 w-36 py-1">PATRIMÔNIO</TableHead>
+                    <TableHead className="h-8 py-1">DESCRIÇÃO DO BEM</TableHead>
+                    <TableHead className="h-8 w-36 py-1">INCORPORAÇÃO</TableHead>
+                    <TableHead className="h-8 w-28 py-1">TIPO</TableHead>
+                    <TableHead className="h-8 w-32 py-1 text-right">VALOR</TableHead>
                     <TableHead className="h-8 w-12 py-1" />
                   </TableRow>
                 </TableHeader>
@@ -1100,7 +1102,7 @@ function DepartamentosPage() {
                   )}
                   {bensFiltrados.map((b) => (
                     <TableRow key={b.id} className={bemNaoLocalizado(b) ? "text-destructive" : undefined}>
-                      <TableCell className="py-1">
+                      <TableCell className="py-1 text-center">
                         <input
                           type="checkbox"
                           aria-label={`Selecionar ${b.codigo_red}`}
@@ -1113,7 +1115,7 @@ function DepartamentosPage() {
                           }
                         />
                       </TableCell>
-                      <TableCell className="py-1">
+                      <TableCell className="py-1 text-center">
                         <input type="checkbox" className="h-4 w-4 accent-primary"
                           aria-label={`Copiar RED ${formatarCodigoRed(b.codigo_red)} para transferência`}
                           checked={bensParaTransferir.some((item) => item.id === b.id)}
