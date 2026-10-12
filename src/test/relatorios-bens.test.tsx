@@ -20,6 +20,8 @@ vi.mock("@/components/TransferenciaBensDialog", () => ({
 }));
 import { RelatoriosBens } from "@/components/RelatoriosBens";
 
+const mensagemAlerta = "Existe (em) bens para Movimentação(ões) Inservíveis/Transferência de Localidade.";
+
 function item(id: string, sala: string, tipo = "transferencia"): SolicitacaoBem {
   return { id, bem_id: `bem-${id}`, sala_id: sala, local_origem: sala,
     tipo, destino: null, ativa: true, codigo_red: id, descricao: "Mesa", valor: 10,
@@ -35,11 +37,20 @@ beforeEach(() => {
   ]);
 });
 
-describe("alerta de bens para transferências", () => {
-  it("conta salas distintas, reúne as situações e não remove alertas ao abrir", async () => {
+describe("alerta de movimentação de bens", () => {
+  it("não mostra o alerta durante o carregamento nem quando não há pendências", async () => {
+    mocks.carregar.mockResolvedValue([]);
+    const { container } = render(<RelatoriosBens administrador />);
+    expect(container).toBeEmptyDOMElement();
+    await waitFor(() => expect(mocks.carregar).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("mostra apenas a mensagem intermitente, reúne as situações e mantém alertas ao abrir", async () => {
     render(<RelatoriosBens administrador />);
-    expect(screen.getByText("ALERTA DE BENS PARA TRANSFERÊNCIAS")).toBeInTheDocument();
-    const mensagem = await screen.findByRole("button", { name: "Existe(em) 02 Salas com bens inservíveis ou para transferência de localidades." });
+    const mensagem = await screen.findByRole("button", { name: mensagemAlerta });
+    expect(screen.queryByText("ALERTA DE BENS PARA TRANSFERÊNCIAS")).not.toBeInTheDocument();
+    expect(screen.getByText(mensagemAlerta)).toHaveClass("alerta-movimentacao");
     fireEvent.click(mensagem);
     expect(screen.getAllByRole("button", { name: /Abrir formulário —/ })).toHaveLength(2);
     const linha = screen.getByText("Sala A").parentElement!.parentElement!;
@@ -47,14 +58,14 @@ describe("alerta de bens para transferências", () => {
     expect(within(linha).getByText("(Transferência)")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Abrir formulário — Sala A" }));
     expect(screen.getByRole("dialog", { name: "Sala A" })).toBeInTheDocument();
-    expect(mensagem).toHaveTextContent("02 Salas");
+    expect(mensagem).toHaveTextContent(mensagemAlerta);
     fireEvent.click(screen.getByRole("button", { name: "Fechar formulário" }));
     expect(screen.getByRole("button", { name: "Abrir formulário — Sala A" })).toBeInTheDocument();
   });
 
   it("mantém a sala com itens pendentes após transferência parcial", async () => {
     render(<RelatoriosBens administrador />);
-    fireEvent.click(await screen.findByRole("button", { name: /Existe\(em\) 02 Salas/ }));
+    fireEvent.click(await screen.findByRole("button", { name: mensagemAlerta }));
     fireEvent.click(screen.getByRole("button", { name: "Abrir formulário — Sala A" }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar primeiro" }));
     fireEvent.click(screen.getByRole("button", { name: "Fechar formulário" }));
@@ -62,17 +73,20 @@ describe("alerta de bens para transferências", () => {
     expect(within(linha).getByText("1 bem(ns) pendente(s)")).toBeInTheDocument();
     expect(within(linha).getByText("(Inservíveis)")).toBeInTheDocument();
     expect(within(linha).queryByText("(Transferência)")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Existe\(em\) 02 Salas/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: mensagemAlerta })).toBeInTheDocument();
   });
 
-  it("retira a sala do alerta quando todos os seus bens foram transferidos", async () => {
+  it("retira a sala concluída e oculta todo o alerta após a última transferência", async () => {
     render(<RelatoriosBens administrador />);
-    fireEvent.click(await screen.findByRole("button", { name: /Existe\(em\) 02 Salas/ }));
+    fireEvent.click(await screen.findByRole("button", { name: mensagemAlerta }));
     fireEvent.click(screen.getByRole("button", { name: "Abrir formulário — Sala A" }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar todos" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: /Existe\(em\) 01 Salas/ })).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "Abrir formulário — Sala A" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Abrir formulário — Sala A" })).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Abrir formulário — Sala B" })).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Sala A" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar formulário" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir formulário — Sala B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar todos" }));
+    expect(screen.queryByRole("region", { name: "Notificações de movimentação de bens" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: mensagemAlerta })).not.toBeInTheDocument();
   });
 });

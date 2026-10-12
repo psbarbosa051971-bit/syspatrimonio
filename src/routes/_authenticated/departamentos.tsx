@@ -608,7 +608,7 @@ function DepartamentosPage() {
               SysPatrimônio
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-start gap-1 sm:justify-end">
+          <div className="flex flex-wrap items-center justify-start gap-1 sm:justify-end [&_button]:text-base [&_a]:text-base">
             <Button
               variant="ghost"
               size="sm"
@@ -834,7 +834,7 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
-              <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1.5fr)]">
+              <div className="grid gap-x-3 gap-y-1.5 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1.5fr)]">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabData">Data da última importação</Label>
                   <Input
@@ -870,9 +870,7 @@ function DepartamentosPage() {
                     <option value="SAÚDE">SAÚDE</option>
                     <option value="EDUCAÇÃO">EDUCAÇÃO</option>
                   </select>
-                  <p className="text-xs text-muted-foreground" aria-live="polite">
-                    {salvandoUnidade ? "Salvando unidade..." : "A unidade selecionada é salva neste Local Físico."}
-                  </p>
+                  {salvandoUnidade && <span className="sr-only" role="status">Salvando unidade...</span>}
                 </div>
                 <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
                   <div className="flex min-w-0 flex-col gap-1.5">
@@ -1057,7 +1055,7 @@ function DepartamentosPage() {
               <div
                 role="listbox"
                 aria-label="Salas"
-                className="flex h-[320px] flex-col gap-1 overflow-y-auto rounded-md border border-border p-1 lg:h-0 lg:min-h-0 lg:flex-1 [&>[role=option]]:shrink-0"
+                className="flex h-[320px] flex-col gap-0 overflow-y-auto rounded-md border border-border p-1 lg:h-0 lg:min-h-0 lg:flex-1 [&>[role=option]]:shrink-0"
               >
                 {(carregandoDepartamentos || carregandoSalas) && (
                   <p role="status" className="p-3 text-center text-sm text-muted-foreground">Carregando salas salvas...</p>
@@ -1082,7 +1080,7 @@ function DepartamentosPage() {
                     key={s.id}
                     role="option"
                     aria-selected={salaSel?.id === s.id}
-                    className={`flex items-center justify-between rounded-sm px-3 py-2 text-sm ${
+                    className={`flex items-center justify-between rounded-sm px-3 py-0.5 text-sm ${
                       salaSel?.id === s.id
                         ? "bg-primary text-primary-foreground"
                         : "hover:bg-accent"

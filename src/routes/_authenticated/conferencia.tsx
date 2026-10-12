@@ -167,7 +167,7 @@ function ConferenciaPage() {
             <span className="truncate text-base font-bold sm:text-lg text-primary-foreground">SysPatrimônio — Conferência</span>
           </div>
           <Button variant="ghost" size="sm"
-            className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            className="text-base text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
             onClick={async () => { await supabase.auth.signOut(); navigate({ to: "/" }); }}>
             <LogOut className="mr-2 h-4 w-4" /> Sair
           </Button>

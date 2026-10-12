@@ -138,6 +138,20 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+@keyframes piscar-movimentacao {
+  0%, 60%, 100% { opacity: 1; }
+  65%, 95% { opacity: 0.35; }
+}
+
+.alerta-movimentacao {
+  display: inline-block;
+  animation: piscar-movimentacao 2.4s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alerta-movimentacao { animation: none; }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

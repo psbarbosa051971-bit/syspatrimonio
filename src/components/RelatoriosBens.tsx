@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { agruparSolicitacoes, carregarSolicitacoes, tituloSolicitacao, type GrupoSolicitacoes, type SolicitacaoBem } from "@/lib/solicitacoes-bens";
 import { Button } from "@/components/ui/button";
 import { RelatorioBensDialog } from "@/components/RelatorioBensDialog";
@@ -64,25 +64,24 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
     return [...locais.values()].sort((a, b) => a.local.localeCompare(b.local, "pt-BR", { numeric: true }));
   }, [itens, administrador]);
 
+  if (administrador && itens.length === 0) return null;
+
   return (
-    <section aria-label={administrador ? "Alerta de bens para transferências" : "Relatórios deste local"}
+    <section aria-label={administrador ? "Notificações de movimentação de bens" : "Relatórios deste local"}
       className="rounded-lg border border-primary/30 bg-card p-3 text-card-foreground">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {!administrador && <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-semibold">
-          {administrador ? <Bell className="h-5 w-5 text-primary" /> : <FileText className="h-5 w-5 text-primary" />}
-          {administrador ? "ALERTA DE BENS PARA TRANSFERÊNCIAS" : "Transferências e inservíveis"}
+          <FileText className="h-5 w-5 text-primary" />
+          Transferências e inservíveis
         </h2>
-        {!administrador && <Button variant="outline" size="sm" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}>
+        <Button variant="outline" size="sm" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}>
           {aberto ? "Recolher relatórios" : "Ver relatórios"}
-        </Button>}
-      </div>
-      {administrador && <>
-        <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}
-          className="mt-2 w-full rounded-md bg-muted p-3 text-left font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-live="polite">
-          {carregando ? "Carregando alertas..." : `Existe(em) ${String(grupos.length).padStart(2, "0")} Salas com bens inservíveis ou para transferência de localidades.`}
-        </button>
-        <p className="mt-2 text-xs text-muted-foreground">Clique na mensagem para ver os locais. Abrir o formulário não remove o alerta: ele desaparece quando todos os bens pendentes do local forem transferidos. Atualização automática a cada 15 segundos.</p>
-      </>}
+        </Button>
+      </div>}
+      {administrador && <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}
+        className="w-full rounded-md bg-muted p-3 text-left font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-live="polite">
+        <span className="alerta-movimentacao">Existe (em) bens para Movimentação(ões) Inservíveis/Transferência de Localidade.</span>
+      </button>}
       {erro && <p role="alert" className="mt-2 text-sm text-destructive">
         Não foi possível atualizar os relatórios. <button type="button" className="underline"
           onClick={() => setTentativa((v) => v + 1)}>Tentar novamente</button>
