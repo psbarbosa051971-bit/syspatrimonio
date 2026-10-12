@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { entrarComLogin } from "@/lib/login.functions";
+import { RecuperarSenha } from "@/components/RecuperarSenha";
 import { Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ function Entrar() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const [recuperandoSenha, setRecuperandoSenha] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,10 +82,13 @@ function Entrar() {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
             <Building2 className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-xl">Entrar no SysPatrimônio</CardTitle>
-          <CardDescription>Use seu login ou e-mail e a senha cadastrada</CardDescription>
+          <CardTitle className="text-xl">{recuperandoSenha ? "Recuperar senha" : "Entrar no SysPatrimônio"}</CardTitle>
+          <CardDescription>{recuperandoSenha ? "Recupere o acesso à sua conta" : "Use seu login ou e-mail e a senha cadastrada"}</CardDescription>
         </CardHeader>
         <CardContent>
+          {recuperandoSenha ? (
+            <RecuperarSenha emailInicial={email} onVoltar={() => setRecuperandoSenha(false)} />
+          ) : <>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Login ou e-mail</Label>
@@ -112,6 +117,15 @@ function Entrar() {
               {carregando ? "Entrando..." : "Entrar"}
             </Button>
           </form>
+          <Button
+            type="button"
+            variant="link"
+            className="mt-2 h-auto w-full py-2"
+            disabled={carregando}
+            onClick={() => { setSenha(""); setRecuperandoSenha(true); }}
+          >
+            Esqueci minha senha
+          </Button>
           <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" />
             ou
@@ -131,6 +145,7 @@ function Entrar() {
               Criar conta
             </Link>
           </p>
+          </>}
         </CardContent>
       </Card>
     </div>
