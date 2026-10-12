@@ -151,7 +151,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
     expect(screen.queryByText("Cadastro de Departamento")).not.toBeInTheDocument();
-    const botao = screen.getByRole("button", { name: "Departamento", exact: true });
+    const botao = screen.getByRole("button", { name: "Departamento" });
     expect(botao).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(botao);
     expect(screen.getByLabelText("Departamento")).toHaveValue("Patrimônio");
@@ -262,7 +262,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     mocks.falharDepartamentos = true;
     render(<Page />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível carregar os departamentos");
-    fireEvent.click(screen.getByRole("button", { name: "Departamento", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Departamento" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Novo" })).toBeDisabled());
     expect(screen.getByRole("button", { name: "Cadastrar departamento" })).toBeDisabled();
   });
