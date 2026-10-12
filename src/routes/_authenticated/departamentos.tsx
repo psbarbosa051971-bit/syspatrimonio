@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRole } from "@/hooks/use-role";
 import { limparDescricao } from "@/lib/pdf-parse";
+import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
@@ -130,6 +131,36 @@ function DepartamentosPage() {
   const [cadastroAberto, setCadastroAberto] = useState(false);
   const [salvandoUnidade, setSalvandoUnidade] = useState(false);
   const [buscaBens, setBuscaBens] = useState("");
+  const [pesquisaDinamica, setPesquisaDinamica] = useState("");
+  const [resultadoPesquisa, setResultadoPesquisa] = useState<ResultadoPesquisaDinamica | null>(null);
+  const [localizando, setLocalizando] = useState(false);
+  const bensExibidos = resultadoPesquisa?.bens ?? bens;
+
+  async function localizarOuAtualizar(e: React.FormEvent) {
+    e.preventDefault();
+    if (localizando) return;
+    if (resultadoPesquisa) {
+      setResultadoPesquisa(null);
+      setPesquisaDinamica("");
+      setBuscaBens("");
+      setSelecionados([]);
+      setTentativaBens((valor) => valor + 1);
+      return;
+    }
+    if (!pesquisaDinamica.trim()) return;
+    setLocalizando(true);
+    try {
+      const resultado = await pesquisarBensEmTodasAsSalas(pesquisaDinamica);
+      setResultadoPesquisa(resultado);
+      setBuscaBens("");
+      setSelecionados([]);
+    } catch {
+      toast.error("Não foi possível realizar a pesquisa em todas as salas. Tente novamente.");
+    } finally {
+      setLocalizando(false);
+    }
+  }
+
   useEffect(() => {
     setBuscaBens("");
     setSelecionados([]);
@@ -138,8 +169,8 @@ function DepartamentosPage() {
   const bensFiltrados = useMemo(() => {
     const normalizar = (texto: string) => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const termos = normalizar(buscaBens).trim().split(/\s+/).filter(Boolean);
-    if (!termos.length) return bens;
-    return bens.filter((bem) => {
+    if (!termos.length) return bensExibidos;
+    return bensExibidos.filter((bem) => {
       const campos = normalizar([
         bem.codigo_red, limparDescricao(bem.descricao), bem.incorporacao, tipoExibido(bem),
         bem.valor, formataMoeda(Number(bem.valor)), Number(bem.valor).toFixed(2).replace(".", ","),
@@ -147,7 +178,7 @@ function DepartamentosPage() {
       ].filter((campo) => campo != null).join(" "));
       return termos.every((termo) => campos.includes(termo));
     });
-  }, [bens, buscaBens]);
+  }, [bensExibidos, buscaBens]);
   const idsBensFiltrados = bensFiltrados.map((bem) => bem.id);
   const todosFiltradosSelecionados = idsBensFiltrados.length > 0 && idsBensFiltrados.every((id) => selecionados.includes(id));
 
@@ -500,6 +531,7 @@ function DepartamentosPage() {
     const { error } = await supabase.from("bens").delete().eq("id", id);
     if (error) { toast.error("Erro ao remover bem"); return; }
     setBens((prev) => prev.filter((b) => b.id !== id));
+    setResultadoPesquisa((prev) => prev ? { ...prev, bens: prev.bens.filter((b) => b.id !== id) } : null);
     setSelecionados((prev) => prev.filter((x) => x !== id));
   }
 
@@ -510,6 +542,7 @@ function DepartamentosPage() {
     const { error } = await supabase.from("bens").delete().in("id", ids);
     if (error) { toast.error("Erro ao excluir bens"); return; }
     setBens((prev) => prev.filter((b) => !ids.includes(b.id)));
+    setResultadoPesquisa((prev) => prev ? { ...prev, bens: prev.bens.filter((b) => !ids.includes(b.id)) } : null);
     setSelecionados([]);
     toast.success(`${ids.length} bem(ns) excluído(s)`);
   }
@@ -752,16 +785,36 @@ function DepartamentosPage() {
           {/* Subformulário de bens */}
           <Card className="min-w-0">
             <CardHeader>
+              <form onSubmit={localizarOuAtualizar} className="mb-2 ml-auto w-full space-y-1.5 sm:max-w-xl">
+                <Label htmlFor="pesquisaDinamica">PESQUISA DINÂMICA</Label>
+                <div className="flex items-center gap-2">
+                  <Input id="pesquisaDinamica" type="search"
+                    placeholder="Código RED, parte da descrição ou valor..."
+                    value={pesquisaDinamica} disabled={localizando || !!resultadoPesquisa}
+                    onChange={(e) => setPesquisaDinamica(e.target.value)} />
+                  <Button type="submit" className="shrink-0"
+                    disabled={localizando || importando || carregandoPapel || !["admin", "operador"].includes(role ?? "") || (!resultadoPesquisa && !pesquisaDinamica.trim())}>
+                    {localizando ? "Localizando..." : resultadoPesquisa ? "Atualizar" : "Localizar"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground" aria-live="polite">
+                  {resultadoPesquisa
+                    ? `${resultadoPesquisa.bens.length} bem(ns) encontrado(s) em todas as salas para “${resultadoPesquisa.termo}”. Clique em Atualizar para voltar à sala selecionada.`
+                    : "Pesquisa em todas as salas disponíveis para sua conta."}
+                </p>
+              </form>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+                  <CardTitle>Bens da sala {resultadoPesquisa ? "— Pesquisa em todas as salas" : salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
                   <CardDescription>
-                    Preenchido manualmente ou pela leitura do HTML exportado pelo Sonner. Confira a quantidade antes de confirmar.
+                    {resultadoPesquisa
+                      ? "Resultados da pesquisa dinâmica. O local de cada bem é indicado na tabela."
+                      : "Preenchido manualmente ou pela leitura do HTML exportado pelo Sonner. Confira a quantidade antes de confirmar."}
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="destructive" size="sm"
-                    disabled={!salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
+                    disabled={!!resultadoPesquisa || localizando || !salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
                     onClick={excluirSalaVazia}>
                     <Trash2 className="mr-1 h-4 w-4" />
                     {excluindoSala ? "Excluindo..." : "Excluir sala vazia"}
@@ -776,7 +829,7 @@ function DepartamentosPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!departamentoSel || importando}
+                    disabled={!departamentoSel || importando || localizando || !!resultadoPesquisa}
                     onClick={() => fileRef.current?.click()}
                   >
                     <Upload className="mr-1 h-4 w-4" />
@@ -785,7 +838,7 @@ function DepartamentosPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!salaSel || importando}
+                    disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
                     onClick={() => { setConsultarTermoPorNumero(false); setDialogTermos(true); }}
                   >
                     <Printer className="mr-1 h-4 w-4" />
@@ -794,7 +847,7 @@ function DepartamentosPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!salaSel || importando}
+                    disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
                     onClick={() => { setConsultarTermoPorNumero(true); setDialogTermos(true); }}
                   >
                     <Printer className="mr-1 h-4 w-4" />
@@ -834,7 +887,7 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
-              <div className="grid gap-x-3 gap-y-1.5 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1.5fr)]">
+              {!resultadoPesquisa && <div className="grid gap-x-3 gap-y-1.5 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1.5fr)]">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabData">Data da última importação</Label>
                   <Input
@@ -884,11 +937,11 @@ function DepartamentosPage() {
                       placeholder="CPF do responsável" />
                   </div>
                 </div>
-              </div>
-              {bens.length > 0 && (
+              </div>}
+              {bensExibidos.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="mr-auto text-sm text-muted-foreground" role="status">
-                    {selecionados.length} selecionado(s) · Exibindo {bensFiltrados.length} de {bens.length}
+                    {selecionados.length} selecionado(s) · Exibindo {bensFiltrados.length} de {bensExibidos.length}
                   </span>
                   <div className="relative min-w-0 flex-1 basis-64 sm:max-w-md">
                     <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -938,13 +991,14 @@ function DepartamentosPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bens.length === 0 && (
+                  {bensExibidos.length === 0 && (
                     <TableRow>
                       <TableCell
                         colSpan={7}
                         className="text-center text-sm text-muted-foreground"
                       >
-                        {carregandoDepartamentos || carregandoSalas || carregandoBens
+                        {resultadoPesquisa ? "Nenhum bem encontrado para esta pesquisa em todas as salas."
+                          : carregandoDepartamentos || carregandoSalas || carregandoBens
                           ? "Carregando registros salvos..."
                           : erroBens ? (
                             <div role="alert" className="flex flex-col items-center gap-2 py-2">
@@ -959,7 +1013,7 @@ function DepartamentosPage() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {bens.length > 0 && bensFiltrados.length === 0 && (
+                  {bensExibidos.length > 0 && bensFiltrados.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="py-4 text-center text-sm text-muted-foreground">
                         Nenhum bem encontrado para esta pesquisa.
@@ -990,7 +1044,12 @@ function DepartamentosPage() {
                           {b.codigo_red}
                         </button>
                       </TableCell>
-                      <TableCell className="py-1">{limparDescricao(b.descricao)}</TableCell>
+                      <TableCell className="py-1">
+                        {limparDescricao(b.descricao)}
+                        {resultadoPesquisa && <span className="block text-sm text-muted-foreground">
+                          Local Físico: {b.sala_id ? resultadoPesquisa.locais[b.sala_id] : "—"}
+                        </span>}
+                      </TableCell>
                       <TableCell className="py-1 whitespace-nowrap">{b.incorporacao ?? ""}</TableCell>
                       <TableCell className="py-1">{tipoExibido(b)}</TableCell>
                       <TableCell className="py-1 text-right">
@@ -1013,7 +1072,7 @@ function DepartamentosPage() {
               </Table>
               </div>
               <div className="flex items-center justify-between rounded-md border-2 border-primary/30 bg-accent px-3 py-2 text-sm font-medium text-foreground">
-                <span>Quantidade de bens: {bensFiltrados.length}{buscaBens.trim() ? ` de ${bens.length}` : ""}</span>
+                <span>Quantidade de bens: {bensFiltrados.length}{buscaBens.trim() ? ` de ${bensExibidos.length}` : ""}</span>
                 <span>
                   {buscaBens.trim() ? "Total filtrado" : "Total"}: {formataMoeda(bensFiltrados.reduce((acc, b) => acc + Number(b.valor), 0))}
                 </span>
@@ -1197,7 +1256,7 @@ function DepartamentosPage() {
               Informações do bem {termoBem?.codigo_red}
             </DialogDescription>
           </DialogHeader>
-          {termoBem && departamentoSel && (
+          {termoBem && departamentoSel && !resultadoPesquisa && (
             <div className="rounded-md border border-border">
               <div className="border-b border-border bg-muted/50 px-4 py-3 text-sm">
                 <p>
@@ -1226,8 +1285,11 @@ function DepartamentosPage() {
               </div>
             </div>
           )}
-          {termoBem && !departamentoSel && (
+          {termoBem && (!departamentoSel || resultadoPesquisa) && (
             <div className="px-1 text-sm">
+              {resultadoPesquisa && <p>
+                <strong>Local Físico:</strong> {termoBem.sala_id ? resultadoPesquisa.locais[termoBem.sala_id] : "—"}
+              </p>}
               <p>
                 <strong>Código RED.:</strong> {termoBem.codigo_red}
               </p>

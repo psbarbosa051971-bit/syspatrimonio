@@ -64,10 +64,16 @@ beforeEach(() => {
     const consulta: Record<string, unknown> = {};
     let alteracao: { unidade: string } | null = null;
     let salaId = "";
-    for (const metodo of ["select", "order", "in", "range"]) consulta[metodo] = () => consulta;
+    let filtroSala: string | null = null;
+    let filtroDepartamento: string | null = null;
+    let intervalo = [0, 499];
+    for (const metodo of ["select", "order", "in"]) consulta[metodo] = () => consulta;
+    consulta["range"] = (inicio: number, fim: number) => { intervalo = [inicio, fim]; return consulta; };
     consulta["update"] = (dados: { unidade: string }) => { alteracao = dados; return consulta; };
     consulta["eq"] = (coluna: string, valor: string) => {
       if (coluna === "id") salaId = valor;
+      if (coluna === "sala_id") filtroSala = valor;
+      if (coluna === "departamento_id") filtroDepartamento = valor;
       return consulta;
     };
     consulta["single"] = async () => {
@@ -78,13 +84,70 @@ beforeEach(() => {
       if (atualizado) mocks.salas = mocks.salas.map((s) => s.id === salaId ? atualizado : s);
       return { data: atualizado, error: null };
     };
-    consulta["then"] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
-      Promise.resolve(resultado).then(resolve, reject);
+    consulta["then"] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
+      let dados: Record<string, unknown>[] | null = resultado.data;
+      if (dados && tabela === "bens" && filtroSala) dados = dados.filter((b) => b.sala_id === filtroSala);
+      if (dados && tabela === "salas" && filtroDepartamento) dados = dados.filter((s) => s.departamento_id === filtroDepartamento);
+      return Promise.resolve({ ...resultado, data: dados?.slice(intervalo[0], intervalo[1] + 1) ?? null }).then(resolve, reject);
+    };
     return consulta;
   });
 });
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it.each(["987", "dulo de a", "1250,75", "1.250,75"])(
+    "pesquisa em outros departamentos por %s e restaura a sala com o mesmo botão",
+    async (termo) => {
+      mocks.salas = [sala, { ...sala, id: "outra-sala", departamento_id: "outro-dep", nome: "Arquivo central" }];
+      mocks.bens = [bem, outroBem, {
+        ...bem, id: "bem-distante", sala_id: "outra-sala", codigo_red: "987654",
+        descricao: "Módulo de aço", valor: 1250.75,
+      }];
+      render(<Page />);
+      await screen.findByText("Mesa cadastrada");
+      expect(screen.queryByText("Módulo de aço")).not.toBeInTheDocument();
+      const campo = screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" });
+      fireEvent.change(campo, { target: { value: termo } });
+      expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Localizar", exact: true }));
+      expect(await screen.findByText("Módulo de aço")).toBeInTheDocument();
+      expect(screen.getByText("Local Físico: Arquivo central")).toBeInTheDocument();
+      expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
+      expect(screen.getByText("Quantidade de bens: 1")).toBeInTheDocument();
+      expect(campo).toBeDisabled();
+      const atualizar = screen.getByRole("button", { name: "Atualizar", exact: true });
+      fireEvent.click(atualizar);
+      expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
+      expect(screen.queryByText("Módulo de aço")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Local Físico")).toHaveValue("Sala existente");
+      expect(campo).toHaveValue("");
+      expect(campo).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Localizar", exact: true })).toBeDisabled();
+    },
+  );
+
+  it("mostra pesquisa sem resultados e permite voltar pelo botão Atualizar", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" }), { target: { value: "inexistente" } });
+    fireEvent.click(screen.getByRole("button", { name: "Localizar", exact: true }));
+    expect(await screen.findByText("Nenhum bem encontrado para esta pesquisa em todas as salas.")).toBeInTheDocument();
+    expect(screen.getByText("Quantidade de bens: 0")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar", exact: true }));
+    expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
+  });
+
+  it("preserva os bens da sala se a pesquisa em todas as salas falhar", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    mocks.falharSalas = true;
+    fireEvent.change(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" }), { target: { value: "mesa" } });
+    fireEvent.click(screen.getByRole("button", { name: "Localizar", exact: true }));
+    await waitFor(() => expect(mocks.erroToast).toHaveBeenCalledWith("Não foi possível realizar a pesquisa em todas as salas. Tente novamente."));
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Localizar", exact: true })).toBeEnabled();
+  });
+
   it.each(["admin", "operador"])(
     "mostra os não localizados em vermelho e substitui o tipo apenas após salvar a conferência para %s",
     async (role) => {
