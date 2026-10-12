@@ -22,26 +22,23 @@ export function correspondePesquisaDinamica(bem: Pick<Bem, "codigo_red" | "descr
 }
 
 export async function pesquisarBensEmTodasAsSalas(termo: string): Promise<ResultadoPesquisaDinamica> {
+  const busca = termo.trim();
   const locais: Record<string, string> = {};
-  // Consulta paginada, sem restringir ao departamento ou à sala selecionada.
-  // O acesso continua limitado às informações permitidas para a conta.
-  for (let inicio = 0; ; inicio += 500) {
-    const { data, error } = await supabase.from("salas").select("id,nome")
-      .order("id").range(inicio, inicio + 499);
-    if (error) throw error;
-    for (const sala of data ?? []) locais[sala.id] = sala.nome;
-    if (!data || data.length < 500) break;
-  }
   const bens: Bem[] = [];
+  if (!busca) return { termo: busca, bens, locais };
+  // O banco filtra antes de enviar: não baixa mais todos os bens e salas.
+  // A consulta mantém as permissões da conta e pagina apenas os resultados.
   for (let inicio = 0; ; inicio += 500) {
-    const { data, error } = await supabase.from("bens").select("*")
-      .order("id").range(inicio, inicio + 499);
+    const { data, error } = await supabase.rpc("pesquisar_bens_salas", { _termo: busca })
+      .range(inicio, inicio + 499);
     if (error) throw error;
-    for (const bem of data ?? []) {
-      if (bem.sala_id && Object.prototype.hasOwnProperty.call(locais, bem.sala_id) && correspondePesquisaDinamica(bem, termo)) bens.push(bem);
+    for (const item of data ?? []) {
+      const bem = item.bem as unknown as Bem;
+      if (!bem.sala_id) continue;
+      bens.push(bem);
+      locais[bem.sala_id] = item.local_nome;
     }
     if (!data || data.length < 500) break;
   }
-  bens.sort((a, b) => a.codigo_red.localeCompare(b.codigo_red));
-  return { termo: termo.trim(), bens, locais };
+  return { termo: busca, bens, locais };
 }

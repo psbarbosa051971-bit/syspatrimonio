@@ -147,10 +147,12 @@ function DepartamentosPage() {
       setTentativaBens((valor) => valor + 1);
       return;
     }
-    if (!pesquisaDinamica.trim()) return;
+    const termo = pesquisaDinamica.trim();
+    if (!termo) return;
+    setPesquisaDinamica("");
     setLocalizando(true);
     try {
-      const resultado = await pesquisarBensEmTodasAsSalas(pesquisaDinamica);
+      const resultado = await pesquisarBensEmTodasAsSalas(termo);
       setResultadoPesquisa(resultado);
       setBuscaBens("");
       setSelecionados([]);
@@ -785,33 +787,29 @@ function DepartamentosPage() {
           {/* Subformulário de bens */}
           <Card className="min-w-0">
             <CardHeader>
-              <form onSubmit={localizarOuAtualizar} className="mb-2 ml-auto w-full space-y-1.5 sm:max-w-xl">
-                <Label htmlFor="pesquisaDinamica">PESQUISA DINÂMICA</Label>
-                <div className="flex items-center gap-2">
-                  <Input id="pesquisaDinamica" type="search"
-                    placeholder="Código RED, parte da descrição ou valor..."
-                    value={pesquisaDinamica} disabled={localizando || !!resultadoPesquisa}
-                    onChange={(e) => setPesquisaDinamica(e.target.value)} />
-                  <Button type="submit" className="shrink-0"
-                    disabled={localizando || importando || carregandoPapel || !["admin", "operador"].includes(role ?? "") || (!resultadoPesquisa && !pesquisaDinamica.trim())}>
-                    {localizando ? "Localizando..." : resultadoPesquisa ? "Atualizar" : "Localizar"}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground" aria-live="polite">
-                  {resultadoPesquisa
-                    ? `${resultadoPesquisa.bens.length} bem(ns) encontrado(s) em todas as salas para “${resultadoPesquisa.termo}”. Clique em Atualizar para voltar à sala selecionada.`
-                    : "Pesquisa em todas as salas disponíveis para sua conta."}
-                </p>
-              </form>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <CardTitle>Bens da sala {resultadoPesquisa ? "— Pesquisa em todas as salas" : salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
-                  <CardDescription>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <CardTitle className="min-w-0 flex-1">Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+                <form onSubmit={localizarOuAtualizar} autoComplete="off" className="w-full space-y-1.5 lg:w-96 lg:shrink-0 xl:w-[28rem]">
+                  <Label htmlFor="pesquisaDinamica">PESQUISA DINÂMICA</Label>
+                  <div className="flex items-center gap-2">
+                    <Input id="pesquisaDinamica" type="search" autoComplete="off"
+                      autoCorrect="off" autoCapitalize="none" spellCheck={false}
+                      placeholder="Código RED, parte da descrição ou valor..."
+                      value={pesquisaDinamica} disabled={localizando || !!resultadoPesquisa}
+                      onChange={(e) => setPesquisaDinamica(e.target.value)} />
+                    <Button type="submit" className="shrink-0"
+                      disabled={localizando || importando || carregandoPapel || !["admin", "operador"].includes(role ?? "") || (!resultadoPesquisa && !pesquisaDinamica.trim())}>
+                      {localizando ? "Localizando..." : resultadoPesquisa ? "Atualizar" : "Localizar"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground" aria-live="polite">
                     {resultadoPesquisa
-                      ? "Resultados da pesquisa dinâmica. O local de cada bem é indicado na tabela."
-                      : "Preenchido manualmente ou pela leitura do HTML exportado pelo Sonner. Confira a quantidade antes de confirmar."}
-                  </CardDescription>
-                </div>
+                      ? `${resultadoPesquisa.bens.length} bem(ns) encontrado(s) em todas as salas. Clique em Atualizar para voltar à sala selecionada.`
+                      : "Pesquisa em todas as salas disponíveis para sua conta."}
+                  </p>
+                </form>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="flex flex-wrap gap-2">
                   <Button variant="destructive" size="sm"
                     disabled={!!resultadoPesquisa || localizando || !salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}

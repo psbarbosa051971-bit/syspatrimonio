@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
+  rpc: vi.fn(),
   navigate: vi.fn(),
   responsavel: vi.fn().mockResolvedValue(null),
   atualizarSala: vi.fn(),
@@ -24,13 +25,14 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: () => mocks.responsavel }
 vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ user: { id: "admin" } }) }));
 vi.mock("@/hooks/use-role", () => ({ useRole: () => mocks.papel }));
 vi.mock("sonner", () => ({ toast: { error: mocks.erroToast, success: vi.fn() } }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }));
 vi.mock("@/lib/usuarios.functions", () => ({ responsavelDoLocal: vi.fn() }));
 vi.mock("@/lib/pdf-parse", () => ({ limparDescricao: (texto: string) => texto }));
 vi.mock("@/components/ExcluirImportacoesDialog", () => ({ ExcluirImportacoesDialog: () => null }));
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({ TermosResponsabilidadeDialog: () => null }));
 
 import { Route } from "@/routes/_authenticated/departamentos";
+import { correspondePesquisaDinamica } from "@/lib/pesquisa-dinamica";
 const Page = Route.options.component as ComponentType;
 const departamento = {
   id: "dep", diretor: "Diretor", departamento: "Patrimônio", almoxarifado: "Central",
@@ -55,6 +57,19 @@ beforeEach(() => {
   mocks.falharUnidade = false;
   mocks.salas = [sala];
   mocks.bens = [bem, outroBem];
+  mocks.rpc.mockImplementation((_funcao: string, { _termo }: { _termo: string }) => ({
+    range: async (inicio: number, fim: number) => {
+      if (mocks.falharSalas) return { data: null, error: { message: "Falha de conexão" } };
+      const data = mocks.bens.flatMap((item) => {
+        const local = mocks.salas.find((s) => s.id === item.sala_id);
+        if (!local || !correspondePesquisaDinamica({
+          codigo_red: String(item.codigo_red), descricao: String(item.descricao), valor: Number(item.valor),
+        }, _termo)) return [];
+        return [{ bem: item, local_nome: local.nome }];
+      }).slice(inicio, fim + 1);
+      return { data, error: null };
+    },
+  }));
   mocks.from.mockImplementation((tabela: string) => {
     const falha = (tabela === "salas" && mocks.falharSalas)
       || (tabela === "departamentos" && mocks.falharDepartamentos);
@@ -115,6 +130,11 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
       expect(screen.getByText("Quantidade de bens: 1")).toBeInTheDocument();
       expect(campo).toBeDisabled();
+      expect(campo).toHaveValue("");
+      expect(campo).toHaveAttribute("autocomplete", "off");
+      expect(campo.closest("form")).toHaveAttribute("autocomplete", "off");
+      expect(screen.getByText("Bens da sala — Sala existente")).toBeInTheDocument();
+      expect(screen.queryByText(/Preenchido manualmente ou pela leitura do HTML/)).not.toBeInTheDocument();
       const atualizar = screen.getByRole("button", { name: "Atualizar", exact: true });
       fireEvent.click(atualizar);
       expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
@@ -145,7 +165,8 @@ describe("Carregamento dos registros em Departamentos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Localizar", exact: true }));
     await waitFor(() => expect(mocks.erroToast).toHaveBeenCalledWith("Não foi possível realizar a pesquisa em todas as salas. Tente novamente."));
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Localizar", exact: true })).toBeEnabled();
+    expect(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" })).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Localizar", exact: true })).toBeDisabled();
   });
 
   it.each(["admin", "operador"])(
