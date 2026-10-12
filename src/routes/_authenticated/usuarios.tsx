@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/usuarios")({
+  validateSearch: (search: Record<string, unknown>): { salaId?: string } => (
+    typeof search["salaId"] === "string" && search["salaId"].length <= 100
+      ? { salaId: search["salaId"] }
+      : {}
+  ),
   head: () => ({
     meta: [
       { title: "Gerenciar usuários — SysPatrimônio" },
@@ -43,6 +48,8 @@ const NOMES: Record<Papel, string> = {
 const SeletorSalas = SeletorLocalFisico;
 
 function UsuariosPage() {
+  const { salaId } = Route.useSearch();
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const { user } = useAuth();
   const { role, loading } = useRole();
   const criar = useServerFn(criarUsuario);
@@ -115,6 +122,7 @@ function UsuariosPage() {
       }
       await criar({ data: { ...novo, unidade } });
       toast.success("Usuário cadastrado e Local Físico vinculado à unidade");
+      setMostrarSenha(false);
       setNovo({ nome: "", matricula: "", cpf: "", email: "", login: "", senha: "", role: "visualizador", unidade: "", salas: [] });
       carregar();
     } catch (err) {
@@ -172,8 +180,15 @@ function UsuariosPage() {
               </div>
               <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="nSenha">Senha (mín. 6 caracteres)</Label>
-                <Input id="nSenha" type="password" required minLength={6} maxLength={72} autoComplete="new-password" value={novo.senha}
-                  onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
+                <div className="relative">
+                  <Input id="nSenha" type={mostrarSenha ? "text" : "password"} className="pr-10" required minLength={6} maxLength={72} autoComplete="new-password" value={novo.senha}
+                    onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
+                  <Button type="button" variant="outline" size="icon" className="absolute right-1 top-1 h-7 w-7"
+                    aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"} aria-pressed={mostrarSenha}
+                    onClick={() => setMostrarSenha((valor) => !valor)}>
+                    {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="nPapel">Permissão</Label>
@@ -204,7 +219,7 @@ function UsuariosPage() {
           </CardContent>
         </Card>
 
-        <GerenciarUsuarios usuarios={linhas} salas={salas} usuarioAtualId={user?.id} onAtualizar={carregar} />
+        <GerenciarUsuarios usuarios={linhas} salas={salas} salaInicialId={salaId} usuarioAtualId={user?.id} onAtualizar={carregar} />
         </div>
 
         <Card>
@@ -212,12 +227,12 @@ function UsuariosPage() {
             <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Usuários e permissões</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="min-w-[960px] table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome, matrícula, login, CPF e e-mail</TableHead>
+                  <TableHead className="w-[30%]">Nome, matrícula, login, CPF e e-mail</TableHead>
                   <TableHead className="w-44">Permissão</TableHead>
-                  <TableHead className="w-64">Local Físico vinculado</TableHead>
+                  <TableHead>Local Físico vinculado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -241,7 +256,10 @@ function UsuariosPage() {
                       {l.role === "visualizador" ? (
                         <>
                           <SeletorSalas salas={salas} valor={l.salas} onChange={(v) => mudarSalas(l, v)} />
-                          {l.salas.length > 1 && <p className="mt-1 text-xs text-muted-foreground">Vínculos existentes: {salas.filter((s) => l.salas.includes(s.id)).map((s) => s.nome).join("; ")}. Selecionar outro local substitui esses vínculos.</p>}
+                          <p className="mt-1 whitespace-normal break-words text-sm text-muted-foreground">
+                            {salas.filter((s) => l.salas.includes(s.id)).map((s) => s.nome).join("; ") || "Sem local vinculado"}
+                          </p>
+                          {l.salas.length > 1 && <p className="mt-1 text-xs text-muted-foreground">Selecionar outro local substitui os vínculos existentes.</p>}
                         </>
                       ) : (
                         <span className="text-xs text-muted-foreground">

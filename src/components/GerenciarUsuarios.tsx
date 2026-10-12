@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Pencil, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -21,11 +21,12 @@ export type UsuarioGerenciavel = {
 };
 const PAPEIS: Record<Papel, string> = { admin: "Administrador", operador: "Operador", visualizador: "Visualizador" };
 
-export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar, salas = [] }: {
+export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar, salas = [], salaInicialId }: {
   usuarios: UsuarioGerenciavel[];
   usuarioAtualId?: string | undefined;
   onAtualizar: () => Promise<void>;
   salas?: LocalFisicoOpcao[];
+  salaInicialId?: string | undefined;
 }) {
   const editar = useServerFn(editarUsuario);
   const excluir = useServerFn(excluirUsuario);
@@ -38,10 +39,34 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar, salas
   const [confirmacao, setConfirmacao] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const localInicializado = useRef<string | null>(null);
+  const localInicial = salas.find((s) => s.id === salaInicialId);
+  const vinculadosAoLocal = usuarios.filter((u) => u.salas?.includes(salaInicialId ?? ""));
+
+  useEffect(() => {
+    if (!salaInicialId || localInicializado.current === salaInicialId) return;
+    const local = salas.find((s) => s.id === salaInicialId);
+    if (!local) return;
+    localInicializado.current = salaInicialId;
+    const usuario = usuarios.find((u) => u.salas?.includes(salaInicialId));
+    setBusca(local.nome);
+    setId(usuario?.id ?? "");
+    setSenha(""); setConfirmacao("");
+    if (usuario) {
+      setDados({ nome: usuario.nome ?? "", cpf: formatarCpf(usuario.cpf ?? ""),
+        email: usuario.email ?? "", login: usuario.login ?? "", matricula: usuario.matricula ?? "",
+        role: usuario.role ?? "visualizador", salas: [...(usuario.salas ?? [])] });
+      setModo("editar");
+    } else setModo(null);
+    document.getElementById("gerenciar-usuarios")?.scrollIntoView?.({ block: "start" });
+  }, [salaInicialId, salas, usuarios]);
+
   const selecionado = usuarios.find((u) => u.id === id);
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
-  const encontrados = usuarios.filter((u) =>
-    `${u.nome ?? ""} ${u.email ?? ""} ${u.login ?? ""} ${u.matricula ?? ""} ${u.cpf ?? ""} ${formatarCpf(u.cpf ?? "")}`.toLocaleLowerCase("pt-BR").includes(termo));
+  const encontrados = usuarios.filter((u) => {
+    const locais = salas.filter((s) => u.salas?.includes(s.id)).map((s) => s.nome).join(" ");
+    return `${u.nome ?? ""} ${u.email ?? ""} ${u.login ?? ""} ${u.matricula ?? ""} ${u.cpf ?? ""} ${formatarCpf(u.cpf ?? "")} ${locais}`.toLocaleLowerCase("pt-BR").includes(termo);
+  });
   const opcoes = selecionado && !encontrados.some((u) => u.id === id) ? [selecionado, ...encontrados] : encontrados;
 
   function limparModo() { setModo(null); setSenha(""); setConfirmacao(""); }
@@ -91,7 +116,7 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar, salas
   }
 
   return (
-    <Card className="min-w-0">
+    <Card id="gerenciar-usuarios" className="min-w-0 scroll-mt-6">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Gerenciar usuários</CardTitle>
         <CardDescription>Localize um usuário para editar os dados, excluir o acesso ou mudar a senha.</CardDescription>
@@ -99,8 +124,13 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar, salas
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="buscaUsuario">Buscar usuário</Label>
-          <Input id="buscaUsuario" placeholder="Nome, CPF ou e-mail" value={busca} disabled={ocupado}
+          <Input id="buscaUsuario" placeholder="Nome, CPF, login, e-mail ou Local Físico" value={busca} disabled={ocupado}
             onChange={(e) => setBusca(e.target.value)} />
+          {localInicial && <p className="break-words text-sm text-muted-foreground">
+            Local Físico: {localInicial.nome}. {vinculadosAoLocal.length === 0
+              ? "Nenhum usuário vinculado a este local."
+              : vinculadosAoLocal.length > 1 ? "Há mais de um usuário vinculado; selecione quem deseja editar no campo Usuário." : "Usuário vinculado selecionado para edição."}
+          </p>}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="usuarioGerenciado">Usuário</Label>

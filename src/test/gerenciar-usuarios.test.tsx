@@ -31,6 +31,27 @@ beforeEach(() => { vi.clearAllMocks(); });
 afterEach(cleanup);
 
 describe("Gerenciar usuários", () => {
+  it("preenche a busca pelo local clicado e abre o usuário vinculado para edição após carregar", () => {
+    const props = { salas, usuarioAtualId: "admin", onAtualizar: atualizar, salaInicialId: "local-1" };
+    const { rerender } = render(<GerenciarUsuarios {...props} salas={[]} usuarios={[]} />);
+    rerender(<GerenciarUsuarios {...props} usuarios={[usuarios[1]!]} />);
+    expect(screen.getByLabelText("Buscar usuário")).toHaveValue("200 — Administração");
+    expect(screen.getByLabelText("Usuário")).toHaveValue("usuario");
+    expect(screen.getByLabelText("Nome completo")).toHaveValue("Ana Silva");
+    expect(screen.getByRole("combobox", { name: "Local Físico" })).toHaveValue("200 — Administração");
+    fireEvent.change(screen.getByLabelText("Nome completo"), { target: { value: "Ana Souza" } });
+    rerender(<GerenciarUsuarios {...props} usuarios={[{ ...usuarios[1]! }]} />);
+    expect(screen.getByLabelText("Nome completo")).toHaveValue("Ana Souza");
+  });
+
+  it("avisa quando o local não possui usuário sem selecionar outra pessoa", () => {
+    render(<GerenciarUsuarios usuarios={usuarios} salas={salas} salaInicialId="local-2" onAtualizar={atualizar} />);
+    expect(screen.getByLabelText("Buscar usuário")).toHaveValue("300 — Arquivo");
+    expect(screen.getByLabelText("Usuário")).toHaveValue("");
+    expect(screen.getByText(/Nenhum usuário vinculado a este local/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar usuário" })).toBeDisabled();
+  });
+
   it("permite buscar um usuário por nome, CPF ou e-mail", () => {
     abrir();
     fireEvent.change(screen.getByLabelText("Buscar usuário"), { target: { value: "ana@" } });

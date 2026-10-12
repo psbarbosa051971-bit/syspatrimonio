@@ -653,16 +653,6 @@ function DepartamentosPage() {
     }
   }
 
-  async function abrirRegistrosDaSala(sala: Sala) {
-    setDialogSala(sala);
-    setBensDialogSala([]);
-    try {
-      setBensDialogSala(await carregarBensDaSala(sala.id));
-    } catch {
-      toast.error("Não foi possível carregar todos os bens do local");
-    }
-  }
-
   async function sair() {
     await supabase.auth.signOut();
     navigate({ to: "/" });
@@ -1064,8 +1054,8 @@ function DepartamentosPage() {
                 <p className="text-sm text-muted-foreground">Clique em Gerar transferência no cabeçalho. Os códigos serão preenchidos automaticamente; selecione o local de destino para liberar Filtrar. Esta seleção é independente da exclusão.</p>
               </div>}
               <div className="max-h-[480px] overflow-y-auto rounded-md border border-border">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-room-assets-header [&_th]:border-y-2 [&_th]:border-room-assets-header-border [&_th]:font-bold [&_th]:text-xs [&_th]:text-room-assets-header-foreground [&_th]:whitespace-nowrap [&_th:first-child]:border-l-2 [&_th:last-child]:border-r-2">
+              <Table className="text-xs [&_td]:text-xs [&_td_button]:text-xs [&_td_span]:text-xs">
+                <TableHeader className="sticky top-0 z-10 bg-room-assets-header [&_th]:border-y-2 [&_th]:border-room-assets-header-border [&_th]:font-bold [&_th]:text-[10px] [&_th]:text-room-assets-header-foreground [&_th]:whitespace-nowrap [&_th:first-child]:border-l-2 [&_th:last-child]:border-r-2">
                   <TableRow className="h-8 hover:bg-room-assets-header">
                     <TableHead className="h-8 w-12 py-1 text-center">EXC.</TableHead>
                     <TableHead className="h-8 w-16 py-1 text-center">TRAN</TableHead>
@@ -1259,13 +1249,15 @@ function DepartamentosPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Ver registros de ${s.nome}`}
+                      aria-label={`Gerenciar usuários de ${s.nome}`}
+                      title={role === "admin" ? "Editar usuário vinculado a este Local Físico" : "Apenas administradores podem gerenciar usuários"}
+                      disabled={role !== "admin"}
                       className={
                         salaSel?.id === s.id
                           ? "text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
                           : ""
                       }
-                      onClick={() => abrirRegistrosDaSala(s)}
+                      onClick={() => navigate({ to: "/usuarios", search: { salaId: s.id } })}
                     >
                       <FileText className="h-4 w-4" />
                     </Button>

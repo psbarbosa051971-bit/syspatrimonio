@@ -112,6 +112,19 @@ beforeEach(() => {
 });
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("direciona o ícone da sala para gerenciar seus usuários em vez de abrir os registros", async () => {
+    render(<Page />);
+    fireEvent.click(await screen.findByRole("button", { name: "Gerenciar usuários de Sala existente" }));
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/usuarios", search: { salaId: "sala" } });
+    expect(screen.queryByText("Registros — Sala existente")).not.toBeInTheDocument();
+  });
+
+  it("mantém o gerenciamento de usuários restrito ao administrador", async () => {
+    mocks.papel = { role: "operador", loading: false };
+    render(<Page />);
+    expect(await screen.findByRole("button", { name: "Gerenciar usuários de Sala existente" })).toBeDisabled();
+  });
+
   it("exibe o cabeçalho dos bens como o modelo e preserva as seleções em lote acima da tabela", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
@@ -119,7 +132,8 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(within(cabecalho).getAllByRole("columnheader").map((coluna) => coluna.textContent)).toEqual([
       "EXC.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "VALOR", "",
     ]);
-    expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-xs");
+    expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-[10px]");
+    expect(cabecalho.closest("table")).toHaveClass("text-xs", "[&_td]:text-xs");
     expect(within(cabecalho).queryByRole("checkbox")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos", exact: true }));
     expect(screen.getByRole("checkbox", { name: "Selecionar 123", exact: true })).toBeChecked();
