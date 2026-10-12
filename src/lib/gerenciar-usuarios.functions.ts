@@ -14,6 +14,7 @@ export const editarUsuario = createServerFn({ method: "POST" })
     login: z.union([z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9._-]+$/)
       .transform((v) => v.toLowerCase()), z.literal("")]).optional(),
     role: z.enum(["admin", "operador", "visualizador"]),
+    salas: z.array(z.string().uuid()).min(1, "Selecione o Local Físico do usuário").max(500).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: admin, error: erroAcesso } = await context.supabase.rpc("has_role", {
@@ -27,6 +28,17 @@ export const editarUsuario = createServerFn({ method: "POST" })
     const { data: anterior, error: erroPerfil } = await supabaseAdmin.from("profiles")
       .select("id,nome,cpf,email,login,matricula").eq("id", data.id).single();
     if (erroPerfil || !anterior) throw new Error("Usuário não encontrado. Atualize a lista.");
+    const locais = data.salas ? [...new Set(data.salas)] : undefined;
+    let locaisAnteriores: string[] = [];
+    if (locais) {
+      const [{ data: existentes, error: erroLocais }, { data: vinculos, error: erroVinculos }] = await Promise.all([
+        supabaseAdmin.from("salas").select("id").in("id", locais),
+        supabaseAdmin.from("user_salas").select("sala_id").eq("user_id", data.id),
+      ]);
+      if (erroLocais || erroVinculos) throw new Error("Não foi possível verificar a lotação. Tente novamente.");
+      if (existentes?.length !== locais.length) throw new Error("Selecione um Local Físico válido da lista");
+      locaisAnteriores = (vinculos ?? []).map((v) => v.sala_id);
+    }
     const { data: duplicado, error: erroCpf } = await supabaseAdmin.from("profiles")
       .select("id").eq("cpf", data.cpf).neq("id", data.id).maybeSingle();
     if (erroCpf) throw new Error("Não foi possível verificar o CPF");
@@ -62,6 +74,24 @@ export const editarUsuario = createServerFn({ method: "POST" })
         login: anterior.login, matricula: anterior.matricula }).eq("id", data.id);
       if (conta.user.email) await supabaseAdmin.auth.admin.updateUserById(data.id, { email: conta.user.email, email_confirm: true });
       throw new Error("Não foi possível atualizar a permissão. Recarregue a lista antes de tentar novamente.");
+    }
+    if (locais) {
+      const adicionar = locais.filter((salaId) => !locaisAnteriores.includes(salaId));
+      const remover = locaisAnteriores.filter((salaId) => !locais.includes(salaId));
+      if (adicionar.length) {
+        const { error } = await supabaseAdmin.from("user_salas")
+          .insert(adicionar.map((sala_id) => ({ user_id: data.id, sala_id })));
+        if (error) throw new Error("Os dados foram salvos, mas não foi possível atualizar a lotação. Atualize a lista e tente novamente.");
+      }
+      if (remover.length) {
+        const { error } = await supabaseAdmin.from("user_salas").delete()
+          .eq("user_id", data.id).in("sala_id", remover);
+        if (error) {
+          if (adicionar.length) await supabaseAdmin.from("user_salas").delete()
+            .eq("user_id", data.id).in("sala_id", adicionar);
+          throw new Error("Os dados foram salvos, mas não foi possível substituir a lotação anterior. Atualize a lista e tente novamente.");
+        }
+      }
     }
     return { sucesso: true };
   });

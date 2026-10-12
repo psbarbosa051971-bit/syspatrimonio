@@ -119,7 +119,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(within(cabecalho).getAllByRole("columnheader").map((coluna) => coluna.textContent)).toEqual([
       "EXC.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "VALOR", "",
     ]);
-    expect(cabecalho).toHaveClass("bg-room-assets-header");
+    expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-xs");
     expect(within(cabecalho).queryByRole("checkbox")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos", exact: true }));
     expect(screen.getByRole("checkbox", { name: "Selecionar 123", exact: true })).toBeChecked();

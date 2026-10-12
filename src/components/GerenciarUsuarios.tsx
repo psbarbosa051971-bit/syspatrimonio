@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import type { Papel } from "@/hooks/use-role";
 import { editarUsuario, excluirUsuario, mudarSenhaUsuario } from "@/lib/gerenciar-usuarios.functions";
 import { cpfValido, formatarCpf } from "@/lib/cpf";
+import { SeletorLocalFisico, type LocalFisicoOpcao } from "@/components/SeletorLocalFisico";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,14 +17,15 @@ import {
 
 export type UsuarioGerenciavel = {
   id: string; nome: string | null; cpf: string | null; email: string | null; role: Papel | null;
-  login?: string | null; matricula?: string | null;
+  login?: string | null; matricula?: string | null; salas?: string[];
 };
 const PAPEIS: Record<Papel, string> = { admin: "Administrador", operador: "Operador", visualizador: "Visualizador" };
 
-export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
+export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar, salas = [] }: {
   usuarios: UsuarioGerenciavel[];
   usuarioAtualId?: string | undefined;
   onAtualizar: () => Promise<void>;
+  salas?: LocalFisicoOpcao[];
 }) {
   const editar = useServerFn(editarUsuario);
   const excluir = useServerFn(excluirUsuario);
@@ -31,7 +33,7 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
   const [busca, setBusca] = useState("");
   const [id, setId] = useState("");
   const [modo, setModo] = useState<"editar" | "senha" | null>(null);
-  const [dados, setDados] = useState({ nome: "", cpf: "", email: "", login: "", matricula: "", role: "visualizador" as Papel });
+  const [dados, setDados] = useState({ nome: "", cpf: "", email: "", login: "", matricula: "", role: "visualizador" as Papel, salas: [] as string[] });
   const [senha, setSenha] = useState("");
   const [confirmacao, setConfirmacao] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -47,13 +49,16 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
     if (!selecionado) return;
     setDados({ nome: selecionado.nome ?? "", cpf: formatarCpf(selecionado.cpf ?? ""),
       email: selecionado.email ?? "", login: selecionado.login ?? "", matricula: selecionado.matricula ?? "",
-      role: selecionado.role ?? "visualizador" });
+      role: selecionado.role ?? "visualizador", salas: [...(selecionado.salas ?? [])] });
     limparModo(); setModo("editar");
   }
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     if (!selecionado || ocupado) return;
     if (!cpfValido(dados.cpf)) { toast.error("Informe um CPF válido"); return; }
+    if (!dados.salas.length || dados.salas.some((salaId) => !salas.some((s) => s.id === salaId))) {
+      toast.error("Selecione um Local Físico da lista"); return;
+    }
     setOcupado(true);
     try {
       await editar({ data: { id, ...dados } });
@@ -159,6 +164,13 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
                 <Input id="editarEmail" type="email" required={!dados.login} maxLength={255} value={dados.email}
                   onChange={(e) => setDados({ ...dados, email: e.target.value })} />
                 <p className="text-xs text-muted-foreground">Você pode usar login e senha sem e-mail. Ao mudar o e-mail, o novo endereço também poderá ser usado para entrar.</p>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="editarLocal">Selecione o Local Físico (lotação)</Label>
+                <SeletorLocalFisico key={id} id="editarLocal" required limparAoDigitar disabled={ocupado}
+                  salas={salas} valor={dados.salas} onChange={(v) => setDados({ ...dados, salas: v })} />
+                <p className="text-xs text-muted-foreground">Digite parte do nome ou número e selecione um resultado da lista.</p>
+                {dados.salas.length > 1 && <p className="text-xs text-muted-foreground">Vínculos existentes: {salas.filter((s) => dados.salas.includes(s.id)).map((s) => s.nome).join("; ")}. Selecionar outro local substitui esses vínculos ao salvar.</p>}
               </div>
               <div className="flex flex-wrap gap-2 sm:col-span-2">
                 <Button type="submit">{ocupado ? "Salvando..." : "Salvar alterações"}</Button>

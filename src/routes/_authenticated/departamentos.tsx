@@ -1065,7 +1065,7 @@ function DepartamentosPage() {
               </div>}
               <div className="max-h-[480px] overflow-y-auto rounded-md border border-border">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-room-assets-header [&_th]:border-y-2 [&_th]:border-room-assets-header-border [&_th]:font-bold [&_th]:text-room-assets-header-foreground [&_th]:whitespace-nowrap [&_th:first-child]:border-l-2 [&_th:last-child]:border-r-2">
+                <TableHeader className="sticky top-0 z-10 bg-room-assets-header [&_th]:border-y-2 [&_th]:border-room-assets-header-border [&_th]:font-bold [&_th]:text-xs [&_th]:text-room-assets-header-foreground [&_th]:whitespace-nowrap [&_th:first-child]:border-l-2 [&_th:last-child]:border-r-2">
                   <TableRow className="h-8 hover:bg-room-assets-header">
                     <TableHead className="h-8 w-12 py-1 text-center">EXC.</TableHead>
                     <TableHead className="h-8 w-16 py-1 text-center">TRAN</TableHead>

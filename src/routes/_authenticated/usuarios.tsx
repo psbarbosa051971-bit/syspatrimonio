@@ -204,7 +204,7 @@ function UsuariosPage() {
           </CardContent>
         </Card>
 
-        <GerenciarUsuarios usuarios={linhas} usuarioAtualId={user?.id} onAtualizar={carregar} />
+        <GerenciarUsuarios usuarios={linhas} salas={salas} usuarioAtualId={user?.id} onAtualizar={carregar} />
         </div>
 
         <Card>

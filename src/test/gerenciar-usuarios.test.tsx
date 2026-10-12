@@ -11,13 +11,17 @@ vi.mock("@/lib/gerenciar-usuarios.functions", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: acoes.erro, success: acoes.sucesso } }));
 
+const salas = [
+  { id: "local-1", nome: "200 — Administração", unidade: "CENTRAL" },
+  { id: "local-2", nome: "300 — Arquivo", unidade: "CENTRAL" },
+];
 const usuarios = [
-  { id: "admin", nome: "Administrador", cpf: "52998224725", email: "admin@exemplo.com", role: "admin" as const },
-  { id: "usuario", nome: "Ana Silva", cpf: "11144477735", email: "ana@exemplo.com", role: "visualizador" as const },
+  { id: "admin", nome: "Administrador", cpf: "52998224725", email: "admin@exemplo.com", role: "admin" as const, salas: ["local-1"] },
+  { id: "usuario", nome: "Ana Silva", cpf: "11144477735", email: "ana@exemplo.com", role: "visualizador" as const, salas: ["local-1"] },
 ];
 const atualizar = vi.fn();
 function abrir() {
-  render(<GerenciarUsuarios usuarios={usuarios} usuarioAtualId="admin" onAtualizar={atualizar} />);
+  render(<GerenciarUsuarios usuarios={usuarios} salas={salas} usuarioAtualId="admin" onAtualizar={atualizar} />);
 }
 function selecionar(id = "usuario") {
   fireEvent.change(screen.getByLabelText("Usuário"), { target: { value: id } });
@@ -47,7 +51,7 @@ describe("Gerenciar usuários", () => {
   it("permite editar matrícula e login mantendo o e-mail vazio", async () => {
     render(<GerenciarUsuarios usuarios={[
       { ...usuarios[1]!, email: null, login: "anasilva", matricula: "00123" },
-    ]} usuarioAtualId="admin" onAtualizar={atualizar} />);
+    ]} salas={salas} usuarioAtualId="admin" onAtualizar={atualizar} />);
     selecionar();
     fireEvent.click(screen.getByRole("button", { name: "Editar usuário" }));
     expect(screen.getByLabelText("Matrícula")).toHaveValue("00123");
@@ -59,6 +63,34 @@ describe("Gerenciar usuários", () => {
     await waitFor(() => expect(acoes.editar).toHaveBeenCalledWith({
       data: expect.objectContaining({ matricula: "00456", login: "anasouza", email: "" }),
     }));
+  });
+
+  it("mostra a lotação atual e salva o novo Local Físico selecionado", async () => {
+    abrir(); selecionar();
+    fireEvent.click(screen.getByRole("button", { name: "Editar usuário" }));
+    const local = screen.getByRole("combobox", { name: "Local Físico" });
+    expect(screen.getByLabelText("Selecione o Local Físico (lotação)")).toBe(local);
+    expect(local).toHaveValue("200 — Administração");
+    fireEvent.focus(local);
+    fireEvent.change(local, { target: { value: "300" } });
+    fireEvent.click(screen.getByRole("option", { name: /300 — Arquivo/ }));
+    expect(local).toHaveValue("300 — Arquivo");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() => expect(acoes.editar).toHaveBeenCalledWith({
+      data: expect.objectContaining({ id: "usuario", salas: ["local-2"] }),
+    }));
+    await waitFor(() => expect(atualizar).toHaveBeenCalled());
+  });
+
+  it("não salva um local digitado sem selecionar um resultado", () => {
+    abrir(); selecionar();
+    fireEvent.click(screen.getByRole("button", { name: "Editar usuário" }));
+    const local = screen.getByRole("combobox", { name: "Local Físico" });
+    fireEvent.focus(local);
+    fireEvent.change(local, { target: { value: "Local inexistente" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Salvar alterações" }).closest("form")!);
+    expect(acoes.editar).not.toHaveBeenCalled();
+    expect(acoes.erro).toHaveBeenCalledWith("Selecione um Local Físico da lista");
   });
 
   it("exige confirmação coincidente antes de mudar a senha", async () => {
