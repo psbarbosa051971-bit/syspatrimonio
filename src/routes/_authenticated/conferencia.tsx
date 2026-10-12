@@ -121,17 +121,34 @@ function ConferenciaPage() {
     setOrdenacao((atual) => ({ campo, crescente: atual.campo === campo ? !atual.crescente : true }));
   }
 
-  async function marcar(b: Bem, v: boolean) {
-    setPendentes((p) => [...p, b.id]);
-    setBens((p) => p.map((x) => (x.id === b.id ? { ...x, conferido: v } : x)));
+  async function marcar(itens: Bem[], v: boolean) {
+    if (carregando || salvando || pendentes.length) return;
+    const alterados = itens.filter((b) => b.conferido !== v);
+    if (!alterados.length) return;
+    const anteriores = new Map(alterados.map((b) => [b.id, b.conferido]));
+    const falhas = new Set<string>();
+    setPendentes(alterados.map((b) => b.id));
+    setBens((p) => p.map((b) => anteriores.has(b.id) ? { ...b, conferido: v } : b));
     try {
-      const { error } = await supabase.rpc("marcar_conferido", { _bem_id: b.id, _valor: v });
-      if (error) throw error;
-    } catch {
-      toast.error("Erro ao salvar a marcação. Tente novamente.");
-      setBens((p) => p.map((x) => (x.id === b.id ? { ...x, conferido: b.conferido } : x)));
+      // Limita as requisições simultâneas sem mudar a forma de salvar cada bem.
+      for (let inicio = 0; inicio < alterados.length; inicio += 10) {
+        await Promise.all(alterados.slice(inicio, inicio + 10).map(async (b) => {
+          try {
+            const { error } = await supabase.rpc("marcar_conferido", { _bem_id: b.id, _valor: v });
+            if (error) throw error;
+          } catch {
+            falhas.add(b.id);
+          }
+        }));
+      }
     } finally {
-      setPendentes((p) => p.filter((id) => id !== b.id));
+      if (falhas.size) {
+        setBens((p) => p.map((b) => falhas.has(b.id) ? { ...b, conferido: anteriores.get(b.id)! } : b));
+        toast.error(alterados.length === 1
+          ? "Erro ao salvar a marcação. Tente novamente."
+          : `Não foi possível salvar a marcação de ${falhas.size} bem(ns). As demais foram salvas. Tente novamente.`);
+      }
+      setPendentes([]);
     }
   }
 
@@ -200,15 +217,23 @@ function ConferenciaPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
               <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
-                <p className="text-sm font-semibold text-primary">Quantidade de itens</p>
-                <p className="text-3xl font-bold tabular-nums">{carregando ? "—" : bens.length}</p>
+                <p className="text-xs font-semibold text-primary">Quantidade de itens</p>
+                <p className="text-xl font-bold tabular-nums">{carregando ? "—" : bens.length}</p>
               </div>
               <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
-                <p className="text-sm font-semibold text-primary">Valor total dos bens</p>
-                <p className="break-words text-3xl font-bold tabular-nums">{carregando ? "—" : moeda(valorTotal)}</p>
+                <p className="text-xs font-semibold text-primary">Valor total dos bens</p>
+                <p className="break-words text-xl font-bold tabular-nums">{carregando ? "—" : moeda(valorTotal)}</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">Marque “Sim” nos bens encontrados e clique em Salvar conferência para identificar os demais como NÃO LOCALIZADO.</p>
+            <p className="text-sm text-muted-foreground">Marque “Sim” nos bens encontrados, individualmente ou pela opção “Selecionar todos”, e clique em Salvar conferência para identificar os demais como NÃO LOCALIZADO.</p>
+            <label className="inline-flex w-fit items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" className="h-5 w-5 accent-primary disabled:opacity-50"
+                checked={bens.length > 0 && localizados === bens.length}
+                ref={(elemento) => { if (elemento) elemento.indeterminate = localizados > 0 && localizados < bens.length; }}
+                disabled={!bens.length || carregando || salvando || pendentes.length > 0}
+                onChange={(e) => void marcar(bens, e.target.checked)} />
+              Selecionar todos
+            </label>
             {sala && <RelatoriosBens salaId={sala.id} atualizacao={atualizacaoRelatorios} />}
           </CardHeader>
           <CardContent>
@@ -238,8 +263,8 @@ function ConferenciaPage() {
                       <label className="inline-flex items-center gap-2">
                         <input type="checkbox" className="h-5 w-5 accent-primary disabled:opacity-50"
                           aria-label={`Bem ${b.codigo_red} localizado`}
-                          disabled={salvando || pendentes.includes(b.id)}
-                          checked={b.conferido} onChange={(e) => marcar(b, e.target.checked)} />
+                          disabled={carregando || salvando || pendentes.length > 0}
+                          checked={b.conferido} onChange={(e) => void marcar([b], e.target.checked)} />
                         <span className="text-sm">Sim</span>
                       </label>
                     </TableCell>
