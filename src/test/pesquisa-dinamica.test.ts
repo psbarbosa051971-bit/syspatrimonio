@@ -15,6 +15,20 @@ describe("Pesquisa dinâmica em todas as salas", () => {
     },
   );
 
+  it.each(['MESA KM MOVEIS', '  mesa   km móveis  ', '"MESA KM MOVEIS"', 'MESA\u00a0KM\u00a0MOVEIS']) (
+    "encontra palavras separadas na descrição: %s", (termo) => {
+      expect(correspondePesquisaDinamica({ ...bem, descricao: "MESA DIRETOR KM MOVEIS" }, termo)).toBe(true);
+    },
+  );
+
+  it("busca múltiplos códigos exatos com máscara e vírgula final", () => {
+    const item = { ...bem, codigo_red: "60789" };
+    expect(correspondePesquisaDinamica(item, "60.651, 60.789, ")).toBe(true);
+    expect(correspondePesquisaDinamica(item, "60651, 60.789")).toBe(true);
+    expect(correspondePesquisaDinamica(item, "60.789")).toBe(true);
+    expect(correspondePesquisaDinamica(item, "60, 789")).toBe(false);
+  });
+
   it.each(["", "   ", "inexistente", "outro local"])("não corresponde a %s", (termo) => {
     expect(correspondePesquisaDinamica(bem, termo)).toBe(false);
   });

@@ -24,9 +24,9 @@ function bensDoAlerta(grupo?: GrupoSolicitacoes): BemTransferencia[] {
   }));
 }
 
-type Props = { onClose: () => void; onSaved: (salaId: string, termoId: string, bemIds?: string[]) => void; grupo?: GrupoSolicitacoes };
+type Props = { onClose: () => void; onSaved: (salaId: string, termoId: string, bemIds?: string[]) => void; grupo?: GrupoSolicitacoes; codigosIniciais?: string };
 
-export function TransferenciaBensDialog({ onClose, onSaved, grupo }: Props) {
+export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosIniciais = "" }: Props) {
   const consultarResponsavel = useServerFn(responsavelDoLocal);
   const [salas, setSalas] = useState<SalaTransferencia[]>([]);
   const [carregandoSalas, setCarregandoSalas] = useState(true);
@@ -36,7 +36,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo }: Props) {
   const [perfil, setPerfil] = useState<{ nome: string | null; cpf: string | null } | null>(null);
   const [carregandoPerfil, setCarregandoPerfil] = useState(false);
   const [erroPerfil, setErroPerfil] = useState("");
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(codigosIniciais);
   const [encontrados, setEncontrados] = useState<BemTransferencia[]>([]);
   const [marcadosBusca, setMarcadosBusca] = useState<string[]>([]);
   const [aceitos, setAceitos] = useState<BemTransferencia[]>(() => bensDoAlerta(grupo));
@@ -181,7 +181,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo }: Props) {
         </section>
         {!grupo && <><form onSubmit={filtrar} className="flex flex-wrap items-end gap-2">
           <div className="min-w-0 flex-1 basis-72 space-y-1.5"><Label htmlFor="transferencia-codigos">Códigos RED separados por vírgulas</Label>
-            <Input id="transferencia-codigos" value={busca} disabled={bloqueado || !destino} placeholder="Ex.: 12345, 67890, 13579"
+            <Input id="transferencia-codigos" value={busca} disabled={bloqueado || !destino} placeholder="Ex.: 60.651, 60.785, 60.789"
               onChange={(e) => { setBusca(e.target.value); setEncontrados([]); setMarcadosBusca([]); setAviso(""); setErro(""); }} /></div>
           <Button type="submit" disabled={bloqueado || !destino || !busca.trim()}>{filtrando ? "Filtrando..." : "Filtrar"}</Button>
         </form>

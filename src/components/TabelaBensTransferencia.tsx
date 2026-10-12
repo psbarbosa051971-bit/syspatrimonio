@@ -1,5 +1,6 @@
 import type { BemTransferencia, SalaTransferencia } from "@/lib/transferencias";
 import { limparDescricao } from "@/lib/pdf-parse";
+import { formatarCodigoRed } from "@/lib/codigo-red";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export function TabelaBensTransferencia({ titulo, bens, salas, selecionados, onChange, disabled = false }: {
@@ -30,7 +31,7 @@ export function TabelaBensTransferencia({ titulo, bens, salas, selecionados, onC
           <TableCell><input type="checkbox" className="h-4 w-4 accent-primary" disabled={disabled}
             aria-label={`Selecionar RED ${b.codigo_red} — ${nomes.get(b.sala_id ?? "") ?? "Sem sala"} — ${titulo}`}
             checked={selecionados.includes(b.id)} onChange={(e) => onChange(e.target.checked ? [...selecionados, b.id] : selecionados.filter((id) => id !== b.id))} /></TableCell>
-          <TableCell className="whitespace-nowrap font-medium">{b.codigo_red}</TableCell>
+          <TableCell className="whitespace-nowrap font-medium">{formatarCodigoRed(b.codigo_red)}</TableCell>
           <TableCell className="min-w-64">{limparDescricao(b.descricao)}</TableCell>
           <TableCell className="min-w-48">{nomes.get(b.sala_id ?? "") ?? "Sem sala"}</TableCell>
           <TableCell className="whitespace-nowrap text-right">{Number(b.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>

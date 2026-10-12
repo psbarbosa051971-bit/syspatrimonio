@@ -112,6 +112,23 @@ beforeEach(() => {
 });
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("separa seleção de exclusão da transferência e preenche os códigos mascarados no formulário", async () => {
+    mocks.bens = [{ ...bem, codigo_red: "60651" }, { ...outroBem, codigo_red: "60785" }];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    expect(screen.getByRole("button", { name: "60.651", exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.651 para transferência" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.785 para transferência" }));
+    expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("60.651, 60.785, ");
+    expect(screen.getByRole("checkbox", { name: "Selecionar 60651", exact: true })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.651 para transferência" }));
+    expect(screen.getByLabelText("Códigos RED para transferência (1 bens)")).toHaveValue("60.785, ");
+    fireEvent.click(screen.getByRole("button", { name: "Gerar transferência", exact: true }));
+    expect(await screen.findByLabelText("Códigos RED separados por vírgulas")).toHaveValue("60.785, ");
+    expect(screen.getByRole("button", { name: "Filtrar", exact: true })).toBeDisabled();
+  });
+
   it("exibe a pesquisa dinâmica no cabeçalho ao lado do nome do sistema", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");

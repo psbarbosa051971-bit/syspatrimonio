@@ -49,6 +49,20 @@ async function aceitarTodos() {
 }
 
 describe("formulário de transferência", () => {
+  it("recebe códigos mascarados e só libera Filtrar após escolher o destino", async () => {
+    render(<TransferenciaBensDialog codigosIniciais="60.651, 60.785, " onClose={vi.fn()} onSaved={vi.fn()} />);
+    const campo = screen.getByLabelText("Códigos RED separados por vírgulas");
+    expect(campo).toHaveValue("60.651, 60.785, ");
+    expect(screen.getByRole("button", { name: "Filtrar" })).toBeDisabled();
+    fireEvent.submit(campo.closest("form")!);
+    expect(mocks.buscar).not.toHaveBeenCalled();
+    await escolherDestino();
+    expect(campo).toHaveValue("60.651, 60.785, ");
+    expect(screen.getByRole("button", { name: "Filtrar" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Filtrar" }));
+    await waitFor(() => expect(mocks.buscar).toHaveBeenCalledWith(["60651", "60785"]));
+  });
+
   it("mostra responsável/CPF, aceita sem mover e salva somente a segunda seleção", async () => {
     const onSaved = vi.fn();
     render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={onSaved} />);

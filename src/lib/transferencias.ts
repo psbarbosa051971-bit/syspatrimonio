@@ -1,14 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { lerDadosTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
+import { normalizarCodigoRed } from "@/lib/codigo-red";
 
 export type BemTransferencia = Tables<"bens">;
 export type SalaTransferencia = Tables<"salas">;
 
 export function codigosDaBusca(texto: string): string[] {
-  const codigos = [...new Set(texto.split(",").map((c) => c.trim()).filter(Boolean))];
-  if (!codigos.length) throw new Error("Digite os códigos RED separados por vírgulas.");
-  if (codigos.some((c) => !/^\d+$/.test(c))) throw new Error("Use somente números separados por vírgulas nos códigos RED.");
+  const partes = texto.split(",").map((c) => c.trim()).filter(Boolean);
+  if (!partes.length) throw new Error("Digite os códigos RED separados por vírgulas.");
+  if (partes.some((c) => !/^\d+(?:\.\d{3})*$/.test(c))) throw new Error("Use somente códigos RED, com ou sem pontos, separados por vírgulas.");
+  const codigos = [...new Set(partes.map(normalizarCodigoRed))];
   if (codigos.length > 500) throw new Error("Informe no máximo 500 códigos por transferência.");
   return codigos;
 }

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { normalizarCodigoRed } from "@/lib/codigo-red";
 
 type Bem = Tables<"bens">;
 export type ResultadoPesquisaDinamica = {
@@ -14,11 +15,18 @@ const normalizar = (texto: string) => texto.normalize("NFD")
 export function correspondePesquisaDinamica(bem: Pick<Bem, "codigo_red" | "descricao" | "valor">, termo: string) {
   const busca = normalizar(termo);
   if (!busca) return false;
+  const numeros = normalizarCodigoRed(busca);
+  const lista = /^\d+(,\d+)+,?$/.test(numeros)
+    ? numeros.replace(/,$/, "").split(",") : [];
+  const codigo = normalizarCodigoRed(bem.codigo_red);
+  const palavras = busca.replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(/\s+/).filter(Boolean);
+  const descricao = normalizar(bem.descricao);
   const valor = Number(bem.valor);
-  const campos = [bem.codigo_red, bem.descricao, String(bem.valor), valor.toFixed(2),
-    valor.toFixed(2).replace(".", ","),
+  const valores = [String(bem.valor), valor.toFixed(2), valor.toFixed(2).replace(".", ","),
     valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })];
-  return campos.some((campo) => normalizar(campo).includes(busca));
+  return (lista.length > 0 ? lista.includes(codigo)
+    : codigo.includes(numeros) || (palavras.length > 0 && palavras.every((p) => descricao.includes(p))))
+    || valores.some((campo) => normalizar(campo).includes(busca));
 }
 
 export async function pesquisarBensEmTodasAsSalas(termo: string): Promise<ResultadoPesquisaDinamica> {

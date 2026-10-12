@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { responsavelDoLocal } from "@/lib/usuarios.functions";
 import { formatarCpf } from "@/lib/cpf";
+import { formatarCodigoRed } from "@/lib/codigo-red";
 import {
   Building2,
   CheckSquare,
@@ -135,6 +136,9 @@ function DepartamentosPage() {
   const [erroBens, setErroBens] = useState<string | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
+  const [bensParaTransferir, setBensParaTransferir] = useState<Bem[]>([]);
+  const codigosParaTransferir = [...new Set(bensParaTransferir.map((b) => formatarCodigoRed(b.codigo_red)))];
+  const textoCodigosTransferencia = codigosParaTransferir.length ? `${codigosParaTransferir.join(", ")}, ` : "";
   useEffect(() => setSelecionados([]), [bens.length === 0]);
   const [busca, setBusca] = useState("");
   const [filtroUnidade, setFiltroUnidade] = useState("");
@@ -184,7 +188,7 @@ function DepartamentosPage() {
     if (!termos.length) return bensExibidos;
     return bensExibidos.filter((bem) => {
       const campos = normalizar([
-        bem.codigo_red, limparDescricao(bem.descricao), bem.incorporacao, tipoExibido(bem),
+        bem.codigo_red, formatarCodigoRed(bem.codigo_red), limparDescricao(bem.descricao), bem.incorporacao, tipoExibido(bem),
         bem.valor, formataMoeda(Number(bem.valor)), Number(bem.valor).toFixed(2).replace(".", ","),
         bem.observacao,
       ].filter((campo) => campo != null).join(" "));
@@ -681,7 +685,7 @@ function DepartamentosPage() {
                 <Input id="pesquisaDinamica" type="search" autoComplete="off"
                   autoCorrect="off" autoCapitalize="none" spellCheck={false}
                   className="min-w-0 bg-background text-foreground dark:bg-background"
-                  placeholder="Código RED, parte da descrição ou valor..."
+                  placeholder="RED: 60.651, 60.785 ou descrição/valor..."
                   value={pesquisaDinamica} disabled={localizando || !!resultadoPesquisa}
                   onChange={(e) => setPesquisaDinamica(e.target.value)} />
                 <Button type="submit" variant="secondary" className="shrink-0"
@@ -920,10 +924,12 @@ function DepartamentosPage() {
                     }}
                   />}
                   {dialogTransferencia && <TransferenciaBensDialog
+                    codigosIniciais={textoCodigosTransferencia}
                     onClose={() => setDialogTransferencia(false)}
                     onSaved={(destinoId, termoId) => {
                       setTentativaBens((valor) => valor + 1);
                       setSelecionados([]);
+                      setBensParaTransferir([]);
                       if (salaSel?.id === destinoId) setUltimaImportacao(termoId);
                       setSalas((atuais) => [...atuais]);
                     }}
@@ -1019,6 +1025,14 @@ function DepartamentosPage() {
                   </Button>
                 </div>
               )}
+              {bensParaTransferir.length > 0 && <div className="space-y-2 rounded-md border bg-accent p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="codigos-selecionados-transferencia">Códigos RED para transferência ({bensParaTransferir.length} bens)</Label>
+                  <Button variant="outline" size="sm" onClick={() => setBensParaTransferir([])}>Limpar seleção de transferência</Button>
+                </div>
+                <Input id="codigos-selecionados-transferencia" readOnly value={textoCodigosTransferencia} />
+                <p className="text-sm text-muted-foreground">Clique em Gerar transferência no cabeçalho. Os códigos serão preenchidos automaticamente; selecione o local de destino para liberar Filtrar. Esta seleção é independente da exclusão.</p>
+              </div>}
               <div className="max-h-[480px] overflow-y-auto rounded-md border border-border">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card">
@@ -1034,6 +1048,18 @@ function DepartamentosPage() {
                         }
                       />
                     </TableHead>
+                    <TableHead className="h-8 w-24 py-1">
+                      <label className="flex items-center gap-1 text-xs">
+                        <input type="checkbox" className="h-4 w-4 accent-primary"
+                          aria-label="Selecionar todos para transferência"
+                          checked={bensFiltrados.length > 0 && bensFiltrados.every((b) => bensParaTransferir.some((item) => item.id === b.id))}
+                          disabled={!bensFiltrados.length}
+                          onChange={(e) => setBensParaTransferir((atuais) => e.target.checked
+                            ? [...atuais, ...bensFiltrados.filter((b) => !atuais.some((item) => item.id === b.id))]
+                            : atuais.filter((b) => !idsBensFiltrados.includes(b.id)))} />
+                        Transferir
+                      </label>
+                    </TableHead>
                     <TableHead className="h-8 w-36 py-1">Código RED.</TableHead>
                     <TableHead className="h-8 py-1">Descrição do bem</TableHead>
                     <TableHead className="h-8 w-28 py-1">Incorporação</TableHead>
@@ -1046,7 +1072,7 @@ function DepartamentosPage() {
                   {bensExibidos.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={8}
                         className="text-center text-sm text-muted-foreground"
                       >
                         {resultadoPesquisa ? "Nenhum bem encontrado para esta pesquisa em todas as salas."
@@ -1067,7 +1093,7 @@ function DepartamentosPage() {
                   )}
                   {bensExibidos.length > 0 && bensFiltrados.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-4 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={8} className="py-4 text-center text-sm text-muted-foreground">
                         Nenhum bem encontrado para esta pesquisa.
                       </TableCell>
                     </TableRow>
@@ -1088,12 +1114,20 @@ function DepartamentosPage() {
                         />
                       </TableCell>
                       <TableCell className="py-1">
+                        <input type="checkbox" className="h-4 w-4 accent-primary"
+                          aria-label={`Copiar RED ${formatarCodigoRed(b.codigo_red)} para transferência`}
+                          checked={bensParaTransferir.some((item) => item.id === b.id)}
+                          onChange={(e) => setBensParaTransferir((atuais) => e.target.checked
+                            ? atuais.some((item) => item.id === b.id) ? atuais : [...atuais, b]
+                            : atuais.filter((item) => item.id !== b.id))} />
+                      </TableCell>
+                      <TableCell className="py-1">
                         <button
                           type="button"
                           className={`font-mono text-sm font-medium underline ${bemNaoLocalizado(b) ? "text-destructive" : "text-primary"}`}
                           onClick={() => setTermoBem(b)}
                         >
-                          {b.codigo_red}
+                          {formatarCodigoRed(b.codigo_red)}
                         </button>
                       </TableCell>
                       <TableCell className="py-1">
@@ -1285,7 +1319,7 @@ function DepartamentosPage() {
               )}
               {bensDialogSala.map((b) => (
                 <TableRow key={b.id}>
-                  <TableCell className="font-mono text-sm">{b.codigo_red}</TableCell>
+                  <TableCell className="font-mono text-sm">{formatarCodigoRed(b.codigo_red)}</TableCell>
                   <TableCell>{limparDescricao(b.descricao)}</TableCell>
                   <TableCell>{b.incorporacao ?? ""}</TableCell>
                   <TableCell>{b.tipo ?? ""}</TableCell>
@@ -1305,7 +1339,7 @@ function DepartamentosPage() {
           <DialogHeader>
             <DialogTitle>Termo de Responsabilidade</DialogTitle>
             <DialogDescription>
-              Informações do bem {termoBem?.codigo_red}
+              Informações do bem {termoBem ? formatarCodigoRed(termoBem.codigo_red) : ""}
             </DialogDescription>
           </DialogHeader>
           {termoBem && departamentoSel && !resultadoPesquisa && (
@@ -1326,7 +1360,7 @@ function DepartamentosPage() {
               </div>
               <div className="px-4 py-3 text-sm">
                 <p>
-                  <strong>Código RED.:</strong> {termoBem.codigo_red}
+                  <strong>Código RED.:</strong> {formatarCodigoRed(termoBem.codigo_red)}
                 </p>
                 <p>
                   <strong>Descrição do bem:</strong> {termoBem.descricao}
@@ -1343,7 +1377,7 @@ function DepartamentosPage() {
                 <strong>Local Físico:</strong> {termoBem.sala_id ? resultadoPesquisa.locais[termoBem.sala_id] : "—"}
               </p>}
               <p>
-                <strong>Código RED.:</strong> {termoBem.codigo_red}
+                <strong>Código RED.:</strong> {formatarCodigoRed(termoBem.codigo_red)}
               </p>
               <p>
                 <strong>Descrição do bem:</strong> {termoBem.descricao}

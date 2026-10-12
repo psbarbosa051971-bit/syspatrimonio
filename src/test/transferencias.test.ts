@@ -17,6 +17,10 @@ describe("preparação de transferência de bens", () => {
     expect(() => codigosDaBusca(texto)).toThrow();
   });
 
+  it("aceita códigos com máscara, elimina repetidos e mantém zeros à esquerda", () => {
+    expect(codigosDaBusca("60.651, 60785, 60.651, 00.123, ")).toEqual(["60651", "60785", "00123"]);
+  });
+
   it("limita a quantidade a 500 códigos", () => {
     expect(codigosDaBusca(Array.from({ length: 500 }, (_, i) => String(i)).join(","))).toHaveLength(500);
     expect(() => codigosDaBusca(Array.from({ length: 501 }, (_, i) => String(i)).join(","))).toThrow("500");
