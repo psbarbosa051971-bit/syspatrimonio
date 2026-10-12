@@ -16,6 +16,7 @@ import {
 
 export type UsuarioGerenciavel = {
   id: string; nome: string | null; cpf: string | null; email: string | null; role: Papel | null;
+  login?: string | null; matricula?: string | null;
 };
 const PAPEIS: Record<Papel, string> = { admin: "Administrador", operador: "Operador", visualizador: "Visualizador" };
 
@@ -30,7 +31,7 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
   const [busca, setBusca] = useState("");
   const [id, setId] = useState("");
   const [modo, setModo] = useState<"editar" | "senha" | null>(null);
-  const [dados, setDados] = useState({ nome: "", cpf: "", email: "", role: "visualizador" as Papel });
+  const [dados, setDados] = useState({ nome: "", cpf: "", email: "", login: "", matricula: "", role: "visualizador" as Papel });
   const [senha, setSenha] = useState("");
   const [confirmacao, setConfirmacao] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -38,14 +39,15 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
   const selecionado = usuarios.find((u) => u.id === id);
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
   const encontrados = usuarios.filter((u) =>
-    `${u.nome ?? ""} ${u.email ?? ""} ${u.cpf ?? ""} ${formatarCpf(u.cpf ?? "")}`.toLocaleLowerCase("pt-BR").includes(termo));
+    `${u.nome ?? ""} ${u.email ?? ""} ${u.login ?? ""} ${u.matricula ?? ""} ${u.cpf ?? ""} ${formatarCpf(u.cpf ?? "")}`.toLocaleLowerCase("pt-BR").includes(termo));
   const opcoes = selecionado && !encontrados.some((u) => u.id === id) ? [selecionado, ...encontrados] : encontrados;
 
   function limparModo() { setModo(null); setSenha(""); setConfirmacao(""); }
   function abrirEdicao() {
     if (!selecionado) return;
     setDados({ nome: selecionado.nome ?? "", cpf: formatarCpf(selecionado.cpf ?? ""),
-      email: selecionado.email ?? "", role: selecionado.role ?? "visualizador" });
+      email: selecionado.email ?? "", login: selecionado.login ?? "", matricula: selecionado.matricula ?? "",
+      role: selecionado.role ?? "visualizador" });
     limparModo(); setModo("editar");
   }
   async function salvar(e: React.FormEvent) {
@@ -141,11 +143,22 @@ export function GerenciarUsuarios({ usuarios, usuarioAtualId, onAtualizar }: {
                   {(Object.keys(PAPEIS) as Papel[]).map((p) => <option key={p} value={p}>{PAPEIS[p]}</option>)}
                 </select>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editarMatricula">Matrícula</Label>
+                <Input id="editarMatricula" maxLength={50} value={dados.matricula}
+                  onChange={(e) => setDados({ ...dados, matricula: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="editarLogin">Login</Label>
+                <Input id="editarLogin" minLength={3} maxLength={50} pattern="[a-zA-Z0-9._\\-]+"
+                  required={!dados.email} value={dados.login}
+                  onChange={(e) => setDados({ ...dados, login: e.target.value })} />
+              </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="editarEmail">E-mail de acesso</Label>
-                <Input id="editarEmail" type="email" required maxLength={255} value={dados.email}
+                <Label htmlFor="editarEmail">E-mail de acesso (opcional com login)</Label>
+                <Input id="editarEmail" type="email" required={!dados.login} maxLength={255} value={dados.email}
                   onChange={(e) => setDados({ ...dados, email: e.target.value })} />
-                <p className="text-xs text-muted-foreground">Ao mudar o e-mail, o usuário deverá usar o novo endereço para entrar.</p>
+                <p className="text-xs text-muted-foreground">Você pode usar login e senha sem e-mail. Ao mudar o e-mail, o novo endereço também poderá ser usado para entrar.</p>
               </div>
               <div className="flex flex-wrap gap-2 sm:col-span-2">
                 <Button type="submit">{ocupado ? "Salvando..." : "Salvar alterações"}</Button>

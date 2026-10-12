@@ -147,6 +147,40 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+/* Cores fixas do modelo de cadastro e do resumo do Local Físico. */
+.cadastro-usuario {
+  --cadastro-campo: oklch(0.985 0.06 106);
+  --cadastro-texto: oklch(0.18 0.02 260);
+  --cadastro-borda: oklch(0.46 0.09 260);
+}
+.cadastro-usuario input,
+.cadastro-usuario select {
+  background-color: var(--cadastro-campo);
+  color: var(--cadastro-texto);
+  border-color: var(--cadastro-borda);
+}
+.cadastro-usuario label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.resumo-local {
+  background-color: oklch(0.44 0.11 263);
+  color: oklch(1 0 0);
+  border-radius: 1rem;
+}
+.resumo-local label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.resumo-local input,
+.resumo-local select {
+  background-color: oklch(1 0 0);
+  color: oklch(0.18 0.02 260);
+  border-color: oklch(0.78 0.05 255);
+}
+
 @keyframes piscar-movimentacao {
   0%, 60%, 100% { opacity: 1; }
   65%, 95% { opacity: 0.35; }

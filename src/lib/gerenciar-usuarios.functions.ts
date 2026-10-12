@@ -9,7 +9,10 @@ export const editarUsuario = createServerFn({ method: "POST" })
     id: z.string().uuid(),
     nome: z.string().trim().min(3, "Informe o nome completo").max(200),
     cpf: z.string().transform(normalizarCpf).refine(cpfValido, "CPF inválido"),
-    email: z.string().trim().email().max(255),
+    email: z.union([z.string().trim().email().max(255), z.literal("")]),
+    matricula: z.string().trim().max(50).optional(),
+    login: z.union([z.string().trim().min(3).max(50).regex(/^[a-zA-Z0-9._-]+$/)
+      .transform((v) => v.toLowerCase()), z.literal("")]).optional(),
     role: z.enum(["admin", "operador", "visualizador"]),
   }).parse(d))
   .handler(async ({ data, context }) => {
@@ -22,20 +25,32 @@ export const editarUsuario = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: anterior, error: erroPerfil } = await supabaseAdmin.from("profiles")
-      .select("id,nome,cpf,email").eq("id", data.id).single();
+      .select("id,nome,cpf,email,login,matricula").eq("id", data.id).single();
     if (erroPerfil || !anterior) throw new Error("Usuário não encontrado. Atualize a lista.");
     const { data: duplicado, error: erroCpf } = await supabaseAdmin.from("profiles")
       .select("id").eq("cpf", data.cpf).neq("id", data.id).maybeSingle();
     if (erroCpf) throw new Error("Não foi possível verificar o CPF");
     if (duplicado) throw new Error("Já existe outro usuário com esse CPF");
+    const login = data.login === undefined ? anterior.login : data.login || null;
+    const matricula = data.matricula === undefined ? anterior.matricula : data.matricula || null;
+    if (!data.email && !login) throw new Error("Informe um login ou e-mail para manter o acesso do usuário");
+    if (login) {
+      const { data: outro, error } = await supabaseAdmin.from("profiles")
+        .select("id").eq("login", login).neq("id", data.id).maybeSingle();
+      if (error) throw new Error("Não foi possível verificar o login");
+      if (outro) throw new Error("Este login já está em uso");
+    }
     const { data: conta, error: erroConta } = await supabaseAdmin.auth.admin.getUserById(data.id);
     if (erroConta || !conta.user) throw new Error("Não foi possível localizar o acesso do usuário");
+    const emailAutenticacao = data.email || (anterior.email
+      ? `${crypto.randomUUID()}@login.syspatrimonio.invalid` : conta.user.email);
+    if (!emailAutenticacao) throw new Error("Não foi possível localizar o acesso do usuário");
     const { error: erroEmail } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
-      email: data.email, email_confirm: true,
+      email: emailAutenticacao, email_confirm: true,
     });
     if (erroEmail) throw new Error("Não foi possível atualizar o e-mail. Verifique se ele já está em uso.");
     const { error: erroSalvar } = await supabaseAdmin.from("profiles")
-      .update({ nome: data.nome, cpf: data.cpf, email: data.email }).eq("id", data.id);
+      .update({ nome: data.nome, cpf: data.cpf, email: data.email || null, login, matricula }).eq("id", data.id);
     if (erroSalvar) {
       if (conta.user.email) await supabaseAdmin.auth.admin.updateUserById(data.id, { email: conta.user.email, email_confirm: true });
       throw new Error("Não foi possível salvar os dados. Verifique o CPF e tente novamente.");
@@ -43,7 +58,8 @@ export const editarUsuario = createServerFn({ method: "POST" })
     const { error: erroPapel } = await supabaseAdmin.from("user_roles")
       .upsert({ user_id: data.id, role: data.role }, { onConflict: "user_id" });
     if (erroPapel) {
-      await supabaseAdmin.from("profiles").update({ nome: anterior.nome, cpf: anterior.cpf, email: anterior.email }).eq("id", data.id);
+      await supabaseAdmin.from("profiles").update({ nome: anterior.nome, cpf: anterior.cpf, email: anterior.email,
+        login: anterior.login, matricula: anterior.matricula }).eq("id", data.id);
       if (conta.user.email) await supabaseAdmin.auth.admin.updateUserById(data.id, { email: conta.user.email, email_confirm: true });
       throw new Error("Não foi possível atualizar a permissão. Recarregue a lista antes de tentar novamente.");
     }

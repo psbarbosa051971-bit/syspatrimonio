@@ -10,7 +10,11 @@ export const criarUsuario = createServerFn({ method: "POST" })
       .object({
         nome: z.string().trim().min(3, "Informe o nome completo").max(200),
         cpf: z.string().transform(normalizarCpf).refine(cpfValido, "CPF inválido"),
-        email: z.string().email().max(255),
+        matricula: z.string().trim().max(50).default(""),
+        login: z.string().trim().min(3, "Informe um login com pelo menos 3 caracteres").max(50)
+          .regex(/^[a-zA-Z0-9._-]+$/, "Use letras, números, ponto, hífen ou sublinhado no login")
+          .transform((v) => v.toLowerCase()),
+        email: z.union([z.string().trim().email().max(255), z.literal("")]).default(""),
         senha: z.string().min(6).max(72),
         role: z.enum(["admin", "operador", "visualizador"]),
         unidade: z.enum(["CENTRAL", "SAÚDE", "EDUCAÇÃO"], { message: "Selecione a Unidade" }),
@@ -35,8 +39,14 @@ export const criarUsuario = createServerFn({ method: "POST" })
       .from("profiles").select("id").eq("cpf", data.cpf).maybeSingle();
     if (erroConsulta) throw new Error("Não foi possível verificar o CPF");
     if (existente) throw new Error("Já existe um usuário com esse CPF");
+    const { data: loginExistente, error: erroLogin } = await supabaseAdmin
+      .from("profiles").select("id").eq("login", data.login).maybeSingle();
+    if (erroLogin) throw new Error("Não foi possível verificar o login");
+    if (loginExistente) throw new Error("Este login já está em uso");
+    // Endereço interno apenas para o mecanismo de autenticação; não é e-mail de contato.
+    const emailAutenticacao = data.email || `${crypto.randomUUID()}@login.syspatrimonio.invalid`;
     const { data: criado, error } = await supabaseAdmin.auth.admin.createUser({
-      email: data.email,
+      email: emailAutenticacao,
       password: data.senha,
       email_confirm: true,
     });
@@ -44,7 +54,8 @@ export const criarUsuario = createServerFn({ method: "POST" })
     const id = criado.user.id;
     try {
       const { error: erroPerfil } = await supabaseAdmin.from("profiles")
-        .upsert({ id, email: data.email, nome: data.nome, cpf: data.cpf });
+        .upsert({ id, email: data.email || null, nome: data.nome, cpf: data.cpf,
+          matricula: data.matricula || null, login: data.login });
       if (erroPerfil) throw erroPerfil;
       const { error: erroPapel } = await supabaseAdmin.from("user_roles")
         .upsert({ user_id: id, role: data.role }, { onConflict: "user_id" });
@@ -78,7 +89,7 @@ export const responsavelDoLocal = createServerFn({ method: "POST" })
     const { data: vinculos, error } = await supabaseAdmin.from("user_salas").select("user_id").eq("sala_id", sala.id);
     if (error) throw new Error("Não foi possível consultar o responsável");
     if (!vinculos?.length) return null;
-    const { data: perfil, error: erroPerfil } = await supabaseAdmin.from("profiles").select("nome,cpf")
+    const { data: perfil, error: erroPerfil } = await supabaseAdmin.from("profiles").select("nome,cpf,matricula")
       .in("id", vinculos.map((v) => v.user_id)).not("nome", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (erroPerfil) throw new Error("Não foi possível consultar o responsável");
     return perfil;

@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_authenticated/usuarios")({
   component: UsuariosPage,
 });
 
-type Linha = { id: string; nome: string | null; cpf: string | null; email: string | null; role: Papel | null; salas: string[] };
+type Linha = { id: string; nome: string | null; cpf: string | null; email: string | null; matricula: string | null; login: string | null; role: Papel | null; salas: string[] };
 type SalaMin = LocalFisicoOpcao;
 const UNIDADES = ["CENTRAL", "SAÚDE", "EDUCAÇÃO"] as const;
 
@@ -48,13 +48,13 @@ function UsuariosPage() {
   const criar = useServerFn(criarUsuario);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [salas, setSalas] = useState<SalaMin[]>([]);
-  const [novo, setNovo] = useState({ nome: "", cpf: "", email: "", senha: "", role: "visualizador" as Papel, unidade: "", salas: [] as string[] });
+  const [novo, setNovo] = useState({ nome: "", matricula: "", cpf: "", email: "", login: "", senha: "", role: "visualizador" as Papel, unidade: "", salas: [] as string[] });
   const [salvando, setSalvando] = useState(false);
   const locaisDaUnidade = novo.unidade ? salas.filter((s) => !s.unidade || s.unidade === novo.unidade) : [];
 
   async function carregar() {
     const [{ data: perfis }, { data: papeis }, { data: us }, { data: ss }] = await Promise.all([
-      supabase.from("profiles").select("id,email,nome,cpf").order("created_at"),
+      supabase.from("profiles").select("id,email,nome,cpf,matricula,login").order("created_at"),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("user_salas").select("user_id,sala_id"),
       supabase.from("salas").select("id,nome,unidade").order("nome"),
@@ -66,6 +66,8 @@ function UsuariosPage() {
         nome: p.nome,
         cpf: p.cpf,
         email: p.email,
+        matricula: p.matricula,
+        login: p.login,
         role: (papeis?.find((r) => r.user_id === p.id)?.role as Papel) ?? null,
         salas: (us ?? []).filter((u) => u.user_id === p.id).map((u) => u.sala_id),
       })),
@@ -113,7 +115,7 @@ function UsuariosPage() {
       }
       await criar({ data: { ...novo, unidade } });
       toast.success("Usuário cadastrado e Local Físico vinculado à unidade");
-      setNovo({ nome: "", cpf: "", email: "", senha: "", role: "visualizador", unidade: "", salas: [] });
+      setNovo({ nome: "", matricula: "", cpf: "", email: "", login: "", senha: "", role: "visualizador", unidade: "", salas: [] });
       carregar();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao cadastrar usuário");
@@ -140,50 +142,62 @@ function UsuariosPage() {
             <CardDescription>Crie o acesso, defina a permissão e vincule o usuário ao Local Físico. Visualizadores veem somente o local vinculado.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={cadastrar} className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
+            <form onSubmit={cadastrar} className="cadastro-usuario grid gap-3 sm:grid-cols-3">
+              <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-3">
                 <Label htmlFor="nNome">Nome completo do usuário</Label>
                 <Input id="nNome" required minLength={3} maxLength={200} autoComplete="name" value={novo.nome}
                   onChange={(e) => setNovo({ ...novo, nome: e.target.value })} />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <Label htmlFor="nMatricula">Matrícula</Label>
+                <Input id="nMatricula" maxLength={50} value={novo.matricula}
+                  onChange={(e) => setNovo({ ...novo, matricula: e.target.value })} />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="nCpf">CPF</Label>
                 <Input id="nCpf" required inputMode="numeric" maxLength={14} placeholder="000.000.000-00" value={novo.cpf}
                   onChange={(e) => setNovo({ ...novo, cpf: formatarCpf(e.target.value) })} />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="nEmail">E-mail</Label>
-                <Input id="nEmail" type="email" required value={novo.email}
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <Label htmlFor="nEmail">E-mail (opcional)</Label>
+                <Input id="nEmail" type="email" maxLength={255} autoComplete="email" value={novo.email}
                   onChange={(e) => setNovo({ ...novo, email: e.target.value })} />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-3">
+                <Label htmlFor="nLogin">Login (nome de usuário)</Label>
+                <Input id="nLogin" required minLength={3} maxLength={50} pattern="[a-zA-Z0-9._\\-]+"
+                  autoComplete="username" placeholder="Ex.: PSBARBOSA" value={novo.login}
+                  onChange={(e) => setNovo({ ...novo, login: e.target.value })} />
+                <p className="text-xs text-muted-foreground">Use letras, números, ponto, hífen ou sublinhado. Você poderá entrar com esse login e a senha, sem informar e-mail.</p>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="nSenha">Senha (mín. 6 caracteres)</Label>
-                <Input id="nSenha" type="password" required minLength={6} value={novo.senha}
+                <Input id="nSenha" type="password" required minLength={6} maxLength={72} autoComplete="new-password" value={novo.senha}
                   onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="nPapel">Permissão</Label>
-                <select id="nPapel" className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                <select id="nPapel" className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                   value={novo.role} onChange={(e) => setNovo({ ...novo, role: e.target.value as Papel })}>
                   {(Object.keys(NOMES) as Papel[]).map((p) => <option key={p} value={p}>{NOMES[p]}</option>)}
                 </select>
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
                 <Label htmlFor="nUnidade">Unidade</Label>
-                <select id="nUnidade" required className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                <select id="nUnidade" required className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                   value={novo.unidade} onChange={(e) => setNovo({ ...novo, unidade: e.target.value, salas: [] })}>
                   <option value="">Selecione a Unidade</option>
                   {UNIDADES.map((unidade) => <option key={unidade} value={unidade}>{unidade}</option>)}
                 </select>
               </div>
-              <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-                <Label htmlFor="nLocal">Local Físico</Label>
+              <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-3">
+                <Label htmlFor="nLocal">Selecione o Local Físico (lotação)</Label>
                 <SeletorSalas key={novo.unidade} id="nLocal" required limparAoDigitar disabled={!novo.unidade} salas={locaisDaUnidade}
                   valor={novo.salas} onChange={(v) => setNovo({ ...novo, salas: v })} />
                 <p className="text-xs text-muted-foreground">Selecione a Unidade e digite parte do nome ou número, como 200 ou ALEX. Clique em um resultado para selecionar.</p>
                 <p className="text-xs text-muted-foreground">Locais ainda sem unidade também aparecem. Ao cadastrar o usuário, o local escolhido será vinculado à unidade selecionada.</p>
               </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-3">
                 <Button type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Cadastrar usuário"}</Button>
               </div>
             </form>
@@ -201,7 +215,7 @@ function UsuariosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome, CPF e e-mail</TableHead>
+                  <TableHead>Nome, matrícula, login, CPF e e-mail</TableHead>
                   <TableHead className="w-44">Permissão</TableHead>
                   <TableHead className="w-64">Local Físico vinculado</TableHead>
                 </TableRow>
@@ -211,7 +225,8 @@ function UsuariosPage() {
                   <TableRow key={l.id}>
                     <TableCell>
                       <p className="font-medium">{l.nome || "Nome não informado"}</p>
-                      <p>{l.email}</p>
+                      <p className="text-xs">Matrícula: {l.matricula || "Não informada"} · Login: {l.login || "Não informado"}</p>
+                      <p>{l.email || "Sem e-mail cadastrado"}</p>
                       <p className="text-xs text-muted-foreground">CPF: {l.cpf ? formatarCpf(l.cpf) : "Não informado"}</p>
                     </TableCell>
                     <TableCell>

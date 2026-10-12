@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { entrarComLogin } from "@/lib/login.functions";
 import { Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +32,7 @@ export const Route = createFileRoute("/entrar")({
 
 function Entrar() {
   const navigate = useNavigate();
+  const entrarPorLogin = useServerFn(entrarComLogin);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
@@ -37,16 +40,25 @@ function Entrar() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setCarregando(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: senha,
-    });
-    setCarregando(false);
-    if (error) {
-      toast.error("Não foi possível entrar", { description: error.message });
-      return;
+    try {
+      if (email.trim().includes("@")) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(), password: senha,
+        });
+        if (error) throw new Error("E-mail ou senha inválidos");
+      } else {
+        const sessao = await entrarPorLogin({ data: { login: email.trim(), senha } });
+        const { error } = await supabase.auth.setSession(sessao);
+        if (error) throw new Error("Não foi possível iniciar a sessão");
+      }
+      navigate({ to: "/departamentos" });
+    } catch (err) {
+      toast.error("Não foi possível entrar", {
+        description: err instanceof Error ? err.message : "Confira seu login e senha",
+      });
+    } finally {
+      setCarregando(false);
     }
-    navigate({ to: "/departamentos" });
   }
 
   async function handleGoogle() {
@@ -69,19 +81,20 @@ function Entrar() {
             <Building2 className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-xl">Entrar no SysPatrimônio</CardTitle>
-          <CardDescription>Use seu e-mail e senha cadastrados</CardDescription>
+          <CardDescription>Use seu login ou e-mail e a senha cadastrada</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="email">Login ou e-mail</Label>
               <Input
                 id="email"
-                type="email"
+                type="text"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+                placeholder="PSBARBOSA ou seu@email.com"
               />
             </div>
             <div className="flex flex-col gap-1.5">

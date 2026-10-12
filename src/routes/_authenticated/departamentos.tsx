@@ -108,7 +108,7 @@ function DepartamentosPage() {
   const navigate = useNavigate();
   const { role, loading: carregandoPapel } = useRole();
   const consultarResponsavel = useServerFn(responsavelDoLocal);
-  const [perfilResponsavel, setPerfilResponsavel] = useState<{ salaId: string; nome: string | null; cpf: string | null } | null>(null);
+  const [perfilResponsavel, setPerfilResponsavel] = useState<{ salaId: string; nome: string | null; cpf: string | null; matricula?: string | null } | null>(null);
   const [excluindoSala, setExcluindoSala] = useState(false);
   useEffect(() => {
     if (!carregandoPapel && role !== "admin" && role !== "operador") {
@@ -945,11 +945,13 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
-              {!resultadoPesquisa && <div className="grid gap-x-3 gap-y-1.5 rounded-md border-2 border-primary/30 bg-accent p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_minmax(0,1.5fr)]">
+              {!resultadoPesquisa && <div className="resumo-local grid gap-x-3 gap-y-2 p-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,3fr)_minmax(0,1.2fr)]">
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor="cabData">Data da última importação</Label>
+                  <Label htmlFor="cabData">Última</Label>
                   <Input
                     id="cabData"
+                    aria-label="Data da última importação"
+                    title="Data da última importação"
                     disabled={!salaSel}
                     value={cabecalho.data}
                     onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
@@ -983,9 +985,9 @@ function DepartamentosPage() {
                   </select>
                   {salvandoUnidade && <span className="sr-only" role="status">Salvando unidade...</span>}
                 </div>
-                <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.9fr)]">
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label htmlFor="cabResp">Nome do responsável pelo local</Label>
+                    <Label htmlFor="cabResp">Responsável pela sala</Label>
                     <Input id="cabResp" readOnly value={responsavelAtual?.nome ?? salaSel?.responsavel ?? ""}
                       placeholder="Preenchido pelo usuário vinculado ao local" />
                   </div>
@@ -993,6 +995,11 @@ function DepartamentosPage() {
                     <Label htmlFor="cabCpf">CPF</Label>
                     <Input id="cabCpf" readOnly value={responsavelAtual?.cpf ? formatarCpf(responsavelAtual.cpf) : ""}
                       placeholder="CPF do responsável" />
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <Label htmlFor="cabMatricula">Matrícula</Label>
+                    <Input id="cabMatricula" readOnly value={responsavelAtual?.matricula ?? ""}
+                      placeholder="Matrícula do responsável" />
                   </div>
                 </div>
               </div>}

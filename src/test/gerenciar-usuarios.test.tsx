@@ -44,6 +44,23 @@ describe("Gerenciar usuários", () => {
     await waitFor(() => expect(atualizar).toHaveBeenCalled());
   });
 
+  it("permite editar matrícula e login mantendo o e-mail vazio", async () => {
+    render(<GerenciarUsuarios usuarios={[
+      { ...usuarios[1]!, email: null, login: "anasilva", matricula: "00123" },
+    ]} usuarioAtualId="admin" onAtualizar={atualizar} />);
+    selecionar();
+    fireEvent.click(screen.getByRole("button", { name: "Editar usuário" }));
+    expect(screen.getByLabelText("Matrícula")).toHaveValue("00123");
+    expect(screen.getByLabelText("Login")).toHaveValue("anasilva");
+    expect(screen.getByLabelText("E-mail de acesso (opcional com login)")).not.toBeRequired();
+    fireEvent.change(screen.getByLabelText("Matrícula"), { target: { value: "00456" } });
+    fireEvent.change(screen.getByLabelText("Login"), { target: { value: "anasouza" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() => expect(acoes.editar).toHaveBeenCalledWith({
+      data: expect.objectContaining({ matricula: "00456", login: "anasouza", email: "" }),
+    }));
+  });
+
   it("exige confirmação coincidente antes de mudar a senha", async () => {
     abrir(); selecionar();
     fireEvent.click(screen.getByRole("button", { name: "Mudar de senha" }));
