@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   responsavel: vi.fn().mockResolvedValue(null),
   atualizarSala: vi.fn(),
   erroToast: vi.fn(),
+  extrairHtml: vi.fn(),
   papel: { role: "admin", loading: false },
   falharUnidade: false,
   falharSalas: false,
@@ -28,6 +29,7 @@ vi.mock("sonner", () => ({ toast: { error: mocks.erroToast, success: vi.fn() } }
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }));
 vi.mock("@/lib/usuarios.functions", () => ({ responsavelDoLocal: vi.fn() }));
 vi.mock("@/lib/pdf-parse", () => ({ limparDescricao: (texto: string) => texto }));
+vi.mock("@/lib/html-parse", () => ({ extrairTermoDeHtml: mocks.extrairHtml }));
 vi.mock("@/components/ExcluirImportacoesDialog", () => ({ ExcluirImportacoesDialog: () => null }));
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({ TermosResponsabilidadeDialog: () => null }));
 
@@ -110,6 +112,52 @@ beforeEach(() => {
 });
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("exibe a pesquisa dinâmica no cabeçalho ao lado do nome do sistema", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const cabecalho = screen.getByRole("banner");
+    expect(within(cabecalho).getByText("SysPatrimônio")).toBeInTheDocument();
+    expect(within(cabecalho).getByRole("searchbox", { name: "PESQUISA DINÂMICA" })).toBeInTheDocument();
+    expect(within(screen.getByRole("main")).queryByRole("searchbox", { name: "PESQUISA DINÂMICA" })).not.toBeInTheDocument();
+  });
+
+  it.each(["Sim", "Não"])("aguarda a confirmação personalizada da importação e respeita %s", async (resposta) => {
+    const nomeLocal = "142 TRANSPORTE DA SAÚDE";
+    mocks.salas = [{ ...sala, nome: nomeLocal }];
+    const extraidos = Array.from({ length: 105 }, (_, i) => ({ codigo_red: String(i), descricao: "Mesa", valor: 10 }));
+    mocks.extrairHtml.mockResolvedValue({
+      cabecalho: { local: nomeLocal, endereco: "", data: "", historico: "" },
+      bens: extraidos,
+    });
+    const { container } = render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+    });
+    const dialogo = await screen.findByRole("alertdialog");
+    expect(dialogo).toHaveAccessibleName(`LOCAL IMPORTADO: ${nomeLocal}`);
+    expect(within(dialogo).getByText("105 BEM(NS) SERÃO IMPORTADOS!")).toBeInTheDocument();
+    expect(within(dialogo).getByText("DESEJA CONTINUAR? (Os Bens que já existem na sala não serão duplicados)")).toBeInTheDocument();
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    if (resposta === "Sim") {
+      mocks.rpc.mockResolvedValueOnce({
+        data: { importacao_id: "importacao", termo_numero: "1/2026", novos: 105, repetidos: 0 }, error: null,
+      });
+    }
+    fireEvent.click(within(dialogo).getByRole("button", { name: resposta, exact: true }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
+    if (resposta === "Sim") {
+      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html", expect.objectContaining({
+        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos,
+      }));
+    } else {
+      expect(mocks.atualizarSala).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    }
+  });
+
   it.each(["987", "dulo de a", "1250,75", "1.250,75"])(
     "pesquisa em outros departamentos por %s e restaura a sala com o mesmo botão",
     async (termo) => {

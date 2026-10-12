@@ -30,6 +30,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -203,6 +213,27 @@ function DepartamentosPage() {
   const [bensDialogSala, setBensDialogSala] = useState<Bem[]>([]);
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
+  const [confirmacaoImportacao, setConfirmacaoImportacao] = useState<{ local: string; quantidade: number } | null>(null);
+  const resolverConfirmacaoImportacao = useRef<((confirmado: boolean) => void) | null>(null);
+  useEffect(() => () => {
+    resolverConfirmacaoImportacao.current?.(false);
+    resolverConfirmacaoImportacao.current = null;
+  }, []);
+
+  function confirmarImportacao(local: string, quantidade: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      resolverConfirmacaoImportacao.current = resolve;
+      setConfirmacaoImportacao({ local, quantidade });
+    });
+  }
+
+  function responderConfirmacaoImportacao(confirmado: boolean) {
+    const resolver = resolverConfirmacaoImportacao.current;
+    resolverConfirmacaoImportacao.current = null;
+    setConfirmacaoImportacao(null);
+    resolver?.(confirmado);
+  }
+
   const [dialogTermos, setDialogTermos] = useState(false);
   const [consultarTermoPorNumero, setConsultarTermoPorNumero] = useState(false);
   const [dialogTransferencia, setDialogTransferencia] = useState(false);
@@ -573,7 +604,7 @@ function DepartamentosPage() {
         if (candidatas.length > 1) throw new Error("Há mais de um local com esse nome. Corrija os cadastros antes de importar.");
         sala = candidatas[0] ?? null;
       }
-      if (!confirm(`HTML: ${extraidos.length} códigos de bens reconhecidos.\nLocal Físico: ${nomeLocal}\nContinuar? Bens já cadastrados nesse local não serão duplicados.`)) return;
+      if (!await confirmarImportacao(nomeLocal, extraidos.length)) return;
       if (!sala) {
         const { data: nova, error } = await supabase.from("salas").insert({
           user_id: user.id, departamento_id: departamentoSel.id, nome: nomeLocal,
@@ -636,14 +667,36 @@ function DepartamentosPage() {
   return (
     <div className="min-h-screen bg-muted/40">
       <header className="border-b border-border bg-primary px-3 py-2 sm:px-6 sm:py-3">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-primary-foreground" />
-            <span className="text-lg font-bold text-primary-foreground">
-              SysPatrimônio
-            </span>
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center xl:flex-1">
+            <div className="flex shrink-0 items-center gap-2">
+              <Building2 className="h-6 w-6 text-primary-foreground" />
+              <span className="text-lg font-bold text-primary-foreground">
+                SysPatrimônio
+              </span>
+            </div>
+            <form onSubmit={localizarOuAtualizar} autoComplete="off" className="min-w-0 flex-1 space-y-1.5 text-primary-foreground xl:max-w-[36rem]">
+              <Label htmlFor="pesquisaDinamica">PESQUISA DINÂMICA</Label>
+              <div className="flex items-center gap-2">
+                <Input id="pesquisaDinamica" type="search" autoComplete="off"
+                  autoCorrect="off" autoCapitalize="none" spellCheck={false}
+                  className="min-w-0 bg-background text-foreground dark:bg-background"
+                  placeholder="Código RED, parte da descrição ou valor..."
+                  value={pesquisaDinamica} disabled={localizando || !!resultadoPesquisa}
+                  onChange={(e) => setPesquisaDinamica(e.target.value)} />
+                <Button type="submit" variant="secondary" className="shrink-0"
+                  disabled={localizando || importando || carregandoPapel || !["admin", "operador"].includes(role ?? "") || (!resultadoPesquisa && !pesquisaDinamica.trim())}>
+                  {localizando ? "Localizando..." : resultadoPesquisa ? "Atualizar" : "Localizar"}
+                </Button>
+              </div>
+              <p className="text-xs text-primary-foreground" aria-live="polite">
+                {resultadoPesquisa
+                  ? `${resultadoPesquisa.bens.length} bem(ns) encontrado(s) em todas as salas. Clique em Atualizar para voltar à sala selecionada.`
+                  : "Pesquisa em todas as salas disponíveis para sua conta."}
+              </p>
+            </form>
           </div>
-          <div className="flex flex-wrap items-center justify-start gap-1 sm:justify-end [&_button]:text-base [&_a]:text-base">
+          <div className="flex shrink-0 flex-wrap items-center justify-start gap-1 xl:justify-end [&_button]:text-base [&_a]:text-base">
             <Button
               variant="ghost"
               size="sm"
@@ -683,6 +736,28 @@ function DepartamentosPage() {
           </div>
         </div>
       </header>
+
+      <AlertDialog open={!!confirmacaoImportacao} onOpenChange={(aberto) => {
+        if (!aberto) responderConfirmacaoImportacao(false);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-normal">
+              LOCAL IMPORTADO: <strong>{confirmacaoImportacao?.local}</strong>
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-foreground">
+                <p className="font-bold">{confirmacaoImportacao?.quantidade} BEM(NS) SERÃO IMPORTADOS!</p>
+                <p>DESEJA CONTINUAR? (Os Bens que já existem na sala não serão duplicados)</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => responderConfirmacaoImportacao(false)}>Não</AlertDialogCancel>
+            <AlertDialogAction onClick={() => responderConfirmacaoImportacao(true)}>Sim</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <main className="mx-auto grid max-w-[1800px] gap-4 px-3 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]">
         <div className="flex min-w-0 flex-col gap-6 lg:contents">
@@ -787,28 +862,7 @@ function DepartamentosPage() {
           {/* Subformulário de bens */}
           <Card className="min-w-0">
             <CardHeader>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <CardTitle className="min-w-0 flex-1">Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
-                <form onSubmit={localizarOuAtualizar} autoComplete="off" className="w-full space-y-1.5 lg:w-96 lg:shrink-0 xl:w-[28rem]">
-                  <Label htmlFor="pesquisaDinamica">PESQUISA DINÂMICA</Label>
-                  <div className="flex items-center gap-2">
-                    <Input id="pesquisaDinamica" type="search" autoComplete="off"
-                      autoCorrect="off" autoCapitalize="none" spellCheck={false}
-                      placeholder="Código RED, parte da descrição ou valor..."
-                      value={pesquisaDinamica} disabled={localizando || !!resultadoPesquisa}
-                      onChange={(e) => setPesquisaDinamica(e.target.value)} />
-                    <Button type="submit" className="shrink-0"
-                      disabled={localizando || importando || carregandoPapel || !["admin", "operador"].includes(role ?? "") || (!resultadoPesquisa && !pesquisaDinamica.trim())}>
-                      {localizando ? "Localizando..." : resultadoPesquisa ? "Atualizar" : "Localizar"}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground" aria-live="polite">
-                    {resultadoPesquisa
-                      ? `${resultadoPesquisa.bens.length} bem(ns) encontrado(s) em todas as salas. Clique em Atualizar para voltar à sala selecionada.`
-                      : "Pesquisa em todas as salas disponíveis para sua conta."}
-                  </p>
-                </form>
-              </div>
+              <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="flex flex-wrap gap-2">
                   <Button variant="destructive" size="sm"
