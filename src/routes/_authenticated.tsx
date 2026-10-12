@@ -26,7 +26,7 @@ function AuthenticatedLayout() {
   }
 
   return <>
-    {role === "admin" && <div className="border-b border-border bg-background px-4 py-3">
+    {role === "admin" && <div className="border-b border-border bg-background px-3 py-2 sm:px-4 sm:py-3">
       <div className="mx-auto max-w-[1400px]">
         <RelatoriosBens key={session.user.id} administrador />
       </div>

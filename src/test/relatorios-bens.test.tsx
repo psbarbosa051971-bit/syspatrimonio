@@ -13,7 +13,7 @@ vi.mock("@/components/TransferenciaBensDialog", () => ({
     onSaved: (sala: string, termo: string, ids: string[]) => void;
     onClose: () => void;
   }) => <div role="dialog" aria-label={grupo.local}>
-    <button onClick={() => onSaved("destino", "termo", [grupo.itens[0].bem_id!])}>Salvar primeiro</button>
+    <button onClick={() => onSaved("destino", "termo", [grupo.itens[0]!.bem_id!])}>Salvar primeiro</button>
     <button onClick={() => onSaved("destino", "termo", grupo.itens.map((item) => item.bem_id!))}>Salvar todos</button>
     <button onClick={onClose}>Fechar formulário</button>
   </div>,

@@ -127,7 +127,7 @@ function UsuariosPage() {
     return <p className="p-6 text-sm text-muted-foreground">Acesso restrito ao administrador.</p>;
 
   return (
-    <div className="min-h-screen bg-muted/40 p-6">
+    <div className="min-h-screen bg-muted/40 p-3 sm:p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <Button asChild variant="ghost" size="sm" className="self-start">
           <Link to="/departamentos"><ArrowLeft className="mr-1 h-4 w-4" /> Voltar</Link>

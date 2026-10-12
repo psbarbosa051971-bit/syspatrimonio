@@ -314,6 +314,66 @@ export type Database = {
           },
         ]
       }
+      transferencias_bens_itens: {
+        Row: {
+          bem_id: string
+          codigo_red: string
+          created_at: string
+          descricao: string
+          destino_nome: string
+          destino_sala_id: string
+          estornado_em: string | null
+          estornado_por: string | null
+          estorno_pedido: string | null
+          id: number
+          numero: number
+          origem_importacao_id: string | null
+          origem_nome: string
+          origem_sala_id: string | null
+          termo_ano: number | null
+          transferencia_id: string
+          valor: number
+        }
+        Insert: {
+          bem_id: string
+          codigo_red: string
+          created_at?: string
+          descricao: string
+          destino_nome: string
+          destino_sala_id: string
+          estornado_em?: string | null
+          estornado_por?: string | null
+          estorno_pedido?: string | null
+          id?: never
+          numero: number
+          origem_importacao_id?: string | null
+          origem_nome: string
+          origem_sala_id?: string | null
+          termo_ano?: number | null
+          transferencia_id: string
+          valor: number
+        }
+        Update: {
+          bem_id?: string
+          codigo_red?: string
+          created_at?: string
+          descricao?: string
+          destino_nome?: string
+          destino_sala_id?: string
+          estornado_em?: string | null
+          estornado_por?: string | null
+          estorno_pedido?: string | null
+          id?: never
+          numero?: number
+          origem_importacao_id?: string | null
+          origem_nome?: string
+          origem_sala_id?: string | null
+          termo_ano?: number | null
+          transferencia_id?: string
+          valor?: number
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -329,66 +389,6 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
-        }
-        Relationships: []
-      }
-      transferencias_bens_itens: {
-        Row: {
-          id: number
-          transferencia_id: string
-          numero: number
-          termo_ano: number | null
-          bem_id: string
-          codigo_red: string
-          descricao: string
-          valor: number
-          origem_sala_id: string | null
-          origem_nome: string
-          origem_importacao_id: string | null
-          destino_sala_id: string
-          destino_nome: string
-          created_at: string
-          estornado_em: string | null
-          estornado_por: string | null
-          estorno_pedido: string | null
-        }
-        Insert: {
-          id?: never
-          transferencia_id: string
-          numero: number
-          termo_ano?: number | null
-          bem_id: string
-          codigo_red: string
-          descricao: string
-          valor: number
-          origem_sala_id?: string | null
-          origem_nome: string
-          origem_importacao_id?: string | null
-          destino_sala_id: string
-          destino_nome: string
-          created_at?: string
-          estornado_em?: string | null
-          estornado_por?: string | null
-          estorno_pedido?: string | null
-        }
-        Update: {
-          id?: never
-          transferencia_id?: string
-          numero?: number
-          termo_ano?: number | null
-          bem_id?: string
-          codigo_red?: string
-          descricao?: string
-          valor?: number
-          origem_sala_id?: string | null
-          origem_nome?: string
-          origem_importacao_id?: string | null
-          destino_sala_id?: string
-          destino_nome?: string
-          created_at?: string
-          estornado_em?: string | null
-          estornado_por?: string | null
-          estorno_pedido?: string | null
         }
         Relationships: []
       }
@@ -420,11 +420,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      transferir_bens: {
-        Args: { _destino: string; _itens: Json; _pedido: string }
+      buscar_ultima_transferencia: { Args: { _codigo: string }; Returns: Json }
+      can_edit: { Args: { _user_id: string }; Returns: boolean }
+      estornar_bens_inserviveis: {
+        Args: { _sala_id: string; _solicitacoes: string[] }
+        Returns: number
+      }
+      estornar_transferencia: {
+        Args: { _itens: string[]; _pedido: string; _transferencia: string }
         Returns: Json
       }
-      can_edit: { Args: { _user_id: string }; Returns: boolean }
       excluir_importacoes_sala: {
         Args: { _importacao_id?: string; _modo: string; _sala_id: string }
         Returns: undefined
@@ -459,18 +464,6 @@ export type Database = {
         Args: { _sala_id: string; _user_id: string }
         Returns: boolean
       }
-      buscar_ultima_transferencia: {
-        Args: { _codigo: string }
-        Returns: Json
-      }
-      estornar_transferencia: {
-        Args: { _transferencia: string; _itens: string[]; _pedido: string }
-        Returns: Json
-      }
-      estornar_bens_inserviveis: {
-        Args: { _solicitacoes: string[]; _sala_id: string }
-        Returns: number
-      }
       salvar_conferencia: {
         Args: { _bens_ids: string[]; _localizados: string[]; _sala_id: string }
         Returns: undefined
@@ -487,6 +480,10 @@ export type Database = {
           _tipo: string
         }
         Returns: undefined
+      }
+      transferir_bens: {
+        Args: { _destino: string; _itens: Json; _pedido: string }
+        Returns: Json
       }
     }
     Enums: {

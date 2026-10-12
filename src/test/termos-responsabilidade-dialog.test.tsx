@@ -99,7 +99,7 @@ describe("visualização de termos recentes e anteriores", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByTitle(/Termo de responsabilidade/)).not.toBeInTheDocument();
     fireEvent.change(campo, { target: { value: "15/2026" } });
-    fireEvent.click(screen.getByRole("button", { name: "Imprimir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Imprimir" }));
     expect(await screen.findByTitle("Termo de responsabilidade 15/2026")).toBeInTheDocument();
     expect(mocks.consultas).toHaveBeenCalledWith("antiga");
   });
