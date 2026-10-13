@@ -30,3 +30,5 @@ function PaginaRedefinirSenha() {
     </div>
   );
 }
+
+// rota de redefinição de senha
