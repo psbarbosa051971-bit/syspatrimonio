@@ -111,6 +111,25 @@ beforeEach(() => {
   });
 });
 
+async function importarParaLiberarUnidade() {
+  mocks.extrairHtml.mockResolvedValue({
+    cabecalho: { local: "Sala existente", endereco: "", data: "", historico: "" },
+    bens: [{ codigo_red: "123", descricao: "Mesa cadastrada", valor: 10 }],
+  });
+  mocks.rpc.mockResolvedValueOnce({
+    data: { importacao_id: "importacao", termo_numero: "1/2026", novos: 0, repetidos: 1 }, error: null,
+  });
+  fireEvent.change(document.querySelector('input[type="file"]')!, {
+    target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+  });
+  const dialogo = await screen.findByRole("alertdialog");
+  fireEvent.click(within(dialogo).getByRole("button", { name: "Sim" }));
+  const unidade = screen.getByRole("combobox", { name: "Unidade" });
+  await waitFor(() => expect(unidade).toBeEnabled());
+  await waitFor(() => expect(unidade).toHaveFocus());
+  expect(unidade).toHaveAccessibleDescription("Selecione a Unidade");
+}
+
 describe("Carregamento dos registros em Departamentos", () => {
   it("direciona o ícone da sala para gerenciar seus usuários em vez de abrir os registros", async () => {
     render(<Page />);
@@ -200,9 +219,15 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html", expect.objectContaining({
         _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos,
       }));
+      const unidade = screen.getByRole("combobox", { name: "Unidade" });
+      expect(unidade).toBeEnabled();
+      await waitFor(() => expect(unidade).toHaveFocus());
+      expect(unidade).toHaveAccessibleDescription("Selecione a Unidade");
     } else {
       expect(mocks.atualizarSala).not.toHaveBeenCalled();
       expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(screen.getByRole("combobox", { name: "Unidade" })).toBeDisabled();
+      expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).not.toBeInTheDocument();
     }
   });
 
@@ -353,7 +378,13 @@ describe("Carregamento dos registros em Departamentos", () => {
     const unidade = screen.getByRole("combobox", { name: "Unidade" });
     expect(unidade.parentElement?.previousElementSibling).toContainElement(screen.getByLabelText("Local Físico"));
     expect(unidade).toHaveValue("");
+    expect(unidade).toBeDisabled();
+    expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).not.toBeInTheDocument();
+    fireEvent.change(unidade, { target: { value: "CENTRAL" } });
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
     expect(within(unidade).queryByRole("option", { name: "Todas as unidades" })).not.toBeInTheDocument();
+    await importarParaLiberarUnidade();
+    mocks.atualizarSala.mockClear();
     for (const valor of ["CENTRAL", "SAÚDE", "EDUCAÇÃO"]) {
       fireEvent.change(unidade, { target: { value: valor } });
       await waitFor(() => expect(unidade).toHaveValue(valor));
@@ -365,8 +396,11 @@ describe("Carregamento dos registros em Departamentos", () => {
     }
     fireEvent.click(screen.getByRole("button", { name: /^Consultório/ }));
     expect(unidade).toHaveValue("SAÚDE");
+    expect(unidade).toBeDisabled();
+    expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Sala existente/ }));
     expect(unidade).toHaveValue("EDUCAÇÃO");
+    expect(unidade).toBeDisabled();
     fireEvent.change(screen.getByPlaceholderText("Buscar sala ou endereço..."), { target: { value: "recep" } });
     expect(screen.getByText("Quantidade de salas listadas: 1")).toBeInTheDocument();
     expect(screen.getByLabelText("Local Físico")).toHaveValue("Sala existente");
@@ -408,10 +442,12 @@ describe("Carregamento dos registros em Departamentos", () => {
 
   it("mantém a unidade anterior e informa quando o salvamento falha", async () => {
     mocks.salas = [{ ...sala, unidade: "SAÚDE" }];
-    mocks.falharUnidade = true;
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     const unidade = screen.getByRole("combobox", { name: "Unidade" });
+    expect(unidade).toBeDisabled();
+    await importarParaLiberarUnidade();
+    mocks.falharUnidade = true;
     fireEvent.change(unidade, { target: { value: "CENTRAL" } });
     await waitFor(() => expect(mocks.erroToast).toHaveBeenCalledWith("Não foi possível salvar a unidade do local. Tente novamente."));
     expect(unidade).toHaveValue("SAÚDE");

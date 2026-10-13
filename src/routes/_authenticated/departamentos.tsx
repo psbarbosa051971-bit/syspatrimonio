@@ -144,6 +144,12 @@ function DepartamentosPage() {
   const [filtroUnidade, setFiltroUnidade] = useState("");
   const [cadastroAberto, setCadastroAberto] = useState(false);
   const [salvandoUnidade, setSalvandoUnidade] = useState(false);
+  const [unidadeLiberadaSalaId, setUnidadeLiberadaSalaId] = useState<string | null>(null);
+  const unidadeRef = useRef<HTMLSelectElement>(null);
+  const unidadeLiberada = !!salaSel && unidadeLiberadaSalaId === salaSel.id;
+  useEffect(() => {
+    setUnidadeLiberadaSalaId((atual) => atual === salaSel?.id ? atual : null);
+  }, [salaSel?.id]);
   const [buscaBens, setBuscaBens] = useState("");
   const [pesquisaDinamica, setPesquisaDinamica] = useState("");
   const [resultadoPesquisa, setResultadoPesquisa] = useState<ResultadoPesquisaDinamica | null>(null);
@@ -217,6 +223,11 @@ function DepartamentosPage() {
   const [bensDialogSala, setBensDialogSala] = useState<Bem[]>([]);
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
+  useEffect(() => {
+    if (!unidadeLiberada || importando || carregandoSalas || erroSalas || salvandoUnidade) return;
+    const frame = requestAnimationFrame(() => unidadeRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [unidadeLiberada, importando, carregandoSalas, erroSalas, salvandoUnidade]);
   const [confirmacaoImportacao, setConfirmacaoImportacao] = useState<{ local: string; quantidade: number } | null>(null);
   const resolverConfirmacaoImportacao = useRef<((confirmado: boolean) => void) | null>(null);
   useEffect(() => () => {
@@ -445,7 +456,7 @@ function DepartamentosPage() {
   }, [salas, busca, filtroUnidade]);
 
   async function salvarUnidade(unidade: string) {
-    if (!salaSel || salvandoUnidade || !["CENTRAL", "SAÚDE", "EDUCAÇÃO"].includes(unidade)) return;
+    if (!salaSel || !unidadeLiberada || importando || salvandoUnidade || !["CENTRAL", "SAÚDE", "EDUCAÇÃO"].includes(unidade)) return;
     const alvo = salaSel;
     if (unidade === alvo.unidade) return;
     setSalvandoUnidade(true);
@@ -642,6 +653,7 @@ function DepartamentosPage() {
         local: salaAlvo.nome, endereco: salaAlvo.endereco ?? "",
       };
       setSalaSel(salaAlvo);
+      setUnidadeLiberadaSalaId(salaAlvo.id);
       setUltimaImportacao(String(resultado["importacao_id"] ?? resultado["numero"]));
       toast.success(`Termo de responsabilidade nº ${String(resultado["termo_numero"])} criado. ` +
         `${Number(resultado["novos"])} bem(ns) adicionados; ${Number(resultado["repetidos"])} já cadastrados. ` +
@@ -961,10 +973,17 @@ function DepartamentosPage() {
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabUnidade">Unidade</Label>
+                  {unidadeLiberada && (
+                    <p id="avisoUnidade" role="status" className="text-sm font-semibold text-inherit">
+                      Selecione a Unidade
+                    </p>
+                  )}
                   <select
+                    ref={unidadeRef}
                     id="cabUnidade"
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    disabled={!salaSel || salvandoUnidade || carregandoSalas || !!erroSalas || importando}
+                    aria-describedby={unidadeLiberada ? "avisoUnidade" : undefined}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!unidadeLiberada || salvandoUnidade || carregandoSalas || !!erroSalas || importando}
                     value={salaSel?.unidade ?? ""}
                     onChange={(e) => void salvarUnidade(e.target.value)}
                   >
