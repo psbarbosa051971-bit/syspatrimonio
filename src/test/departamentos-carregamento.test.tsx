@@ -62,10 +62,10 @@ beforeEach(() => {
   mocks.rpc.mockImplementation((_funcao: string, { _termo }: { _termo: string }) => ({
     range: async (inicio: number, fim: number) => {
       if (mocks.falharSalas) return { data: null, error: { message: "Falha de conexão" } };
-      const data = mocks.bens.flatMap((item) => {
-        const local = mocks.salas.find((s) => s.id === item.sala_id);
+      const data = mocks.bens.flatMap((item: Record<string, unknown>) => {
+        const local = mocks.salas.find((s) => s.id === item["sala_id"]);
         if (!local || !correspondePesquisaDinamica({
-          codigo_red: String(item.codigo_red), descricao: String(item.descricao), valor: Number(item.valor),
+          codigo_red: String(item["codigo_red"]), descricao: String(item["descricao"]), valor: Number(item["valor"]),
         }, _termo)) return [];
         return [{ bem: item, local_nome: local.nome }];
       }).slice(inicio, fim + 1);
@@ -83,7 +83,7 @@ beforeEach(() => {
     let salaId = "";
     let filtroSala: string | null = null;
     let filtroDepartamento: string | null = null;
-    let intervalo = [0, 499];
+    let intervalo: [number, number] = [0, 499];
     for (const metodo of ["select", "order", "in"]) consulta[metodo] = () => consulta;
     consulta["range"] = (inicio: number, fim: number) => { intervalo = [inicio, fim]; return consulta; };
     consulta["update"] = (dados: { unidade: string }) => { alteracao = dados; return consulta; };
@@ -103,8 +103,8 @@ beforeEach(() => {
     };
     consulta["then"] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
       let dados: Record<string, unknown>[] | null = resultado.data;
-      if (dados && tabela === "bens" && filtroSala) dados = dados.filter((b) => b.sala_id === filtroSala);
-      if (dados && tabela === "salas" && filtroDepartamento) dados = dados.filter((s) => s.departamento_id === filtroDepartamento);
+      if (dados && tabela === "bens" && filtroSala) dados = dados.filter((b) => b["sala_id"] === filtroSala);
+      if (dados && tabela === "salas" && filtroDepartamento) dados = dados.filter((s) => s["departamento_id"] === filtroDepartamento);
       return Promise.resolve({ ...resultado, data: dados?.slice(intervalo[0], intervalo[1] + 1) ?? null }).then(resolve, reject);
     };
     return consulta;
