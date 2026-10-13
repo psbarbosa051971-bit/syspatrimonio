@@ -28,6 +28,7 @@ import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidad
 import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog";
 import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
+import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1199,6 +1200,7 @@ function DepartamentosPage() {
                       </TableCell>
                       <TableCell className="py-1">
                         {limparDescricao(b.descricao)}
+                        <BotaoRecebimentoVeiculo bem={b} />
                         {resultadoPesquisa && <span className="block text-sm text-muted-foreground">
                           Local Físico: {b.sala_id ? resultadoPesquisa.locais[b.sala_id] : "—"}
                         </span>}

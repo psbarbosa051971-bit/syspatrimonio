@@ -77,6 +77,35 @@ export type Database = {
           },
         ]
       }
+      recebimentos_veiculos: {
+        Row: {
+          bem_id: string
+          dados: Json
+          atualizado_por: string
+          atualizado_em: string
+        }
+        Insert: {
+          bem_id: string
+          dados?: Json
+          atualizado_por?: string
+          atualizado_em?: string
+        }
+        Update: {
+          bem_id?: string
+          dados?: Json
+          atualizado_por?: string
+          atualizado_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recebimentos_veiculos_bem_id_fkey"
+            columns: ["bem_id"]
+            isOneToOne: true
+            referencedRelation: "bens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departamentos: {
         Row: {
           almoxarifado: string

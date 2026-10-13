@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { Tables } from "@/integrations/supabase/types";
 import { ObservacoesBemDialog } from "@/components/ObservacoesBemDialog";
 import { RelatoriosBens } from "@/components/RelatoriosBens";
+import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
 
 export const Route = createFileRoute("/_authenticated/conferencia")({
   head: () => ({
@@ -274,7 +275,7 @@ function ConferenciaPage() {
                         {b.codigo_red}
                       </button>
                     </TableCell>
-                    <TableCell className="py-1">{limparDescricao(b.descricao)}</TableCell>
+                    <TableCell className="py-1">{limparDescricao(b.descricao)}<BotaoRecebimentoVeiculo bem={b} /></TableCell>
                     <TableCell className="py-2" aria-live="polite">
                       {b.conferido ? (
                         <span className="inline-flex whitespace-nowrap rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">LOCALIZADO</span>
