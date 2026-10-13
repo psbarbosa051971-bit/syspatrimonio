@@ -26,7 +26,7 @@ beforeEach(() => {
     { id: "origem", nome: "Sala origem", unidade: "CENTRAL" },
     { id: "destino", nome: "Sala destino", unidade: "EDUCAÇÃO" },
   ]);
-  mocks.responsavel.mockResolvedValue({ nome: "Maria Silva", cpf: "12345678900" });
+  mocks.responsavel.mockResolvedValue({ nome: "Maria Silva", cpf: "12345678900", matricula: "98765" });
   mocks.buscar.mockResolvedValue([primeiro, segundo]);
   mocks.rpc.mockResolvedValue({ data: termo, error: null });
 });
@@ -69,6 +69,8 @@ describe("formulário de transferência", () => {
     render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={onSaved} />);
     await aceitarTodos();
     expect(screen.getByLabelText("CPF")).toHaveValue("123.456.789-00");
+    expect(screen.getByLabelText("Matrícula")).toHaveValue("98765");
+    expect(screen.getByLabelText("Matrícula")).toHaveAttribute("readonly");
     expect(mocks.buscar).toHaveBeenCalledWith(["123", "456"]);
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Salvar transferência" })).toBeDisabled();
@@ -125,7 +127,10 @@ describe("formulário de transferência", () => {
     render(<TransferenciaBensDialog grupo={grupo} onClose={vi.fn()} onSaved={onSaved} />);
     expect(screen.getByText("Transferir bens — Sala origem")).toBeInTheDocument();
     const informacoes = screen.getByRole("region", { name: "Informações registradas na conferência" });
-    expect(within(informacoes).getByText(/Origem: Sala origem · Inclui bens inservíveis/)).toHaveTextContent("Esta ação transfere os bens; não realiza baixa patrimonial.");
+    expect(within(informacoes).getByText("Origem: Sala origem")).toBeInTheDocument();
+    expect(screen.queryByText(/Ao trocar o destino/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Destino e observações informados na conferência/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Bens informados para transferência na conferência/)).not.toBeInTheDocument();
     expect(within(informacoes).getByRole("columnheader", { name: "Local de destino da transferência" })).toBeInTheDocument();
     expect(within(informacoes).getByRole("columnheader", { name: "Observações" })).toBeInTheDocument();
     const linhaMesa = within(informacoes).getByRole("row", { name: /123/ });
@@ -150,6 +155,60 @@ describe("formulário de transferência", () => {
       _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
     });
     expect(onSaved).toHaveBeenCalledWith("destino", "termo-1", ["bem-1"]);
+  });
+
+  it("preenche o destino da conferência, matrícula, nome e CPF sem mover os bens", async () => {
+    const grupo = { chave: "origem", local: "Sala origem", tipo: "transferencia" as const,
+      itens: [primeiro, segundo].map((bem, indice) => ({
+        id: `solicitacao-${indice}`, bem_id: bem.id, sala_id: bem.sala_id,
+        codigo_red: bem.codigo_red, descricao: bem.descricao, valor: bem.valor,
+        tipo: "transferencia", destino: "Sala destino", observacao: "",
+        local_origem: "Sala origem", user_id: "usuario", ativa: true,
+        created_at: "2026-10-10T12:00:00Z", updated_at: "2026-10-10T12:00:00Z",
+      })),
+    };
+    mocks.carregar.mockResolvedValue([
+      { id: "origem", nome: "Sala origem", unidade: "CENTRAL" },
+      { id: "destino", nome: "Sala destino", unidade: "EDUCAÇÃO" },
+      { id: "outro", nome: "Outro local", unidade: "CENTRAL" },
+    ]);
+    const { rerender } = render(<TransferenciaBensDialog grupo={grupo} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await screen.findByDisplayValue("Maria Silva");
+    expect(screen.getByRole("combobox")).toHaveValue("Sala destino");
+    expect(screen.getByLabelText("Matrícula")).toHaveValue("98765");
+    expect(screen.getByLabelText("CPF")).toHaveValue("123.456.789-00");
+    expect(mocks.responsavel).toHaveBeenCalledWith({ data: { salaId: "destino" } });
+    expect(screen.getByRole("button", { name: "Salvar transferência" })).toBeDisabled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Selecionar RED 123/ }));
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: /Outro local/ }));
+    await waitFor(() => expect(mocks.responsavel).toHaveBeenLastCalledWith({ data: { salaId: "outro" } }));
+    rerender(<TransferenciaBensDialog grupo={{ ...grupo, itens: [...grupo.itens] }} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.getByRole("combobox")).toHaveValue("Outro local");
+    expect(screen.getByRole("checkbox", { name: /Selecionar RED 123/ })).not.toBeChecked();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Sala destino", "Outro local"],
+    ["Local não cadastrado", "Local não cadastrado"],
+    ["Sala origem", "Sala origem"],
+    ["Sala destino", null],
+  ])("não escolhe automaticamente destinos diferentes, ausentes ou inválidos (%s / %s)", async (destino1, destino2) => {
+    const grupo = { chave: "origem", local: "Sala origem", tipo: "transferencia" as const,
+      itens: [primeiro, segundo].map((bem, indice) => ({
+        id: `solicitacao-${indice}`, bem_id: bem.id, sala_id: bem.sala_id,
+        codigo_red: bem.codigo_red, descricao: bem.descricao, valor: bem.valor,
+        tipo: "transferencia", destino: indice ? destino2 : destino1, observacao: "",
+        local_origem: "Sala origem", user_id: "usuario", ativa: true,
+        created_at: "2026-10-10T12:00:00Z", updated_at: "2026-10-10T12:00:00Z",
+      })),
+    };
+    render(<TransferenciaBensDialog grupo={grupo} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(await screen.findByRole("combobox")).toHaveValue("");
+    expect(mocks.responsavel).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Salvar transferência" })).toBeDisabled();
   });
 
   it("limpa as listas ao trocar a sala de destino", async () => {

@@ -33,7 +33,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   const [tentativa, setTentativa] = useState(0);
   const [erroSalas, setErroSalas] = useState("");
   const [destino, setDestino] = useState("");
-  const [perfil, setPerfil] = useState<{ nome: string | null; cpf: string | null } | null>(null);
+  const [perfil, setPerfil] = useState<{ nome: string | null; cpf: string | null; matricula: string | null } | null>(null);
   const [carregandoPerfil, setCarregandoPerfil] = useState(false);
   const [erroPerfil, setErroPerfil] = useState("");
   const [busca, setBusca] = useState(codigosIniciais);
@@ -50,6 +50,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   const [pronto, setPronto] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const operacao = useRef(false);
+  const destinoInicialAplicado = useRef(false);
   const pedido = useRef<{ id: string; destino: string; itens: { id: string; sala_id: string | null }[] } | null>(null);
   const sala = salas.find((s) => s.id === destino);
   const bloqueado = salvando || filtrando || pendente;
@@ -63,6 +64,19 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
       .finally(() => { if (ativo) setCarregandoSalas(false); });
     return () => { ativo = false; };
   }, [tentativa]);
+
+  useEffect(() => {
+    if (!grupo || carregandoSalas || erroSalas || destinoInicialAplicado.current) return;
+    destinoInicialAplicado.current = true;
+    const informados = grupo.itens.filter((item) => item.tipo === "transferencia");
+    const normalizar = (nome: string) => nome.trim().toLocaleLowerCase("pt-BR");
+    if (!informados.length || informados.some((item) => !item.destino?.trim())) return;
+    const nomes = new Set(informados.map((item) => normalizar(item.destino!)));
+    if (nomes.size !== 1) return;
+    const candidatas = salas.filter((local) => nomes.has(normalizar(local.nome)) &&
+      !grupo.itens.some((item) => item.sala_id === local.id));
+    if (candidatas.length === 1) setDestino(candidatas[0]!.id);
+  }, [grupo, salas, carregandoSalas, erroSalas]);
 
   useEffect(() => {
     setPerfil(null); setErroPerfil("");
@@ -169,8 +183,9 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
             {carregandoSalas ? <p role="status">Carregando salas...</p> : erroSalas ? <div role="alert"><p className="text-destructive">{erroSalas}</p><Button variant="outline" onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button></div> : <SeletorLocalFisico
               id="transferencia-destino" salas={grupo ? salas.filter((s) => !grupo.itens.some((item) => item.sala_id === s.id)) : salas} valor={destino ? [destino] : []} onChange={escolherDestino} disabled={bloqueado} />}
           </div>
-          <p className="text-sm text-muted-foreground">{grupo ? "Ao trocar o destino, confira e selecione novamente os bens. Limite de 500 bens por transferência." : "Ao trocar o destino, as duas listas são limpas para evitar uma transferência para a sala errada."}</p>
-          <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+          <div className="grid gap-3 sm:grid-cols-[1fr_2fr_1fr]">
+            <div className="space-y-1.5"><Label htmlFor="transferencia-matricula">Matrícula</Label>
+              <Input id="transferencia-matricula" readOnly value={perfil?.matricula ?? ""} placeholder={carregandoPerfil ? "Consultando..." : "Matrícula não cadastrada"} /></div>
             <div className="space-y-1.5"><Label htmlFor="transferencia-responsavel">Nome do responsável</Label>
               <Input id="transferencia-responsavel" readOnly value={perfil?.nome ?? sala?.responsavel ?? ""} placeholder={carregandoPerfil ? "Consultando responsável..." : "Responsável não cadastrado"} /></div>
             <div className="space-y-1.5"><Label htmlFor="transferencia-cpf">CPF</Label>
@@ -190,8 +205,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
         <TabelaBensTransferencia titulo="Bens encontrados" bens={encontrados} salas={salas} selecionados={marcadosBusca} onChange={setMarcadosBusca} disabled={bloqueado} />
         <div className="flex justify-end"><Button variant="outline" onClick={aceitar} disabled={bloqueado || !marcadosBusca.length}>Aceitar selecionados</Button></div></>}
         {grupo && <section aria-label="Informações registradas na conferência" className="space-y-3 rounded-md border border-border bg-muted/40 p-3">
-          <p className="text-sm text-muted-foreground">Origem: {grupo.local} · {grupo.itens.some((item) => item.tipo === "inservivel") ? "Inclui bens inservíveis. Esta ação transfere os bens; não realiza baixa patrimonial." : "Bens informados para transferência na conferência."}{grupo.itens.some((item) => !item.bem_id || !item.sala_id) ? " Há registros sem vínculo com um bem ou sala: eles não podem ser transferidos por este formulário." : ""}</p>
-          <p className="text-sm text-muted-foreground">Destino e observações informados na conferência, por bem. São informações para consulta; o destino efetivo da transferência deve ser escolhido no campo Local / sala de destino acima.</p>
+          <p className="text-sm font-medium">Origem: {grupo.local}</p>
           <div className="max-h-60 overflow-auto rounded-md border border-border">
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 bg-muted">
