@@ -73,10 +73,44 @@ describe("estorno no relatório de bens inservíveis", () => {
     expect(screen.queryByRole("button", { name: "Confirmar estorno" })).not.toBeInTheDocument();
   });
 
-  it("não oferece estorno no relatório de solicitações de transferência", () => {
-    render(<RelatorioBensDialog grupo={{ ...grupo, tipo: "transferencia" }}
+  it("retira somente a solicitação de transferência marcada, após confirmação", async () => {
+    const onEstornados = vi.fn();
+    const transferencias: GrupoSolicitacoes = { ...grupo, tipo: "transferencia",
+      itens: grupo.itens.map((registro) => ({ ...registro, tipo: "transferencia", destino: "Sala B" })) };
+    render(<RelatorioBensDialog grupo={transferencias} onClose={vi.fn()} onEstornados={onEstornados} />);
+    expect(screen.getByRole("button", { name: "Estornar bens" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar bem 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Estornar bens" }));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(screen.getByRole("group", { name: "Confirmar estorno" })).toHaveTextContent("Os bens permanecem em Sala A.");
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar estorno" }));
+    await waitFor(() => expect(onEstornados).toHaveBeenCalledWith(["2"]));
+    expect(mocks.rpc).toHaveBeenCalledWith("estornar_solicitacoes_transferencia", {
+      _solicitacoes: ["2"], _sala_id: "sala-a",
+    });
+    expect(mocks.sucesso).toHaveBeenCalledWith(expect.stringContaining("solicitação de transferência foi retirada do relatório"));
+  });
+
+  it("mantém os bens para transferência no relatório quando o estorno falha", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "Solicitação alterada. Reabra o relatório." } });
+    const onEstornados = vi.fn();
+    render(<RelatorioBensDialog grupo={{ ...grupo, tipo: "transferencia",
+      itens: grupo.itens.map((registro) => ({ ...registro, tipo: "transferencia" })) }}
+      onClose={vi.fn()} onEstornados={onEstornados} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar bem 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Estornar bens" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar estorno" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Solicitação alterada. Reabra o relatório.");
+    expect(onEstornados).not.toHaveBeenCalled();
+    expect(screen.getByRole("checkbox", { name: "Selecionar bem 1" })).toBeChecked();
+  });
+
+  it("não permite selecionar solicitações sem vínculo com o bem", () => {
+    render(<RelatorioBensDialog grupo={{ ...grupo, tipo: "transferencia",
+      itens: [{ ...item("1"), tipo: "transferencia", bem_id: null }] }}
       onClose={vi.fn()} onEstornados={vi.fn()} />);
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Estornar bens" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Selecionar bem 1" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Selecionar todos os bens" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Estornar bens" })).toBeDisabled();
   });
 });

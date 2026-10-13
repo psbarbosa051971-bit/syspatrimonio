@@ -432,6 +432,10 @@ export type Database = {
         Args: { _sala_id: string; _solicitacoes: string[] }
         Returns: number
       }
+      estornar_solicitacoes_transferencia: {
+        Args: { _sala_id: string; _solicitacoes: string[] }
+        Returns: number
+      }
       estornar_transferencia: {
         Args: { _itens: string[]; _pedido: string; _transferencia: string }
         Returns: Json
