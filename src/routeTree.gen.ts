@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as CriarContaRouteImport } from './routes/criar-conta'
 import { Route as EntrarRouteImport } from './routes/entrar'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AuthenticatedConferenciaRouteImport } from './routes/_authenticated/conferencia'
 import { Route as AuthenticatedDepartamentosRouteImport } from './routes/_authenticated/departamentos'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated/usuarios'
@@ -34,6 +35,11 @@ const CriarContaRoute = CriarContaRouteImport.update({
 const EntrarRoute = EntrarRouteImport.update({
   id: '/entrar',
   path: '/entrar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedConferenciaRoute =
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/criar-conta': typeof CriarContaRoute
   '/entrar': typeof EntrarRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/conferencia': typeof AuthenticatedConferenciaRoute
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/criar-conta': typeof CriarContaRoute
   '/entrar': typeof EntrarRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/conferencia': typeof AuthenticatedConferenciaRoute
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/criar-conta': typeof CriarContaRoute
   '/entrar': typeof EntrarRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/_authenticated/conferencia': typeof AuthenticatedConferenciaRoute
   '/_authenticated/departamentos': typeof AuthenticatedDepartamentosRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
     | '/'
     | '/criar-conta'
     | '/entrar'
+    | '/redefinir-senha'
     | '/conferencia'
     | '/departamentos'
     | '/usuarios'
@@ -94,6 +104,7 @@ export interface FileRouteTypes {
     | '/'
     | '/criar-conta'
     | '/entrar'
+    | '/redefinir-senha'
     | '/conferencia'
     | '/departamentos'
     | '/usuarios'
@@ -103,6 +114,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/criar-conta'
     | '/entrar'
+    | '/redefinir-senha'
     | '/_authenticated/conferencia'
     | '/_authenticated/departamentos'
     | '/_authenticated/usuarios'
@@ -113,6 +125,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   CriarContaRoute: typeof CriarContaRoute
   EntrarRoute: typeof EntrarRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -143,6 +156,13 @@ declare module '@tanstack/react-router' {
       path: '/entrar'
       fullPath: '/entrar'
       preLoaderRoute: typeof EntrarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/conferencia': {
@@ -190,6 +210,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   CriarContaRoute: CriarContaRoute,
   EntrarRoute: EntrarRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

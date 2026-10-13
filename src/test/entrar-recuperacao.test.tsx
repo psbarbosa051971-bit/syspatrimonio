@@ -25,10 +25,10 @@ describe("recuperação na tela de login", () => {
     fireEvent.click(screen.getByRole("button", { name: "Esqueci minha senha" }));
     expect(screen.getByText("Recuperar senha")).toBeInTheDocument();
     expect(screen.getByLabelText("E-mail cadastrado")).toHaveValue("pessoa@exemplo.com");
-    expect(screen.queryByRole("button", { name: "Entrar", exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Entrar" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Voltar para entrar" }));
     expect(screen.getByLabelText("Login ou e-mail")).toHaveValue("pessoa@exemplo.com");
     expect(screen.getByLabelText("Senha")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Entrar", exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeInTheDocument();
   });
 });

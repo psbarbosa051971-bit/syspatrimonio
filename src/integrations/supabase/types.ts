@@ -466,17 +466,20 @@ export type Database = {
         Args: { _bem_id: string; _valor: boolean }
         Returns: undefined
       }
-      pode_ver_sala: {
-        Args: { _sala_id: string; _user_id: string }
-        Returns: boolean
-      }
       normalizar_texto_pesquisa_bens: {
         Args: { _texto: string }
         Returns: string
       }
       pesquisar_bens_salas: {
         Args: { _termo: string }
-        Returns: { bem: Json; local_nome: string }[]
+        Returns: {
+          bem: Json
+          local_nome: string
+        }[]
+      }
+      pode_ver_sala: {
+        Args: { _sala_id: string; _user_id: string }
+        Returns: boolean
       }
       salvar_conferencia: {
         Args: { _bens_ids: string[]; _localizados: string[]; _sala_id: string }

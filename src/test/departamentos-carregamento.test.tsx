@@ -62,10 +62,10 @@ beforeEach(() => {
   mocks.rpc.mockImplementation((_funcao: string, { _termo }: { _termo: string }) => ({
     range: async (inicio: number, fim: number) => {
       if (mocks.falharSalas) return { data: null, error: { message: "Falha de conexão" } };
-      const data = mocks.bens.flatMap((item) => {
-        const local = mocks.salas.find((s) => s.id === item.sala_id);
+      const data = mocks.bens.flatMap((item: Record<string, unknown>) => {
+        const local = mocks.salas.find((s) => s.id === item["sala_id"]);
         if (!local || !correspondePesquisaDinamica({
-          codigo_red: String(item.codigo_red), descricao: String(item.descricao), valor: Number(item.valor),
+          codigo_red: String(item["codigo_red"]), descricao: String(item["descricao"]), valor: Number(item["valor"]),
         }, _termo)) return [];
         return [{ bem: item, local_nome: local.nome }];
       }).slice(inicio, fim + 1);
@@ -83,7 +83,7 @@ beforeEach(() => {
     let salaId = "";
     let filtroSala: string | null = null;
     let filtroDepartamento: string | null = null;
-    let intervalo = [0, 499];
+    let intervalo: [number, number] = [0, 499];
     for (const metodo of ["select", "order", "in"]) consulta[metodo] = () => consulta;
     consulta["range"] = (inicio: number, fim: number) => { intervalo = [inicio, fim]; return consulta; };
     consulta["update"] = (dados: { unidade: string }) => { alteracao = dados; return consulta; };
@@ -103,8 +103,8 @@ beforeEach(() => {
     };
     consulta["then"] = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
       let dados: Record<string, unknown>[] | null = resultado.data;
-      if (dados && tabela === "bens" && filtroSala) dados = dados.filter((b) => b.sala_id === filtroSala);
-      if (dados && tabela === "salas" && filtroDepartamento) dados = dados.filter((s) => s.departamento_id === filtroDepartamento);
+      if (dados && tabela === "bens" && filtroSala) dados = dados.filter((b) => b["sala_id"] === filtroSala);
+      if (dados && tabela === "salas" && filtroDepartamento) dados = dados.filter((s) => s["departamento_id"] === filtroDepartamento);
       return Promise.resolve({ ...resultado, data: dados?.slice(intervalo[0], intervalo[1] + 1) ?? null }).then(resolve, reject);
     };
     return consulta;
@@ -128,16 +128,16 @@ describe("Carregamento dos registros em Departamentos", () => {
   it("exibe o cabeçalho dos bens como o modelo e preserva as seleções em lote acima da tabela", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
-    const cabecalho = screen.getByRole("columnheader", { name: "EXC.", exact: true }).closest("thead")!;
+    const cabecalho = screen.getByRole("columnheader", { name: "EXC." }).closest("thead")!;
     expect(within(cabecalho).getAllByRole("columnheader").map((coluna) => coluna.textContent)).toEqual([
       "EXC.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "VALOR", "",
     ]);
     expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-[10px]");
     expect(cabecalho.closest("table")).toHaveClass("text-xs", "[&_td]:text-xs");
     expect(within(cabecalho).queryByRole("checkbox")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos", exact: true }));
-    expect(screen.getByRole("checkbox", { name: "Selecionar 123", exact: true })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Selecionar 456", exact: true })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    expect(screen.getByRole("checkbox", { name: "Selecionar 123" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
     expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeEnabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos para transferência" }));
     expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("123, 456, ");
@@ -147,17 +147,17 @@ describe("Carregamento dos registros em Departamentos", () => {
     mocks.bens = [{ ...bem, codigo_red: "60651" }, { ...outroBem, codigo_red: "60785" }];
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
-    expect(screen.getByRole("button", { name: "60.651", exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "60.651" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.651 para transferência" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.785 para transferência" }));
     expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("60.651, 60.785, ");
-    expect(screen.getByRole("checkbox", { name: "Selecionar 60651", exact: true })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Selecionar 60651" })).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.651 para transferência" }));
     expect(screen.getByLabelText("Códigos RED para transferência (1 bens)")).toHaveValue("60.785, ");
-    fireEvent.click(screen.getByRole("button", { name: "Gerar transferência", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Gerar transferência" }));
     expect(await screen.findByLabelText("Códigos RED separados por vírgulas")).toHaveValue("60.785, ");
-    expect(screen.getByRole("button", { name: "Filtrar", exact: true })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Filtrar" })).toBeDisabled();
   });
 
   it("exibe a pesquisa dinâmica no cabeçalho ao lado do nome do sistema", async () => {
@@ -193,7 +193,7 @@ describe("Carregamento dos registros em Departamentos", () => {
         data: { importacao_id: "importacao", termo_numero: "1/2026", novos: 105, repetidos: 0 }, error: null,
       });
     }
-    fireEvent.click(within(dialogo).getByRole("button", { name: resposta, exact: true }));
+    fireEvent.click(within(dialogo).getByRole("button", { name: resposta }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
     if (resposta === "Sim") {
@@ -220,7 +220,7 @@ describe("Carregamento dos registros em Departamentos", () => {
       const campo = screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" });
       fireEvent.change(campo, { target: { value: termo } });
       expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Localizar", exact: true }));
+      fireEvent.click(screen.getByRole("button", { name: "Localizar" }));
       expect(await screen.findByText("Módulo de aço")).toBeInTheDocument();
       expect(screen.getByText("Local Físico: Arquivo central")).toBeInTheDocument();
       expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
@@ -231,14 +231,14 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(campo.closest("form")).toHaveAttribute("autocomplete", "off");
       expect(screen.getByText("Bens da sala — Sala existente")).toBeInTheDocument();
       expect(screen.queryByText(/Preenchido manualmente ou pela leitura do HTML/)).not.toBeInTheDocument();
-      const atualizar = screen.getByRole("button", { name: "Atualizar", exact: true });
+      const atualizar = screen.getByRole("button", { name: "Atualizar" });
       fireEvent.click(atualizar);
       expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
       expect(screen.queryByText("Módulo de aço")).not.toBeInTheDocument();
       expect(screen.getByLabelText("Local Físico")).toHaveValue("Sala existente");
       expect(campo).toHaveValue("");
       expect(campo).toBeEnabled();
-      expect(screen.getByRole("button", { name: "Localizar", exact: true })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Localizar" })).toBeDisabled();
     },
   );
 
@@ -246,10 +246,10 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" }), { target: { value: "inexistente" } });
-    fireEvent.click(screen.getByRole("button", { name: "Localizar", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Localizar" }));
     expect(await screen.findByText("Nenhum bem encontrado para esta pesquisa em todas as salas.")).toBeInTheDocument();
     expect(screen.getByText("Quantidade de bens: 0")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Atualizar", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
   });
 
@@ -258,11 +258,11 @@ describe("Carregamento dos registros em Departamentos", () => {
     await screen.findByText("Mesa cadastrada");
     mocks.falharSalas = true;
     fireEvent.change(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" }), { target: { value: "mesa" } });
-    fireEvent.click(screen.getByRole("button", { name: "Localizar", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Localizar" }));
     await waitFor(() => expect(mocks.erroToast).toHaveBeenCalledWith("Não foi possível realizar a pesquisa em todas as salas. Tente novamente."));
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" })).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Localizar", exact: true })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Localizar" })).toBeDisabled();
   });
 
   it.each(["admin", "operador"])(
