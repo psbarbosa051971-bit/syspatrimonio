@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   rpc: vi.fn(),
+  consultarImportacao: vi.fn(),
   navigate: vi.fn(),
   responsavel: vi.fn().mockResolvedValue(null),
   atualizarSala: vi.fn(),
@@ -26,7 +27,11 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: () => mocks.responsavel }
 vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ user: { id: "admin" } }) }));
 vi.mock("@/hooks/use-role", () => ({ useRole: () => mocks.papel }));
 vi.mock("sonner", () => ({ toast: { error: mocks.erroToast, success: vi.fn() } }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  from: mocks.from,
+  rpc: (funcao: string, args: unknown) => funcao === "consultar_bens_importacao"
+    ? mocks.consultarImportacao(args) : mocks.rpc(funcao, args),
+} }));
 vi.mock("@/lib/usuarios.functions", () => ({ responsavelDoLocal: vi.fn() }));
 vi.mock("@/lib/pdf-parse", () => ({ limparDescricao: (texto: string) => texto }));
 vi.mock("@/lib/html-parse", () => ({ extrairTermoDeHtml: mocks.extrairHtml }));
@@ -53,6 +58,7 @@ const outroBem = {
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.consultarImportacao.mockResolvedValue({ data: [], error: null });
   mocks.papel = { role: "admin", loading: false };
   mocks.falharSalas = false;
   mocks.falharDepartamentos = false;
@@ -216,8 +222,8 @@ describe("Carregamento dos registros em Departamentos", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
     if (resposta === "Sim") {
-      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html", expect.objectContaining({
-        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos,
+      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_confirmado", expect.objectContaining({
+        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos, _existentes: [],
       }));
       const unidade = screen.getByRole("combobox", { name: "Unidade" });
       expect(unidade).toBeEnabled();
@@ -229,6 +235,64 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(screen.getByRole("combobox", { name: "Unidade" })).toBeDisabled();
       expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).not.toBeInTheDocument();
     }
+  });
+
+  it.each(["OK", "Cancelar"])("avisa sobre RED em outras salas antes de importar e respeita %s", async (resposta) => {
+    const existentes = [
+      { id: "bem-origem", sala_id: "outra-sala", codigo_red: "60.651", sala_nome: "58195 - Arquivo central" },
+      { id: "bem-origem-2", sala_id: "outra-sala-2", codigo_red: "60785", sala_nome: "Saúde - Depósito" },
+    ];
+    const extraidos = [
+      { codigo_red: "60651", descricao: "Mesa", valor: 10 },
+      { codigo_red: "60785", descricao: "Cadeira", valor: 20 },
+    ];
+    mocks.consultarImportacao.mockResolvedValue({ data: existentes, error: null });
+    mocks.extrairHtml.mockResolvedValue({
+      cabecalho: { local: sala.nome, endereco: "", data: "", historico: "" }, bens: extraidos,
+    });
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+    });
+    const dialogo = await screen.findByRole("alertdialog");
+    expect(within(dialogo).getByText("ATENÇÃO: os bens abaixo já existem em outra sala.")).toBeInTheDocument();
+    expect(within(dialogo).getByText("RED 60.651 — 58195 - Arquivo central")).toBeInTheDocument();
+    expect(within(dialogo).getByText("RED 60.785 — Saúde - Depósito")).toBeInTheDocument();
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    if (resposta === "OK") {
+      mocks.rpc.mockResolvedValueOnce({
+        data: { importacao_id: "importacao", termo_numero: "1/2026", novos: 0, repetidos: 2, transferidos: 2 }, error: null,
+      });
+    }
+    fireEvent.click(within(dialogo).getByRole("button", { name: resposta }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
+    if (resposta === "OK") {
+      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_confirmado", expect.objectContaining({
+        _sala_id: "sala", _bens: extraidos, _existentes: existentes,
+      }));
+    } else {
+      expect(mocks.atualizarSala).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    }
+  });
+
+  it("interrompe a importação se não conseguir consultar códigos existentes", async () => {
+    mocks.consultarImportacao.mockResolvedValue({ data: null, error: { message: "Falha ao verificar os códigos RED" } });
+    mocks.extrairHtml.mockResolvedValue({
+      cabecalho: { local: sala.nome, endereco: "", data: "", historico: "" },
+      bens: [{ codigo_red: "123", descricao: "Mesa", valor: 10 }],
+    });
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+    });
+    await waitFor(() => expect(mocks.erroToast).toHaveBeenCalledWith("Falha ao verificar os códigos RED"));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it.each(["987", "dulo de a", "1250,75", "1.250,75"])(

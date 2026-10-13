@@ -228,17 +228,25 @@ function DepartamentosPage() {
     const frame = requestAnimationFrame(() => unidadeRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [unidadeLiberada, importando, carregandoSalas, erroSalas, salvandoUnidade]);
-  const [confirmacaoImportacao, setConfirmacaoImportacao] = useState<{ local: string; quantidade: number } | null>(null);
+  const [confirmacaoImportacao, setConfirmacaoImportacao] = useState<{
+    local: string;
+    quantidade: number;
+    conflitos: { id: string; sala_id: string | null; codigo_red: string; sala_nome: string }[];
+  } | null>(null);
   const resolverConfirmacaoImportacao = useRef<((confirmado: boolean) => void) | null>(null);
   useEffect(() => () => {
     resolverConfirmacaoImportacao.current?.(false);
     resolverConfirmacaoImportacao.current = null;
   }, []);
 
-  function confirmarImportacao(local: string, quantidade: number): Promise<boolean> {
+  function confirmarImportacao(
+    local: string,
+    quantidade: number,
+    conflitos: NonNullable<typeof confirmacaoImportacao>["conflitos"],
+  ): Promise<boolean> {
     return new Promise((resolve) => {
       resolverConfirmacaoImportacao.current = resolve;
-      setConfirmacaoImportacao({ local, quantidade });
+      setConfirmacaoImportacao({ local, quantidade, conflitos });
     });
   }
 
@@ -619,7 +627,12 @@ function DepartamentosPage() {
         if (candidatas.length > 1) throw new Error("Há mais de um local com esse nome. Corrija os cadastros antes de importar.");
         sala = candidatas[0] ?? null;
       }
-      if (!await confirmarImportacao(nomeLocal, extraidos.length)) return;
+      const { data: existentes, error: erroConsulta } = await supabase.rpc("consultar_bens_importacao", {
+        _bens: extraidos.map((b) => ({ ...b })),
+      });
+      if (erroConsulta) throw erroConsulta;
+      const conflitos = (existentes ?? []).filter((bem) => bem.sala_id !== sala?.id && bem.sala_id !== null);
+      if (!await confirmarImportacao(nomeLocal, extraidos.length, conflitos)) return;
       if (!sala) {
         const { data: nova, error } = await supabase.from("salas").insert({
           user_id: user.id, departamento_id: departamentoSel.id, nome: nomeLocal,
@@ -639,9 +652,10 @@ function DepartamentosPage() {
         setSalas((prev) => prev.map((s) => s.id === atualizada.id ? atualizada : s));
       }
       const salaAlvo = sala;
-      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_html", {
+      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_html_confirmado", {
         _sala_id: salaAlvo.id, _arquivo: file.name, _bens: extraidos.map((b) => ({ ...b })),
         _cabecalho: { ...termo.cabecalho },
+        _existentes: (existentes ?? []).map((bem) => ({ ...bem })),
       });
       if (erroImportacao) throw erroImportacao;
       if (!resultado || typeof resultado !== "object" || Array.isArray(resultado)) {
@@ -655,11 +669,15 @@ function DepartamentosPage() {
       setSalaSel(salaAlvo);
       setUnidadeLiberadaSalaId(salaAlvo.id);
       setUltimaImportacao(String(resultado["importacao_id"] ?? resultado["numero"]));
+      setTentativaBens((valor) => valor + 1);
+      setBensParaTransferir([]);
       toast.success(`Termo de responsabilidade nº ${String(resultado["termo_numero"])} criado. ` +
-        `${Number(resultado["novos"])} bem(ns) adicionados; ${Number(resultado["repetidos"])} já cadastrados. ` +
+        `${Number(resultado["novos"])} bem(ns) adicionados; ${Number(resultado["transferidos"] ?? 0)} movidos de outros locais; ` +
+        `${Math.max(0, Number(resultado["repetidos"]) - Number(resultado["transferidos"] ?? 0))} já estavam no destino. ` +
         `Use “Imprimir termo de Responsabilidade” para imprimir os ${extraidos.length} bens do HTML.`);
     } catch (erro) {
-      toast.error(erro instanceof Error ? erro.message : "Não foi possível concluir a importação do HTML");
+      toast.error(erro && typeof erro === "object" && "message" in erro
+        ? String(erro.message) : "Não foi possível concluir a importação do HTML");
     } finally {
       setImportando(false);
     }
@@ -754,13 +772,25 @@ function DepartamentosPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-4 text-foreground">
                 <p className="font-bold">{confirmacaoImportacao?.quantidade} BEM(NS) SERÃO IMPORTADOS!</p>
-                <p>DESEJA CONTINUAR? (Os Bens que já existem na sala não serão duplicados)</p>
+                {confirmacaoImportacao?.conflitos.length ? (
+                  <>
+                    <p className="font-bold">ATENÇÃO: os bens abaixo já existem em outra sala.</p>
+                    <ul className="max-h-56 space-y-1 overflow-y-auto rounded-md border border-border p-3">
+                      {confirmacaoImportacao.conflitos.map((bem) => (
+                        <li key={bem.id}>RED {formatarCodigoRed(bem.codigo_red)} — {bem.sala_nome}</li>
+                      ))}
+                    </ul>
+                    <p>Ao clicar em OK, esses bens serão retirados das salas anteriores e importados para {confirmacaoImportacao.local}, sem duplicar os códigos RED. Cancelar não altera os bens.</p>
+                  </>
+                ) : (
+                  <p>DESEJA CONTINUAR? (Os Bens que já existem na sala não serão duplicados)</p>
+                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => responderConfirmacaoImportacao(false)}>Não</AlertDialogCancel>
-            <AlertDialogAction onClick={() => responderConfirmacaoImportacao(true)}>Sim</AlertDialogAction>
+            <AlertDialogCancel onClick={() => responderConfirmacaoImportacao(false)}>{confirmacaoImportacao?.conflitos.length ? "Cancelar" : "Não"}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => responderConfirmacaoImportacao(true)}>{confirmacaoImportacao?.conflitos.length ? "OK" : "Sim"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

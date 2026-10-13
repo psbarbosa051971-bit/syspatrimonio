@@ -453,6 +453,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      consultar_bens_importacao: {
+        Args: { _bens: Json }
+        Returns: { id: string; sala_id: string | null; codigo_red: string; sala_nome: string }[]
+      }
+      importar_bens_html_confirmado: {
+        Args: {
+          _arquivo: string
+          _bens: Json
+          _cabecalho: Json
+          _sala_id: string
+          _existentes: Json
+        }
+        Returns: Json
+      }
       importar_bens_html: {
         Args: {
           _arquivo: string
