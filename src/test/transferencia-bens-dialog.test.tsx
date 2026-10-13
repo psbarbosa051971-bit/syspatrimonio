@@ -53,6 +53,7 @@ describe("formulário de transferência", () => {
     render(<TransferenciaBensDialog codigosIniciais="60.651, 60.785, " onClose={vi.fn()} onSaved={vi.fn()} />);
     const campo = screen.getByLabelText("Códigos RED separados por vírgulas");
     expect(campo).toHaveValue("60.651, 60.785, ");
+    expect(screen.queryByRole("region", { name: "Informações registradas na conferência" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Filtrar" })).toBeDisabled();
     fireEvent.submit(campo.closest("form")!);
     expect(mocks.buscar).not.toHaveBeenCalled();
@@ -116,13 +117,23 @@ describe("formulário de transferência", () => {
       itens: [primeiro, segundo].map((bem, indice) => ({
         id: `solicitacao-${indice}`, bem_id: bem.id, sala_id: bem.sala_id,
         codigo_red: bem.codigo_red, descricao: bem.descricao, valor: bem.valor,
-        tipo: indice ? "inservivel" : "transferencia", destino: null,
-        observacao: "", local_origem: "Sala origem", user_id: "usuario",
+        tipo: indice ? "inservivel" : "transferencia", destino: indice ? null : "Local informado na conferência",
+        observacao: indice ? "" : "Aguardar retirada do bem.\nConferir com a secretaria.", local_origem: "Sala origem", user_id: "usuario",
         ativa: true, created_at: "2026-10-10T12:00:00Z", updated_at: "2026-10-10T12:00:00Z",
       })),
     };
     render(<TransferenciaBensDialog grupo={grupo} onClose={vi.fn()} onSaved={onSaved} />);
     expect(screen.getByText("Transferir bens — Sala origem")).toBeInTheDocument();
+    const informacoes = screen.getByRole("region", { name: "Informações registradas na conferência" });
+    expect(within(informacoes).getByText(/Origem: Sala origem · Inclui bens inservíveis/)).toHaveTextContent("Esta ação transfere os bens; não realiza baixa patrimonial.");
+    expect(within(informacoes).getByRole("columnheader", { name: "Local de destino da transferência" })).toBeInTheDocument();
+    expect(within(informacoes).getByRole("columnheader", { name: "Observações" })).toBeInTheDocument();
+    const linhaMesa = within(informacoes).getByRole("row", { name: /123/ });
+    expect(linhaMesa).toHaveTextContent("Local informado na conferência");
+    expect(linhaMesa).toHaveTextContent("Aguardar retirada do bem. Conferir com a secretaria.");
+    const linhaCadeira = within(informacoes).getByRole("row", { name: /456/ });
+    expect(linhaCadeira).toHaveTextContent("Não informado");
+    expect(linhaCadeira).toHaveTextContent("Sem observações");
     expect(screen.queryByLabelText("Códigos RED separados por vírgulas")).not.toBeInTheDocument();
     expect(screen.getByText("Mesa")).toBeInTheDocument();
     expect(screen.getByText("Cadeira")).toBeInTheDocument();

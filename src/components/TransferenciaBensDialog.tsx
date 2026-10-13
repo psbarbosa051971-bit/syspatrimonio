@@ -189,7 +189,28 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
         {aviso && <p role="status" className="rounded-md bg-muted p-3 text-sm">{aviso}</p>}
         <TabelaBensTransferencia titulo="Bens encontrados" bens={encontrados} salas={salas} selecionados={marcadosBusca} onChange={setMarcadosBusca} disabled={bloqueado} />
         <div className="flex justify-end"><Button variant="outline" onClick={aceitar} disabled={bloqueado || !marcadosBusca.length}>Aceitar selecionados</Button></div></>}
-        {grupo && <p className="text-sm text-muted-foreground">Origem: {grupo.local} · {grupo.itens.some((item) => item.tipo === "inservivel") ? "Inclui bens inservíveis. Esta ação transfere os bens; não realiza baixa patrimonial." : "Bens informados para transferência na conferência."}{grupo.itens.some((item) => !item.bem_id || !item.sala_id) ? " Há registros sem vínculo com um bem ou sala: eles não podem ser transferidos por este formulário." : ""}</p>}
+        {grupo && <section aria-label="Informações registradas na conferência" className="space-y-3 rounded-md border border-border bg-muted/40 p-3">
+          <p className="text-sm text-muted-foreground">Origem: {grupo.local} · {grupo.itens.some((item) => item.tipo === "inservivel") ? "Inclui bens inservíveis. Esta ação transfere os bens; não realiza baixa patrimonial." : "Bens informados para transferência na conferência."}{grupo.itens.some((item) => !item.bem_id || !item.sala_id) ? " Há registros sem vínculo com um bem ou sala: eles não podem ser transferidos por este formulário." : ""}</p>
+          <p className="text-sm text-muted-foreground">Destino e observações informados na conferência, por bem. São informações para consulta; o destino efetivo da transferência deve ser escolhido no campo Local / sala de destino acima.</p>
+          <div className="max-h-60 overflow-auto rounded-md border border-border">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-muted">
+                <tr>
+                  <th scope="col" className="p-3 font-semibold">Código RED</th>
+                  <th scope="col" className="min-w-48 p-3 font-semibold">Local de destino da transferência</th>
+                  <th scope="col" className="min-w-64 p-3 font-semibold">Observações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grupo.itens.map((item) => <tr key={item.id} className="border-t border-border align-top">
+                  <th scope="row" className="p-3 font-medium">{item.codigo_red}</th>
+                  <td className="whitespace-pre-wrap break-words p-3">{item.destino?.trim() || "Não informado"}</td>
+                  <td className="whitespace-pre-wrap break-words p-3">{item.observacao?.trim() || "Sem observações"}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </section>}
         <div className="space-y-3 rounded-md border-2 border-primary/30 p-3">
           <p className="font-semibold">Destino: {sala?.nome ?? "Selecione uma sala acima"}</p>
           <TabelaBensTransferencia titulo={grupo ? "Bens pendentes do local" : "Bens aceitos para transferência"} bens={aceitos} salas={salas} selecionados={marcadosSalvar} onChange={setMarcadosSalvar} disabled={bloqueado} />
