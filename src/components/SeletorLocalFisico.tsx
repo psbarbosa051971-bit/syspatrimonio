@@ -8,7 +8,7 @@ function normalizar(texto: string) {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 }
 
-export function SeletorLocalFisico({ salas, valor, onChange, id, required = false, disabled = false, limparAoDigitar = false }: {
+export function SeletorLocalFisico({ salas, valor, onChange, id, required = false, disabled = false, limparAoDigitar = false, ariaLabel = "Local Físico" }: {
   salas: LocalFisicoOpcao[];
   valor: string[];
   onChange: (valor: string[]) => void;
@@ -16,6 +16,7 @@ export function SeletorLocalFisico({ salas, valor, onChange, id, required = fals
   required?: boolean;
   disabled?: boolean;
   limparAoDigitar?: boolean;
+  ariaLabel?: string;
 }) {
   const uid = useId();
   const listaId = `${uid}-locais`;
@@ -35,7 +36,7 @@ export function SeletorLocalFisico({ salas, valor, onChange, id, required = fals
   return (
     <div className="relative min-w-0">
       <Search aria-hidden="true" className="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
-      <Input id={id ?? uid} className="pl-9" role="combobox" aria-label="Local Físico"
+      <Input id={id ?? uid} className="pl-9" role="combobox" aria-label={ariaLabel}
         aria-expanded={aberto} aria-controls={listaId} aria-autocomplete="list"
         aria-activedescendant={aberto && resultados.length ? `${listaId}-${ativo}` : undefined}
         autoComplete="off" required={required} disabled={disabled}
