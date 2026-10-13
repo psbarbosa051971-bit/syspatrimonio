@@ -578,7 +578,12 @@ function DepartamentosPage() {
       })
       .select()
       .single();
-    if (error) { toast.error("Erro ao adicionar bem"); return; }
+    if (error) {
+      toast.error(error.code === "23505"
+        ? "Este código RED já está cadastrado. Não é permitido repetir o mesmo código nesta sala ou em outra. Use a importação para mover o bem."
+        : error.message || "Erro ao adicionar bem");
+      return;
+    }
     setBens((prev) => [...prev, data]);
     setNovoBem({ codigo_red: "", descricao: "", valor: "" });
   }
