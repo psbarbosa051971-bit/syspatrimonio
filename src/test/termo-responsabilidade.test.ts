@@ -57,6 +57,20 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(html).toContain("&lt;img src=x");
   });
 
+  it("imprime o recebedor e o usuário que entregou, mantendo a data em branco", () => {
+    const termo = registro();
+    const dados = lerDadosTermo(termo.termo_snapshot);
+    const html = htmlDoTermo({ ...termo, termo_snapshot: {
+      ...dados, responsavel: "Maria Recebedora", cpf: "52998224725", entregador: "João Operador <teste>",
+    } });
+    expect(html).toContain("ENTREGUE POR");
+    expect(html).toContain("João Operador &lt;teste&gt;");
+    expect(html).toContain("Maria Recebedora");
+    expect(html).toContain("529.982.247-25");
+    expect(html).not.toContain("Diretor cadastrado");
+    expect(html).toContain("DATA DE RECEBIMENTO ____/____/________");
+  });
+
   it("recusa termos sem dados ou com valores inválidos", () => {
     expect(() => lerDadosTermo(null)).toThrow();
     expect(() => lerDadosTermo({ bens: [] })).toThrow();

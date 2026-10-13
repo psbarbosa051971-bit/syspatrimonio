@@ -426,6 +426,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      salvar_recebimento_termo: {
+        Args: { _importacao_id: string; _recebedor: string; _cpf: string }
+        Returns: Json
+      }
       buscar_ultima_transferencia: { Args: { _codigo: string }; Returns: Json }
       can_edit: { Args: { _user_id: string }; Returns: boolean }
       estornar_bens_inserviveis: {

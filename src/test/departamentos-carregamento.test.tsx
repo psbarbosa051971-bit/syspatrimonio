@@ -130,6 +130,8 @@ async function importarParaLiberarUnidade() {
   });
   const dialogo = await screen.findByRole("alertdialog");
   fireEvent.click(within(dialogo).getByRole("button", { name: "Sim" }));
+  const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
+  fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
   const unidade = screen.getByRole("combobox", { name: "Unidade" });
   await waitFor(() => expect(unidade).toBeEnabled());
   await waitFor(() => expect(unidade).toHaveFocus());
@@ -219,6 +221,11 @@ describe("Carregamento dos registros em Departamentos", () => {
       });
     }
     fireEvent.click(within(dialogo).getByRole("button", { name: resposta }));
+    if (resposta === "Sim") {
+      const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
+      fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
+      expect(screen.queryByRole("dialog", { name: "Dados do recebimento" })).not.toBeInTheDocument();
+    }
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
     if (resposta === "Sim") {
@@ -267,6 +274,10 @@ describe("Carregamento dos registros em Departamentos", () => {
       });
     }
     fireEvent.click(within(dialogo).getByRole("button", { name: resposta }));
+    if (resposta === "OK") {
+      const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
+      fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
+    }
     await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
     if (resposta === "OK") {
       expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_confirmado", expect.objectContaining({

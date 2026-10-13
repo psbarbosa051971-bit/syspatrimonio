@@ -25,6 +25,7 @@ import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/l
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
+import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog";
 import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
 import { Button } from "@/components/ui/button";
@@ -223,11 +224,12 @@ function DepartamentosPage() {
   const [bensDialogSala, setBensDialogSala] = useState<Bem[]>([]);
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
   const [importando, setImportando] = useState(false);
+  const [impressaoImportacao, setImpressaoImportacao] = useState<{ id: string; salaId: string } | null>(null);
   useEffect(() => {
-    if (!unidadeLiberada || importando || carregandoSalas || erroSalas || salvandoUnidade) return;
+    if (!unidadeLiberada || importando || impressaoImportacao || carregandoSalas || erroSalas || salvandoUnidade) return;
     const frame = requestAnimationFrame(() => unidadeRef.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [unidadeLiberada, importando, carregandoSalas, erroSalas, salvandoUnidade]);
+  }, [unidadeLiberada, importando, impressaoImportacao, carregandoSalas, erroSalas, salvandoUnidade]);
   const [confirmacaoImportacao, setConfirmacaoImportacao] = useState<{
     local: string;
     quantidade: number;
@@ -674,12 +676,15 @@ function DepartamentosPage() {
       setSalaSel(salaAlvo);
       setUnidadeLiberadaSalaId(salaAlvo.id);
       setUltimaImportacao(String(resultado["importacao_id"] ?? resultado["numero"]));
+      if (typeof resultado["importacao_id"] === "string") {
+        setImpressaoImportacao({ id: resultado["importacao_id"], salaId: salaAlvo.id });
+      }
       setTentativaBens((valor) => valor + 1);
       setBensParaTransferir([]);
       toast.success(`Termo de responsabilidade nº ${String(resultado["termo_numero"])} criado. ` +
         `${Number(resultado["novos"])} bem(ns) adicionados; ${Number(resultado["transferidos"] ?? 0)} movidos de outros locais; ` +
         `${Math.max(0, Number(resultado["repetidos"]) - Number(resultado["transferidos"] ?? 0))} já estavam no destino. ` +
-        `Use “Imprimir termo de Responsabilidade” para imprimir os ${extraidos.length} bens do HTML.`);
+        `Confirme a impressão para preencher os dados do recebimento dos ${extraidos.length} bens do HTML.`);
     } catch (erro) {
       toast.error(erro && typeof erro === "object" && "message" in erro
         ? String(erro.message) : "Não foi possível concluir a importação do HTML");
@@ -799,6 +804,15 @@ function DepartamentosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {impressaoImportacao && user && <ImprimirImportacaoDialog
+        key={impressaoImportacao.id}
+        importacaoId={impressaoImportacao.id}
+        salaId={impressaoImportacao.salaId}
+        usuarioId={user.id}
+        nomeAlternativo={user.user_metadata?.nome || user.user_metadata?.full_name || user.email || ""}
+        onClose={() => setImpressaoImportacao(null)}
+      />}
 
       <main className="mx-auto grid max-w-[1800px] gap-4 px-3 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]">
         <div className="flex min-w-0 flex-col gap-6 lg:contents">

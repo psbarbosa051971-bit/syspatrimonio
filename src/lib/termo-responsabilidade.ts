@@ -7,7 +7,7 @@ export type ItemTermo = {
 export type DadosTermo = {
   local: string; endereco: string; historico: string; data_origem: string;
   departamento: string; diretor: string; almoxarifado: string;
-  endereco_departamento: string; responsavel: string; cpf: string;
+  endereco_departamento: string; responsavel: string; cpf: string; entregador?: string;
   bens: ItemTermo[];
 };
 export type TermoResponsabilidade = Pick<Tables<"importacoes">,
@@ -30,7 +30,7 @@ export function lerDadosTermo(valor: Json | null): DadosTermo {
   return { local: texto("local"), endereco: texto("endereco"), historico: texto("historico"),
     data_origem: texto("data_origem"), departamento: texto("departamento"), diretor: texto("diretor"),
     almoxarifado: texto("almoxarifado"), endereco_departamento: texto("endereco_departamento"),
-    responsavel: texto("responsavel"), cpf: texto("cpf"), bens };
+    responsavel: texto("responsavel"), cpf: texto("cpf"), entregador: texto("entregador"), bens };
 }
 export function numeroDoTermo(termo: Pick<TermoResponsabilidade, "numero" | "termo_ano" | "created_at">) {
   const ano = termo.termo_ano ?? new Date(termo.created_at).toLocaleDateString("pt-BR", {
@@ -89,8 +89,8 @@ export function htmlDoTermo(termo: TermoResponsabilidade): string {
     <table><colgroup><col style="width:10%"><col style="width:47%"><col style="width:13%"><col style="width:14%"><col style="width:16%"></colgroup>
       <thead><tr><th>CÓD. REDUZ.</th><th>DESCRIÇÃO DO(S) BEM(NS)</th><th>TIPO</th><th>INCORPORAÇÃO</th><th class="valor">VALOR UNIT.</th></tr></thead>
       <tbody>${linhas}<tr class="total"><td colspan="3">LISTADO(S) GERAL: ${d.bens.length}</td><td colspan="2" class="valor">VALOR TOTAL: ${moeda(d.bens.reduce((s, b) => s + b.valor, 0))}</td></tr></tbody></table>
-    <section class="assinaturas"><div class="assinatura"><strong>DIRETOR DE MATERIAL E PATRIMÔNIO</strong>
-      <div class="linha">${escapar(d.diretor) || "Nome do diretor"}<p>${escapar(d.almoxarifado) || "CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA"}</p></div></div>
+    <section class="assinaturas"><div class="assinatura"><strong>${d.entregador ? "ENTREGUE POR" : "DIRETOR DE MATERIAL E PATRIMÔNIO"}</strong>
+      <div class="linha">${escapar(d.entregador || d.diretor) || "Nome do diretor"}<p>${escapar(d.almoxarifado) || "CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA"}</p></div></div>
       <div class="assinatura"><p><strong>Local Físico:</strong> ${escapar(d.local)}</p>
       <p class="declaracao">Declaro que o(s) bem(ns) patrimonial(is) acima descrito(s) está(ão) sob minha responsabilidade, a partir da data de assinatura deste Termo de Responsabilidade. Comprometo-me a mantê-lo(s) em condições adequadas para o desenvolvimento normal dos trabalhos. As aplicações deste termo obedecem, em especial, ao disposto no artigo 70, parágrafo único, da Constituição Federal.</p>
       <div class="linha">${escapar(d.responsavel) || "Nome do responsável pelo local"}<p>${escapar(cpf)}</p></div>
