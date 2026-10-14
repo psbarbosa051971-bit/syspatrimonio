@@ -8,6 +8,8 @@ import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
 import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
+import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
+import { usePreenchimentoNfe } from "@/hooks/use-preenchimento-nfe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,6 +54,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
   const [erro, setErro] = useState(false);
   const [tentativa, setTentativa] = useState(0);
   const [salvando, setSalvando] = useState(false);
+  const { emissaoRef, camposPreenchidos, registrarPreenchimento } = usePreenchimentoNfe();
   const alterar = (chave: string, valor: string) => setDados((atuais) => ({ ...atuais, [chave]: valor }));
 
   useEffect(() => {
@@ -135,10 +138,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     const largura = chave === "fornecedor" ? "sm:col-span-3" : chave === "chassi" ? "sm:col-span-2" : "";
     return <label key={chave} className={`min-w-0 space-y-1 text-xs font-semibold ${largura}`}>
       <span className="block uppercase">{nome}</span>
-      <Input type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
+      {chave === "emissao" ? <CampoEmissaoNfe ref={emissaoRef} value={dados.emissao ?? ""} mes={dados.emissao_mes}
+        className={`h-8 min-w-0 px-2 text-xs md:text-xs ${camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : ""}`}
+        onChange={(valor) => alterar("emissao", valor)} /> : <Input type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
         inputMode={chave === "valor" ? "decimal" : undefined} maxLength={tipo === "text" ? 200 : undefined}
-        className="h-8 min-w-0 px-2 text-xs md:text-xs"
-        value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)} />
+        className={`h-8 min-w-0 px-2 text-xs md:text-xs ${camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : ""}`}
+        value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)} />}
     </label>;
   }
 
@@ -170,7 +175,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         </TabsList>
         <fieldset disabled={carregando || erro || salvando} className="mt-2 min-h-0 min-w-0 overflow-y-auto pr-1 disabled:opacity-60">
           <TabsContent value="recebimento" className="mt-0 space-y-2">
-            <ChaveAcessoNfe dados={dados} onChange={(valores) => setDados((atuais) => ({ ...atuais, ...valores }))} />
+            <ChaveAcessoNfe dados={dados} onChange={(valores) => setDados((atuais) => ({ ...atuais, ...valores }))} onPreenchido={registrarPreenchimento} />
             <div className="grid items-center gap-2 rounded-md border border-border px-3 py-2 sm:grid-cols-[auto_1fr]">
               <h3 className="text-xs font-bold uppercase">Secretaria/Local</h3>
               <Input aria-label="Secretaria/Local" readOnly value={localOrigem} className="h-8 bg-muted/40 text-xs md:text-xs" title="Preenchido com o Local Físico do bem." />

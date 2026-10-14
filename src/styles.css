@@ -181,6 +181,14 @@
   border-color: oklch(0.78 0.05 255);
 }
 
+/* Destaque da leitura da NF-e, com o mesmo contraste nos dois temas. */
+input.campo-nfe-preenchido,
+.dark input.campo-nfe-preenchido {
+  background-color: oklch(0.96 0.16 100);
+  color: oklch(0.4 0.21 264);
+  -webkit-text-fill-color: oklch(0.4 0.21 264);
+}
+
 @keyframes piscar-movimentacao {
   0%, 60%, 100% { opacity: 1; }
   65%, 95% { opacity: 0.35; }

@@ -13,6 +13,8 @@ import { RelatoriosBens } from "@/components/RelatoriosBens";
 import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
 import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
 import { useRole } from "@/hooks/use-role";
+import { Input } from "@/components/ui/input";
+import { correspondePesquisaDinamica } from "@/lib/pesquisa-dinamica";
 
 export const Route = createFileRoute("/_authenticated/conferencia")({
   head: () => ({
@@ -62,6 +64,7 @@ function ConferenciaPage() {
   const [salas, setSalas] = useState<Sala[]>([]);
   const [sala, setSala] = useState<Sala | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
+  const [buscaBens, setBuscaBens] = useState("");
   const [ordenacao, setOrdenacao] = useState<Ordenacao>({ campo: "codigo_red", crescente: true });
   const [obsBem, setObsBem] = useState<Bem | null>(null);
   const [atualizacaoRelatorios, setAtualizacaoRelatorios] = useState(0);
@@ -108,7 +111,11 @@ function ConferenciaPage() {
 
   const bensOrdenados = useMemo(() => {
     const compararTexto = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
-    return [...bens].sort((a, b) => {
+    const normalizar = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const termo = normalizar(buscaBens.trim());
+    return bens.filter((bem) => !termo || correspondePesquisaDinamica(bem, buscaBens)
+      || [bem.incorporacao, bem.tipo, bem.observacao, situacaoBem(bem)]
+        .some((valor) => normalizar(valor ?? "").includes(termo))).sort((a, b) => {
       let resultado: number;
       switch (ordenacao.campo) {
         case "conferido": resultado = Number(a.conferido) - Number(b.conferido); break;
@@ -119,7 +126,7 @@ function ConferenciaPage() {
       }
       return (ordenacao.crescente ? resultado : -resultado) || compararTexto(a.codigo_red, b.codigo_red) || a.id.localeCompare(b.id);
     });
-  }, [bens, ordenacao]);
+  }, [bens, ordenacao, buscaBens]);
 
   function ordenar(campo: CampoOrdenacao) {
     setOrdenacao((atual) => ({ campo, crescente: atual.campo === campo ? !atual.crescente : true }));
@@ -211,7 +218,10 @@ function ConferenciaPage() {
                 {salas.length > 1 ? (
                   <select id="local-conferencia" value={sala?.id ?? ""}
                     disabled={salvando || pendentes.length > 0}
-                    onChange={(e) => setSala(salas.find((local) => local.id === e.target.value) ?? null)}
+                    onChange={(e) => {
+                      setBuscaBens("");
+                      setSala(salas.find((local) => local.id === e.target.value) ?? null);
+                    }}
                     className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-foreground disabled:opacity-60">
                     {salas.map((local) => <option key={local.id} value={local.id}>{local.nome}</option>)}
                   </select>
@@ -230,13 +240,20 @@ function ConferenciaPage() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">Marque “Sim” nos bens encontrados, individualmente ou pela opção “Selecionar todos”, e clique em Salvar conferência para identificar os demais como NÃO LOCALIZADO.</p>
+            <div className="space-y-1">
+              <label htmlFor="pesquisa-bens-conferencia" className="text-sm font-semibold">Pesquisar bens da sala</label>
+              <Input id="pesquisa-bens-conferencia" type="search" aria-label="Pesquisar bens da sala"
+                placeholder="Pesquisar por código RED, descrição, valor ou situação..."
+                value={buscaBens} onChange={(e) => setBuscaBens(e.target.value)} />
+              <p role="status" className="text-xs text-muted-foreground">Exibindo {bensOrdenados.length} de {bens.length} bens do local. A pesquisa não altera as marcações nem os totais da sala.</p>
+            </div>
             <label className="inline-flex w-fit items-center gap-2 text-sm font-semibold">
               <input type="checkbox" className="h-5 w-5 accent-primary disabled:opacity-50"
-                checked={bens.length > 0 && localizados === bens.length}
-                ref={(elemento) => { if (elemento) elemento.indeterminate = localizados > 0 && localizados < bens.length; }}
-                disabled={!bens.length || carregando || salvando || pendentes.length > 0}
-                onChange={(e) => void marcar(bens, e.target.checked)} />
-              Selecionar todos
+                checked={bensOrdenados.length > 0 && bensOrdenados.every((bem) => bem.conferido)}
+                ref={(elemento) => { if (elemento) elemento.indeterminate = bensOrdenados.some((bem) => bem.conferido) && bensOrdenados.some((bem) => !bem.conferido); }}
+                disabled={!bensOrdenados.length || carregando || salvando || pendentes.length > 0}
+                onChange={(e) => void marcar(bensOrdenados, e.target.checked)} />
+              {buscaBens.trim() ? "Selecionar todos os resultados da pesquisa" : "Selecionar todos"}
             </label>
             {sala && <RelatoriosBens salaId={sala.id} atualizacao={atualizacaoRelatorios} />}
           </CardHeader>
@@ -254,10 +271,10 @@ function ConferenciaPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bens.length === 0 && (
+                {bensOrdenados.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                      {carregando ? "Carregando bens..." : sala ? "Nenhum bem nesta sala." : "Nenhum local disponível para conferência."}
+                      {carregando ? "Carregando bens..." : bens.length > 0 ? "Nenhum bem corresponde à pesquisa." : sala ? "Nenhum bem nesta sala." : "Nenhum local disponível para conferência."}
                     </TableCell>
                   </TableRow>
                 )}

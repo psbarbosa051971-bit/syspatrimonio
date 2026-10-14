@@ -6,6 +6,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { camposRecebimentoChecklist, dataAtualRecebimento } from "@/lib/checklist-veiculos";
 import { gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
+import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
+import { usePreenchimentoNfe } from "@/hooks/use-preenchimento-nfe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +20,7 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
   const [salvando, setSalvando] = useState(false);
   const [alterado, setAlterado] = useState(false);
   const [fornecedores, setFornecedores] = useState<string[]>([]);
+  const { emissaoRef, camposPreenchidos, registrarPreenchimento } = usePreenchimentoNfe();
 
   useEffect(() => {
     let cancelado = false;
@@ -64,10 +67,13 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
   function campo(chave: string, nome: string, tipo = "text") {
     return <label key={chave} className={`min-w-0 space-y-1 text-sm font-semibold ${chave === "fornecedor" || chave === "modelo_veiculo" ? "sm:col-span-2" : ""}`}>
       <span>{nome}</span>
-      <Input aria-label={nome} type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
+      {chave === "emissao" ? <CampoEmissaoNfe ref={emissaoRef} value={dados.emissao ?? ""} mes={dados.emissao_mes}
+        className={camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : undefined}
+        onChange={(valor) => alterar({ emissao: valor })} /> : <Input aria-label={nome} type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
         inputMode={chave === "valor" ? "decimal" : undefined} maxLength={tipo === "text" ? 500 : undefined}
+        className={camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : undefined}
         list={chave === "fornecedor" ? "fornecedores-checklist" : undefined}
-        value={dados[chave] ?? ""} onChange={(e) => alterar({ [chave]: e.target.value })} />
+        value={dados[chave] ?? ""} onChange={(e) => alterar({ [chave]: e.target.value })} />}
       {chave === "fornecedor" && <>
         <datalist id="fornecedores-checklist">{fornecedores.map((nome) => <option key={nome} value={nome} />)}</datalist>
         <span className="block text-xs font-normal text-muted-foreground">Ao salvar o checklist, o fornecedor fica gravado e é sugerido nos próximos checklists. Você pode alterá-lo.</span>
@@ -82,7 +88,7 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
         <DialogDescription>Preencha no celular ou notebook antes da importação. O número do termo será gerado somente ao associar o código RED.</DialogDescription>
       </DialogHeader>
       <fieldset disabled={salvando} className="min-h-0 space-y-4 overflow-y-auto pr-1 disabled:opacity-60">
-        <ChaveAcessoNfe dados={dados} onChange={alterar} />
+        <ChaveAcessoNfe dados={dados} onChange={alterar} onPreenchido={registrarPreenchimento} />
         <section className="rounded-xl border border-border p-3">
           <h3 className="mb-3 font-semibold text-primary">Dados do recebimento</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{camposRecebimentoChecklist.map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}</div>

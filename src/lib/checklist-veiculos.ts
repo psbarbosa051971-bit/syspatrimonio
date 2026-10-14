@@ -16,7 +16,10 @@ export function extrairChaveNfe(texto: string): string {
 
 export function dadosDaChave(texto: string): Record<string, string> {
   const chave = extrairChaveNfe(texto);
-  return { chave_acesso: chave, nota_fiscal: String(Number(chave.slice(25, 34))), cnpj_fornecedor: chave.slice(6, 20) };
+  const ano = `20${chave.slice(2, 4)}`;
+  const mes = chave.slice(4, 6);
+  if (Number(mes) < 1 || Number(mes) > 12) throw new Error("Mês de emissão inválido na chave de acesso.");
+  return { chave_acesso: chave, nota_fiscal: String(Number(chave.slice(25, 34))), cnpj_fornecedor: chave.slice(6, 20), emissao_mes: `${ano}-${mes}` };
 }
 
 // O XML contém o nome e a data exata, que não existem na chave de 44 dígitos.

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
+import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
+import { usePreenchimentoNfe } from "@/hooks/use-preenchimento-nfe";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/components/LeitorChaveNfe", () => ({ LeitorChaveNfe: () => null }));
@@ -25,6 +27,54 @@ function Formulario({ fornecedor = "" }: { fornecedor?: string }) {
 }
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+function FormularioAutomatico() {
+  const [dados, setDados] = useState<Record<string, string>>({ fornecedor: "Fornecedor manual" });
+  const { emissaoRef, camposPreenchidos, registrarPreenchimento } = usePreenchimentoNfe();
+  return <>
+    <ChaveAcessoNfe dados={dados} onChange={(valores) => setDados((atuais) => ({ ...atuais, ...valores }))}
+      onPreenchido={registrarPreenchimento} />
+    <input aria-label="Nota fiscal" readOnly value={dados.nota_fiscal ?? ""}
+      className={camposPreenchidos.has("nota_fiscal") ? "campo-nfe-preenchido" : ""} />
+    <CampoEmissaoNfe ref={emissaoRef} value={dados.emissao ?? ""} mes={dados.emissao_mes}
+      className={camposPreenchidos.has("emissao") ? "campo-nfe-preenchido" : ""}
+      onChange={(emissao) => setDados((atuais) => ({ ...atuais, emissao }))} />
+    <output aria-label="Data gravada">{dados.emissao ?? ""}</output>
+  </>;
+}
+
+describe("leitura automática sem clicar em preencher", () => {
+  it("preenche ao completar a chave e seleciona o dia sem inventar a data", async () => {
+    render(<FormularioAutomatico />);
+    const chave = screen.getByPlaceholderText(/Digite, cole ou leia/);
+    fireEvent.change(chave, { target: { value: chaveValida().slice(0, 43) } });
+    expect(screen.getByLabelText("Nota fiscal")).toHaveValue("");
+    fireEvent.change(chave, { target: { value: chaveValida() } });
+    expect(screen.getByLabelText("Nota fiscal")).toHaveValue("45593");
+    expect(screen.getByLabelText("Nota fiscal")).toHaveClass("campo-nfe-preenchido");
+    const emissao = screen.getByLabelText("Emissão") as HTMLInputElement;
+    await waitFor(() => expect(emissao).toHaveFocus());
+    expect(emissao).toHaveValue("__/10/2026");
+    expect(emissao).toHaveClass("campo-nfe-preenchido");
+    expect(emissao.selectionStart).toBe(0);
+    expect(emissao.selectionEnd).toBe(2);
+    expect(screen.getByLabelText("Data gravada")).toBeEmptyDOMElement();
+    fireEvent.change(emissao, { target: { value: "14/10/2026" } });
+    expect(screen.getByLabelText("Data gravada")).toHaveTextContent("2026-10-14");
+  });
+
+  it("não perde a edição parcial da emissão nem grava um dia impossível", () => {
+    render(<FormularioAutomatico />);
+    fireEvent.change(screen.getByPlaceholderText(/Digite, cole ou leia/), { target: { value: chaveValida() } });
+    const emissao = screen.getByLabelText("Emissão");
+    fireEvent.change(emissao, { target: { value: "14/10/2026" } });
+    fireEvent.change(emissao, { target: { value: "1/10/2026" } });
+    expect(emissao).toHaveValue("1/10/2026");
+    expect(screen.getByLabelText("Data gravada")).toBeEmptyDOMElement();
+    fireEvent.change(emissao, { target: { value: "32/10/2026" } });
+    expect(screen.getByLabelText("Data gravada")).toBeEmptyDOMElement();
+  });
+});
 
 describe("preenchimento da NF-e sem perder o fornecedor digitado", () => {
   it("preenche a nota e preserva fornecedor e valor ao ler somente a chave", () => {

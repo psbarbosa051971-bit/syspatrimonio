@@ -12,7 +12,8 @@ function chaveValida() {
 describe("leitura da NF-e no checklist antes da importação", () => {
   it("extrai número da nota e CNPJ sem inventar fornecedor, pedido, empenho ou data exata", () => {
     const chave = chaveValida();
-    expect(dadosDaChave(chave)).toEqual({ chave_acesso: chave, nota_fiscal: "45593", cnpj_fornecedor: "12345678000195" });
+    expect(dadosDaChave(chave)).toEqual({ chave_acesso: chave, nota_fiscal: "45593", cnpj_fornecedor: "12345678000195", emissao_mes: "2026-10" });
+    expect(dadosDaChave(chave)).not.toHaveProperty("emissao");
     expect(extrairChaveNfe(chave.match(/.{1,4}/g)!.join(" "))).toBe(chave);
   });
 
