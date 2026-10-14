@@ -33,11 +33,18 @@ export function dadosDoXmlNfe(texto: string): Record<string, string> {
   const chave = extrairChaveNfe(info.getAttribute("Id")?.replace(/^NFe/, "") ?? valor(doc, "chNFe"));
   const dados = dadosDaChave(chave);
   const emissao = valor(ide, "dhEmi") || valor(ide, "dEmi");
-  return { ...dados, nota_fiscal: valor(ide, "nNF") || dados.nota_fiscal, emissao: emissao.slice(0, 10), fornecedor: valor(emitente, "xNome") };
+  const total = elemento(info, "ICMSTot");
+  const valorNota = total ? valor(total, "vNF") : "";
+  if (valorNota && (!/^\d+(\.\d{1,2})?$/.test(valorNota) || !Number.isFinite(Number(valorNota)))) {
+    throw new Error("O valor total da NF-e no XML é inválido.");
+  }
+  return { ...dados, nota_fiscal: valor(ide, "nNF") || dados.nota_fiscal, emissao: emissao.slice(0, 10),
+    fornecedor: valor(emitente, "xNome"), ...(valorNota ? { valor: Number(valorNota).toFixed(2) } : {}) };
 }
 
 export const camposRecebimentoChecklist = [
   { chave: "nota_fiscal", nome: "Nota fiscal" },
+  { chave: "valor", nome: "Valor", tipo: "number" },
   { chave: "emissao", nome: "Emissão", tipo: "date" },
   { chave: "data_recebimento", nome: "Data do recebimento", tipo: "date" },
   { chave: "pedido", nome: "Pedido" },

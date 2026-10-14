@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,24 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
   const [dados, setDados] = useState<Record<string, string>>(() => checklist ? lerDadosRecebimento(checklist.dados) : { data_recebimento: dataAtualRecebimento() });
   const [salvando, setSalvando] = useState(false);
   const [alterado, setAlterado] = useState(false);
+  const [fornecedores, setFornecedores] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from("checklists_veiculos")
+          .select("fornecedor:dados->>fornecedor").order("atualizado_em", { ascending: false }).limit(100);
+        if (cancelado || error) return;
+        const nomes = Array.from(new Set((data ?? []).map((item) =>
+          typeof item.fornecedor === "string" ? item.fornecedor.trim() : "").filter(Boolean)));
+        setFornecedores(nomes);
+        if (!checklist && nomes[0]) setDados((atuais) => ({ ...atuais, fornecedor: atuais.fornecedor ?? nomes[0] }));
+      } catch { /* O histórico é opcional e não impede o preenchimento. */ }
+    })();
+    return () => { cancelado = true; };
+  }, [checklist]);
+
   function alterar(valores: Record<string, string>) { setAlterado(true); setDados((atuais) => ({ ...atuais, ...valores })); }
   function fechar() {
     if (!salvando && (!alterado || window.confirm("Fechar sem salvar as alterações deste checklist?"))) onClose();
@@ -25,6 +43,9 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
   async function salvar() {
     if (salvando) return;
     if (!dados.data_recebimento) { toast.error("Informe a data do recebimento."); return; }
+    if (dados.valor && (!/^\d+(?:\.\d{1,2})?$/.test(dados.valor) || !Number.isFinite(Number(dados.valor)))) {
+      toast.error("Informe um valor positivo ou zero, com até duas casas decimais."); return;
+    }
     setSalvando(true);
     try {
       const { data: { user }, error: erroUsuario } = await supabase.auth.getUser();
@@ -43,8 +64,14 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
   function campo(chave: string, nome: string, tipo = "text") {
     return <label key={chave} className={`min-w-0 space-y-1 text-sm font-semibold ${chave === "fornecedor" || chave === "modelo_veiculo" ? "sm:col-span-2" : ""}`}>
       <span>{nome}</span>
-      <Input type={tipo} min={tipo === "number" ? 0 : undefined} maxLength={tipo === "text" ? 500 : undefined}
+      <Input aria-label={nome} type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
+        inputMode={chave === "valor" ? "decimal" : undefined} maxLength={tipo === "text" ? 500 : undefined}
+        list={chave === "fornecedor" ? "fornecedores-checklist" : undefined}
         value={dados[chave] ?? ""} onChange={(e) => alterar({ [chave]: e.target.value })} />
+      {chave === "fornecedor" && <>
+        <datalist id="fornecedores-checklist">{fornecedores.map((nome) => <option key={nome} value={nome} />)}</datalist>
+        <span className="block text-xs font-normal text-muted-foreground">Ao salvar o checklist, o fornecedor fica gravado e é sugerido nos próximos checklists. Você pode alterá-lo.</span>
+      </>}
     </label>;
   }
 

@@ -2,13 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dataAtualRecebimento } from "@/lib/checklist-veiculos";
 
-const mocks = vi.hoisted(() => ({ insert: vi.fn(), update: vi.fn(), single: vi.fn(), sucesso: vi.fn(), erro: vi.fn() }));
+const mocks = vi.hoisted(() => ({ insert: vi.fn(), update: vi.fn(), single: vi.fn(), historico: vi.fn(), sucesso: vi.fn(), erro: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: "usuario" } }, error: null }) },
     from: (tabela: string) => {
       if (tabela !== "checklists_veiculos") throw new Error("Não deve criar um termo antes da associação");
       return {
+        select: () => ({ order: () => ({ limit: mocks.historico }) }),
         insert: (valores: unknown) => { mocks.insert(valores); return { select: () => ({ single: mocks.single }) }; },
         update: (valores: unknown) => { mocks.update(valores); return { eq: () => ({ is: () => ({ select: () => ({ single: mocks.single }) }) }) }; },
       };
@@ -23,6 +24,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.single.mockResolvedValue({ data: { id: "checklist-1" }, error: null });
+  mocks.historico.mockResolvedValue({ data: [], error: null });
 });
 
 describe("checklist vazio antes da importação do veículo", () => {
@@ -42,13 +44,25 @@ describe("checklist vazio antes da importação do veículo", () => {
     render(<ChecklistVeiculoDialog checklist={null} onClose={onClose} onSaved={onSaved} />);
     fireEvent.change(screen.getByLabelText("Nota fiscal"), { target: { value: "45593" } });
     fireEvent.change(screen.getByLabelText("Fornecedor"), { target: { value: "Fornecedor de veículos" } });
+    fireEvent.change(screen.getByLabelText("Valor"), { target: { value: "91983.50" } });
     fireEvent.change(screen.getByLabelText("Triângulo"), { target: { value: "Sim" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar checklist sem patrimônio" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     expect(mocks.insert).toHaveBeenCalledWith({ user_id: "usuario", dados: {
-      data_recebimento: dataAtualRecebimento(), nota_fiscal: "45593", fornecedor: "Fornecedor de veículos", triangulo: "Sim",
+      data_recebimento: dataAtualRecebimento(), nota_fiscal: "45593", fornecedor: "Fornecedor de veículos", valor: "91983.50", triangulo: "Sim",
     } });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("reutiliza o último fornecedor salvo em um novo checklist e permite alterá-lo", async () => {
+    mocks.historico.mockResolvedValue({ data: [{ fornecedor: "Fornecedor salvo" }], error: null });
+    render(<ChecklistVeiculoDialog checklist={null} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await waitFor(() => expect(screen.getByLabelText("Fornecedor")).toHaveValue("Fornecedor salvo"));
+    fireEvent.change(screen.getByLabelText("Fornecedor"), { target: { value: "Outro fornecedor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar checklist sem patrimônio" }));
+    await waitFor(() => expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ fornecedor: "Outro fornecedor" }),
+    })));
   });
 
   it("mantém os dados no formulário quando o salvamento falha", async () => {

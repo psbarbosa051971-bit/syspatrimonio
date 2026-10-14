@@ -18,7 +18,8 @@ type Bem = Tables<"bens">;
 type Props = { bem: Bem; onClose: () => void; onSaved?: () => void };
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const identificacao = [
-  { chave: "nota_fiscal", nome: "Nota fiscal" }, { chave: "emissao", nome: "Emissão", tipo: "date" },
+  { chave: "nota_fiscal", nome: "Nota fiscal" }, { chave: "valor", nome: "Valor da nota", tipo: "number" },
+  { chave: "emissao", nome: "Emissão", tipo: "date" },
   { chave: "data_recebimento", nome: "Data do recebimento", tipo: "date" },
   { chave: "pedido", nome: "Pedido" },
   { chave: "ano_empenho", nome: "Ano do empenho", tipo: "number" },
@@ -97,6 +98,9 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
 
   async function salvar(imprimir = false) {
     if (carregando || erro || salvando || !bem.sala_id) return;
+    if (dados.valor && (!/^\d+(?:\.\d{1,2})?$/.test(dados.valor) || !Number.isFinite(Number(dados.valor)))) {
+      toast.error("Informe um valor positivo ou zero, com até duas casas decimais."); return;
+    }
     const janela = imprimir ? window.open("", "_blank") : null;
     if (imprimir && !janela) {
       toast.error("Permita a abertura de janelas para salvar e imprimir o termo.");
@@ -131,7 +135,8 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     const largura = chave === "fornecedor" ? "sm:col-span-3" : chave === "chassi" ? "sm:col-span-2" : "";
     return <label key={chave} className={`min-w-0 space-y-1 text-xs font-semibold ${largura}`}>
       <span className="block uppercase">{nome}</span>
-      <Input type={tipo} min={tipo === "number" ? 0 : undefined} maxLength={tipo === "text" ? 200 : undefined}
+      <Input type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
+        inputMode={chave === "valor" ? "decimal" : undefined} maxLength={tipo === "text" ? 200 : undefined}
         className="h-8 min-w-0 px-2 text-xs md:text-xs"
         value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)} />
     </label>;

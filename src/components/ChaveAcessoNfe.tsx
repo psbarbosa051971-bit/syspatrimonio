@@ -12,7 +12,9 @@ export function ChaveAcessoNfe({ dados, onChange }: Props) {
   const [camera, setCamera] = useState(false);
   const requisicao = useRef<AbortController | null>(null);
   const chaveAtual = useRef(dados.chave_acesso);
+  const fornecedorAtual = useRef(dados.fornecedor);
   chaveAtual.current = dados.chave_acesso;
+  fornecedorAtual.current = dados.fornecedor;
   useEffect(() => () => { requisicao.current?.abort(); requisicao.current = null; }, []);
 
   async function lerChave(texto = dados.chave_acesso ?? "") {
@@ -20,9 +22,16 @@ export function ChaveAcessoNfe({ dados, onChange }: Props) {
     try { extraidos = dadosDaChave(texto); }
     catch (erro) { toast.error((erro as Error).message); return; }
     requisicao.current?.abort();
+    requisicao.current = null;
+    chaveAtual.current = extraidos.chave_acesso;
+    onChange(extraidos);
+    if (fornecedorAtual.current?.trim()) {
+      setLendo(false);
+      toast.success("Nota fiscal preenchida. O fornecedor digitado foi mantido. Para preencher o valor automaticamente, carregue o XML da NF-e.");
+      return;
+    }
     const controle = new AbortController();
     requisicao.current = controle;
-    onChange({ ...extraidos, fornecedor: extraidos.cnpj_fornecedor === dados.cnpj_fornecedor ? dados.fornecedor ?? "" : "" });
     setLendo(true);
     const tempo = setTimeout(() => controle.abort(), 10000);
     try {
@@ -31,10 +40,10 @@ export function ChaveAcessoNfe({ dados, onChange }: Props) {
       const empresa = await resposta.json();
       if (typeof empresa.razao_social !== "string" || !empresa.razao_social.trim()) throw new Error("Fornecedor não encontrado");
       if (requisicao.current !== controle || chaveAtual.current !== extraidos.chave_acesso) return;
-      onChange({ fornecedor: empresa.razao_social.trim() });
-      toast.success("Nota fiscal e fornecedor preenchidos. Confira os dados antes de salvar.");
+      if (!fornecedorAtual.current?.trim()) onChange({ fornecedor: empresa.razao_social.trim() });
+      toast.success("Nota fiscal preenchida e fornecedor mantido. Para preencher o valor automaticamente, carregue o XML da NF-e.");
     } catch {
-      if (requisicao.current === controle) toast.info("Número da nota preenchido. Não foi possível consultar o fornecedor: informe o nome ou carregue o XML da NF-e.");
+      if (requisicao.current === controle) toast.info("Número da nota preenchido. Informe o fornecedor e o valor ou carregue o XML da NF-e.");
     } finally { clearTimeout(tempo); if (requisicao.current === controle) setLendo(false); }
   }
 
@@ -57,13 +66,16 @@ export function ChaveAcessoNfe({ dados, onChange }: Props) {
           try {
             const valores = dadosDoXmlNfe(await arquivo.text());
             requisicao.current?.abort(); requisicao.current = null; setLendo(false);
-            onChange(valores); toast.success("Nota fiscal, emissão e fornecedor lidos do XML. Confira os dados.");
+            onChange({ ...valores, ...(fornecedorAtual.current?.trim() ? { fornecedor: fornecedorAtual.current } : {}) });
+            toast.success(valores.valor
+              ? "Nota fiscal, emissão e valor total lidos do XML. O fornecedor digitado foi mantido; se estava vazio, foi preenchido pelo XML."
+              : "Nota fiscal e emissão lidas do XML. Este arquivo não informa o valor total; preencha o campo Valor.");
           } catch (erro) { toast.error((erro as Error).message); }
         }} />
       </label>
     </div>
     {camera && <LeitorChaveNfe onClose={() => setCamera(false)} onRead={(chave) => { setCamera(false); chaveAtual.current = chave; void lerChave(chave); }} />}
     {dados.cnpj_fornecedor && <p className="text-xs text-muted-foreground">CNPJ do emitente: {dados.cnpj_fornecedor}</p>}
-    <p className="text-xs text-muted-foreground">A chave informa o número da nota e o CNPJ. O fornecedor é consultado no serviço público BrasilAPI, sujeito à disponibilidade. A data exata de emissão vem do XML ou deve ser informada manualmente; pedido e empenho são de preenchimento manual.</p>
+    <p className="text-xs text-muted-foreground">A leitura da chave preenche a Nota fiscal, mas a chave de 44 dígitos não contém o valor. Carregue o XML para preencher também o valor total da nota e a emissão, ou informe-os manualmente. O fornecedor digitado é mantido e fica gravado ao salvar o formulário; quando vazio, é consultado na BrasilAPI, sujeito à disponibilidade, ou preenchido pelo XML. Pedido e empenho são de preenchimento manual.</p>
   </section>;
 }

@@ -49,6 +49,7 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     <section><h2>Identificação do recebimento</h2><div class="grade">
       ${campo("Nota fiscal", d.nota_fiscal || d.material)}${campo("Emissão", dataBr(d.emissao || ""))}${campo("Fornecedor", d.fornecedor)}${campo("Pedido", d.pedido)}
       ${campo("Data de recebimento", dataBr(d.data_recebimento || ""))}${campo("Data de cadastro", bem.incorporacao || "")}${campo("Patrimônio / RED", formatarCodigoRed(bem.codigo_red))}${campo("Valor da nota / unitário", moeda(Number(bem.valor)))}
+      ${d.valor?.trim() && /^\d+(?:\.\d{1,2})?$/.test(d.valor) && Number.isFinite(Number(d.valor)) ? campo("Valor total da nota fiscal", moeda(Number(d.valor))) : ""}
       ${campo("Tipo de compra / incorporação", bem.tipo || "")}${campo("Quilometragem", d.km ? `${d.km} km` : "")}${campo("Empenho / ano", [d.empenho, d.ano_empenho].filter(Boolean).join(" / "))}${campo("Local físico", local || d.local_fisico)}
     </div></section>
     <section><h2>Descrição do veículo e secretaria de destino</h2><div class="veiculo"><div class="descricao">${descricao}</div><div class="destino"><b>SECRETARIA DESTINO</b><br><br>${texto(d.secretaria || local || d.local_fisico)}</div></div></section>

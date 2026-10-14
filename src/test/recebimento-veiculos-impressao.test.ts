@@ -50,6 +50,13 @@ describe("impressão do recebimento de veículos", () => {
     expect(html).toContain("VEÍCULO CHEVROLET ONIX");
   });
 
+  it("inclui o valor total da nota sem substituir o valor unitário do patrimônio", () => {
+    const html = htmlTermoVeiculo(bem, { ...termo, dados: { valor: "183966.50" } });
+    expect(html).toContain("Valor total da nota fiscal");
+    expect(html).toContain((183966.5).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+    expect(html).toContain(bem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+  });
+
   it("escapa conteúdo digitado antes de gerar o documento de impressão", () => {
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {
       orgao: '<script>alert("x")</script>',
