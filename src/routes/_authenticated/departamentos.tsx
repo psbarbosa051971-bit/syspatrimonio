@@ -1247,8 +1247,8 @@ function DepartamentosPage() {
         </div>
 
         {/* Caixa de listagem de salas + busca */}
-        <div className="flex min-h-0 min-w-0 flex-col gap-4">
-          <Card className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-col gap-4 lg:relative">
+          <Card className="flex min-h-0 flex-1 flex-col lg:absolute lg:inset-0">
             <CardHeader>
               <CardTitle className="text-base">Localizar salas</CardTitle>
             </CardHeader>
