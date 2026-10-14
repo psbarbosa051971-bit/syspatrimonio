@@ -64,7 +64,7 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
     return [...locais.values()].sort((a, b) => a.local.localeCompare(b.local, "pt-BR", { numeric: true }));
   }, [itens, administrador]);
 
-  if (administrador && itens.length === 0) return null;
+  if (administrador && itens.length === 0 && !selecionado) return null;
 
   return (
     <section aria-label={administrador ? "Notificações de movimentação de bens" : "Relatórios deste local"}
@@ -78,7 +78,7 @@ export function RelatoriosBens({ salaId, administrador = false, atualizacao = 0 
           {aberto ? "Recolher relatórios" : "Ver relatórios"}
         </Button>
       </div>}
-      {administrador && <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}
+      {administrador && itens.length > 0 && <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto}
         className="w-full rounded-md bg-muted p-3 text-left font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-live="polite">
         <span className="alerta-movimentacao">Existe (em) bens para Movimentação(ões) Inservíveis/Transferência de Localidade.</span>
       </button>}

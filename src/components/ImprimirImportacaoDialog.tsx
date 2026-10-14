@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-type Props = { importacaoId: string; salaId: string; usuarioId: string; nomeAlternativo: string; onClose: () => void };
+type Props = { importacaoId: string; salaId: string; usuarioId?: string; nomeAlternativo?: string; origem?: "importacao" | "transferencia"; onClose: () => void };
 
-export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nomeAlternativo, onClose }: Props) {
+export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nomeAlternativo = "", origem = "importacao", onClose }: Props) {
+  const transferencia = origem === "transferencia";
+  const [dataTermo, setDataTermo] = useState("");
   const [etapa, setEtapa] = useState<"pergunta" | "formulario" | "documento">("pergunta");
   const [termo, setTermo] = useState<TermoResponsabilidade | null>(null);
   const [recebedor, setRecebedor] = useState("");
@@ -31,15 +33,18 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
     let ativo = true;
     setCarregando(true); setErro("");
     async function carregar() {
+      const usuarioAtual = usuarioId || (await supabase.auth.getSession()).data.session?.user.id;
+      if (!usuarioAtual) throw new Error("Não foi possível identificar o usuário logado. Entre novamente no sistema.");
       const [importacao, perfil] = await Promise.all([
         supabase.from("importacoes").select("id,numero,termo_ano,created_at,arquivo,termo_snapshot")
           .eq("id", importacaoId).eq("sala_id", salaId).single(),
-        supabase.from("profiles").select("nome,login,email").eq("id", usuarioId).single(),
+        supabase.from("profiles").select("nome,login,email").eq("id", usuarioAtual).single(),
       ]);
-      if (importacao.error || !importacao.data) throw new Error("Não foi possível carregar o termo desta importação.");
+      if (importacao.error || !importacao.data) throw new Error("Não foi possível carregar o termo desta movimentação.");
       if (perfil.error) throw new Error("Não foi possível identificar o usuário que está entregando os bens.");
       const dados = lerDadosTermo(importacao.data.termo_snapshot);
       if (!ativo) return;
+      setDataTermo(new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }));
       setTermo(importacao.data);
       setRecebedor(dados.responsavel); setCpf(formatarCpf(dados.cpf));
       setEntregador(perfil.data?.nome?.trim() || perfil.data?.login || perfil.data?.email || nomeAlternativo);
@@ -84,12 +89,12 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
     <AlertDialog open={etapa === "pergunta"}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Deseja imprimir o termo de Responsabilidade dessa importação?</AlertDialogTitle>
-          <AlertDialogDescription>A importação foi concluída. Ao clicar em OK, informe o recebedor e o CPF antes de imprimir. Cancelar mantém a importação sem abrir o formulário.</AlertDialogDescription>
+          <AlertDialogTitle>{transferencia ? "Deseja preencher o formulário Dados do recebimento?" : "Deseja imprimir o termo de Responsabilidade dessa importação?"}</AlertDialogTitle>
+          <AlertDialogDescription>{transferencia ? "A transferência foi concluída. Sim abre o formulário para informar o recebedor e imprimir o termo. Não fecha esta janela sem desfazer a transferência." : "A importação foi concluída. Ao clicar em OK, informe o recebedor e o CPF antes de imprimir. Cancelar mantém a importação sem abrir o formulário."}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={() => setEtapa("formulario")}>OK</AlertDialogAction>
+          <AlertDialogCancel onClick={onClose}>{transferencia ? "Não" : "Cancelar"}</AlertDialogCancel>
+          <AlertDialogAction onClick={() => setEtapa("formulario")}>{transferencia ? "Sim" : "OK"}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -97,9 +102,9 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
       <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${etapa === "documento" ? "max-w-5xl" : "max-w-xl"}`}>
         <DialogHeader>
           <DialogTitle>{etapa === "documento" ? `Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}` : "Dados do recebimento"}</DialogTitle>
-          <DialogDescription>{etapa === "documento" ? "Os dados foram gravados neste termo. Imprima ou salve uma cópia em PDF." : "Informe o recebedor. O nome de quem entrega será o do usuário logado. A data de recebimento ficará em branco no termo para preenchimento posterior."}</DialogDescription>
+          <DialogDescription>{etapa === "documento" ? "Os dados foram gravados neste termo. Imprima ou salve uma cópia em PDF." : "Informe o recebedor. O nome de quem entrega será o do usuário logado. A data do termo é preenchida automaticamente com a data atual; a data de recebimento permanece em branco para assinatura."}</DialogDescription>
         </DialogHeader>
-        {etapa === "formulario" && (carregando ? <p className="text-sm text-muted-foreground">Carregando dados da importação...</p> : termo ? <form onSubmit={salvarEImprimir} className="space-y-4">
+        {etapa === "formulario" && (carregando ? <p className="text-sm text-muted-foreground">Carregando dados {transferencia ? "da transferência" : "da importação"}...</p> : termo ? <form onSubmit={salvarEImprimir} className="space-y-4">
           <div className="space-y-1.5"><Label htmlFor="recebimento-nome">Nome do recebedor</Label>
             <Input id="recebimento-nome" autoFocus required maxLength={200} value={recebedor} disabled={salvando} onChange={(e) => setRecebedor(e.target.value)} />
           </div>
@@ -108,6 +113,9 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
           </div>
           <div className="space-y-1.5"><Label htmlFor="recebimento-entregador">Entregue por (usuário logado)</Label>
             <Input id="recebimento-entregador" value={entregador} readOnly />
+          </div>
+          <div className="space-y-1.5"><Label htmlFor="recebimento-data-termo">Data do termo</Label>
+            <Input id="recebimento-data-termo" value={dataTermo} readOnly />
           </div>
           <p className="text-sm text-muted-foreground">Data de recebimento: ____/____/________ (preencher posteriormente no termo).</p>
           <div className="flex justify-end gap-2">

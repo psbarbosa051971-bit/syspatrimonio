@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { responsavelDoLocal } from "@/lib/usuarios.functions";
 import { formatarCpf } from "@/lib/cpf";
-import { htmlDoTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
+import type { TermoResponsabilidade } from "@/lib/termo-responsabilidade";
+import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog";
 import { aceitarBens, buscarBensTransferencia, carregarSalasTransferencia, codigosDaBusca, lerTermoTransferencia, type BemTransferencia, type SalaTransferencia } from "@/lib/transferencias";
 import { SeletorLocalFisico } from "@/components/SeletorLocalFisico";
 import { TabelaBensTransferencia } from "@/components/TabelaBensTransferencia";
@@ -47,14 +48,11 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   const [salvando, setSalvando] = useState(false);
   const [pendente, setPendente] = useState(false);
   const [termo, setTermo] = useState<TermoResponsabilidade | null>(null);
-  const [pronto, setPronto] = useState(false);
-  const frame = useRef<HTMLIFrameElement>(null);
   const operacao = useRef(false);
   const destinoInicialAplicado = useRef(false);
   const pedido = useRef<{ id: string; destino: string; itens: { id: string; sala_id: string | null }[] } | null>(null);
   const sala = salas.find((s) => s.id === destino);
   const bloqueado = salvando || filtrando || pendente;
-  const documento = useMemo(() => termo ? htmlDoTermo(termo) : "", [termo]);
 
   useEffect(() => {
     let ativo = true;
@@ -148,36 +146,26 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
         throw error;
       }
       const gerado = lerTermoTransferencia(data);
-      setTermo(gerado); setPendente(false); setPronto(false);
+      setTermo(gerado); setPendente(false);
       if (grupo) onSaved(atual.destino, gerado.id, atual.itens.map((item) => item.id));
       else onSaved(atual.destino, gerado.id);
       window.dispatchEvent(new Event("bens-transferidos"));
-      toast.success("Transferência realizada. Confira o termo de responsabilidade.");
+      toast.success("Transferência realizada com sucesso.");
     } catch {
       setPendente(true);
       setErro("Não foi possível confirmar o resultado. Clique em Verificar transferência para consultar o mesmo pedido com segurança, sem repetir a movimentação.");
     } finally { operacao.current = false; setSalvando(false); }
   }
 
-  function imprimir() {
-    try { frame.current?.contentWindow?.focus(); frame.current?.contentWindow?.print(); }
-    catch { toast.error("O navegador não permitiu a impressão. Tente abrir o sistema fora da prévia incorporada."); }
-  }
+  if (termo) return <ImprimirImportacaoDialog importacaoId={termo.id} salaId={pedido.current?.destino ?? destino} origem="transferencia" onClose={onClose} />;
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando && !filtrando && !pendente) onClose(); }}>
     <DialogContent onInteractOutside={(e) => e.preventDefault()} className="flex max-h-[94vh] w-[96vw] max-w-6xl flex-col overflow-y-auto [&_input:not([type=checkbox])]:text-base [&_label]:text-base">
       <DialogHeader>
-        <DialogTitle>{termo ? `Transferência realizada — Termo ${numeroDoTermo(termo)}` : grupo ? `Transferir bens — ${grupo.local}` : "Gerar transferência"}</DialogTitle>
-        <DialogDescription>{termo ? "Os bens foram movidos para a sala de destino. O termo contém somente os bens salvos nesta transferência." : grupo ? "Escolha o local de destino no cabeçalho, marque alguns ou todos os bens e clique em Salvar transferência. Os bens não selecionados permanecem pendentes no alerta." : "Escolha o destino, filtre os códigos RED e aceite os bens. A movimentação só será realizada após a segunda seleção e o salvamento."}</DialogDescription>
+        <DialogTitle>{grupo ? `Transferir bens — ${grupo.local}` : "Gerar transferência"}</DialogTitle>
+        <DialogDescription>{grupo ? "Escolha o local de destino no cabeçalho, marque alguns ou todos os bens e clique em Salvar transferência. Os bens não selecionados permanecem pendentes no alerta." : "Escolha o destino, filtre os códigos RED e aceite os bens. A movimentação só será realizada após a segunda seleção e o salvamento."}</DialogDescription>
       </DialogHeader>
-      {termo ? <>
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Fechar</Button>
-          <Button disabled={!pronto} onClick={imprimir}>Imprimir / Salvar PDF</Button>
-        </div>
-        <iframe ref={frame} title={`Termo de responsabilidade ${numeroDoTermo(termo)}`} sandbox="allow-same-origin allow-modals"
-          srcDoc={documento} onLoad={() => setPronto(true)} className="h-[65vh] w-full rounded-md border bg-background" />
-      </> : <>
+      <>
         <section className="space-y-3 rounded-md border-2 border-primary/30 bg-accent p-4" aria-label="Destino da transferência">
           <div className="space-y-1.5"><Label htmlFor="transferencia-destino">Local / sala de destino</Label>
             {carregandoSalas ? <p role="status">Carregando salas...</p> : erroSalas ? <div role="alert"><p className="text-destructive">{erroSalas}</p><Button variant="outline" onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button></div> : <SeletorLocalFisico
@@ -239,7 +227,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
           <div className="flex gap-2"><Button variant="outline" disabled={bloqueado} onClick={onClose}>Cancelar</Button>
             <Button onClick={salvar} disabled={salvando || filtrando || (!pendente && (!destino || !marcadosSalvar.length || carregandoPerfil || !!erroPerfil))}>{salvando ? "Salvando..." : pendente ? "Verificar transferência" : "Salvar transferência"}</Button></div>
         </div>
-      </>}
+      </>
     </DialogContent>
   </Dialog>;
 }

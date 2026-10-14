@@ -7,7 +7,7 @@ export type ItemTermo = {
 export type DadosTermo = {
   local: string; endereco: string; historico: string; data_origem: string;
   departamento: string; diretor: string; almoxarifado: string;
-  endereco_departamento: string; responsavel: string; cpf: string; entregador?: string;
+  endereco_departamento: string; responsavel: string; cpf: string; entregador?: string; data_termo?: string;
   bens: ItemTermo[];
 };
 export type TermoResponsabilidade = Pick<Tables<"importacoes">,
@@ -30,7 +30,7 @@ export function lerDadosTermo(valor: Json | null): DadosTermo {
   return { local: texto("local"), endereco: texto("endereco"), historico: texto("historico"),
     data_origem: texto("data_origem"), departamento: texto("departamento"), diretor: texto("diretor"),
     almoxarifado: texto("almoxarifado"), endereco_departamento: texto("endereco_departamento"),
-    responsavel: texto("responsavel"), cpf: texto("cpf"), entregador: texto("entregador"), bens };
+    responsavel: texto("responsavel"), cpf: texto("cpf"), entregador: texto("entregador"), data_termo: texto("data_termo"), bens };
 }
 export function numeroDoTermo(termo: Pick<TermoResponsabilidade, "numero" | "termo_ano" | "created_at">) {
   const ano = termo.termo_ano ?? new Date(termo.created_at).toLocaleDateString("pt-BR", {
@@ -84,6 +84,7 @@ export function htmlDoTermo(termo: TermoResponsabilidade): string {
       <strong>CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA / MATERIAL E PATRIMÔNIO</strong></header>
     <section class="local"><h2>${escapar(d.local)}</h2><p>${escapar(d.endereco)}</p></section>
     <h2 class="faixa">TERMO DE RESPONSABILIDADE Nº ${escapar(numeroDoTermo(termo))}</h2>
+    ${d.data_termo ? `<p><strong>DATA DO TERMO:</strong> ${escapar(d.data_termo)}</p>` : ""}
     <div class="historico"><strong>HISTÓRICO:</strong> ${escapar(d.historico || `Bens relacionados no arquivo ${termo.arquivo}.`)}</div>
     <div class="faixa">BENS DISTRIBUÍDOS EM CONFORMIDADE COM PLANILHA ENVIADA AO CENTRO DE DISTRIBUIÇÃO E LOGÍSTICA${d.departamento ? ` PELO(A) ${escapar(d.departamento.toUpperCase())}` : ""}</div>
     <table><colgroup><col style="width:10%"><col style="width:47%"><col style="width:13%"><col style="width:14%"><col style="width:16%"></colgroup>

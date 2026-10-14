@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), imprimir: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), imprimir: vi.fn(), getSession: vi.fn() }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc, auth: { getSession: mocks.getSession } } }));
 import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog";
 
 const snapshot = { local: "Sala teste", responsavel: "", cpf: "", bens: [{ codigo_red: "123", descricao: "Mesa", valor: 10 }] };
@@ -18,7 +18,8 @@ beforeEach(() => {
     consulta["single"] = async () => ({ data: tabela === "importacoes" ? registro : { nome: "João Operador", login: "joao", email: "joao@teste.com" }, error: null });
     return consulta;
   });
-  mocks.rpc.mockResolvedValue({ data: { ...snapshot, responsavel: "Maria Recebedora", cpf: "52998224725", entregador: "João Operador" }, error: null });
+  mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "usuario" } } } });
+  mocks.rpc.mockResolvedValue({ data: { ...snapshot, responsavel: "Maria Recebedora", cpf: "52998224725", entregador: "João Operador", data_termo: "13/10/2026" }, error: null });
   vi.spyOn(HTMLIFrameElement.prototype, "contentWindow", "get").mockReturnValue({ focus: vi.fn(), print: mocks.imprimir } as unknown as Window);
 });
 function abrir() {
@@ -34,6 +35,28 @@ async function preencher() {
 }
 
 describe("impressão após a importação", () => {
+  it("fecha ao escolher Não após transferência sem carregar nem alterar o recebimento", () => {
+    const fechar = vi.fn();
+    render(<ImprimirImportacaoDialog importacaoId="importacao" salaId="sala" origem="transferencia" onClose={fechar} />);
+    expect(screen.getByRole("alertdialog")).toHaveAccessibleName("Deseja preencher o formulário Dados do recebimento?");
+    fireEvent.click(screen.getByRole("button", { name: "Não", exact: true }));
+    expect(fechar).toHaveBeenCalledOnce();
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("abre Dados do recebimento somente após Sim e preenche a data atual automaticamente", async () => {
+    render(<ImprimirImportacaoDialog importacaoId="importacao" salaId="sala" origem="transferencia" onClose={vi.fn()} />);
+    expect(screen.queryByRole("textbox", { name: "Nome do recebedor" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sim", exact: true }));
+    expect(await screen.findByRole("dialog")).toHaveAccessibleName("Dados do recebimento");
+    const campoData = await screen.findByLabelText("Data do termo");
+    expect(campoData).toHaveValue(new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }));
+    expect(campoData).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Entregue por (usuário logado)")).toHaveValue("João Operador");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("pergunta antes de abrir o formulário e não consulta nem grava ao cancelar", () => {
     const fechar = abrir();
     expect(screen.getByRole("alertdialog")).toHaveAccessibleName("Deseja imprimir o termo de Responsabilidade dessa importação?");
@@ -56,6 +79,8 @@ describe("impressão após a importação", () => {
     const frame = await screen.findByTitle("Termo desta importação");
     expect(frame.getAttribute("srcdoc")).toContain("Maria Recebedora");
     expect(frame.getAttribute("srcdoc")).toContain("João Operador");
+    expect(frame.getAttribute("srcdoc")).toContain("DATA DO TERMO:");
+    expect(frame.getAttribute("srcdoc")).toContain("13/10/2026");
     expect(frame.getAttribute("srcdoc")).toContain("DATA DE RECEBIMENTO ____/____/________");
     fireEvent.load(frame);
     expect(mocks.imprimir).toHaveBeenCalled();

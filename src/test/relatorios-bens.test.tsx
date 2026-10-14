@@ -86,7 +86,9 @@ describe("alerta de movimentação de bens", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fechar formulário" }));
     fireEvent.click(screen.getByRole("button", { name: "Abrir formulário — Sala B" }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar todos" }));
-    expect(screen.queryByRole("region", { name: "Notificações de movimentação de bens" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Sala B" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: mensagemAlerta })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar formulário" }));
+    expect(screen.queryByRole("region", { name: "Notificações de movimentação de bens" })).not.toBeInTheDocument();
   });
 });

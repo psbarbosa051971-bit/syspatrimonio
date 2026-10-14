@@ -79,7 +79,8 @@ describe("formulário de transferência", () => {
     expect(within(lista).getByText("Cadeira")).toBeInTheDocument();
     fireEvent.click(within(lista).getByRole("checkbox", { name: /Selecionar RED 123/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
-    await screen.findByTitle("Termo de responsabilidade 12/2026");
+    expect(await screen.findByRole("alertdialog")).toHaveAccessibleName("Deseja preencher o formulário Dados do recebimento?");
+    expect(screen.queryByRole("textbox", { name: "Nome do recebedor" })).not.toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
       _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
     });
@@ -107,7 +108,7 @@ describe("formulário de transferência", () => {
     const verificar = await screen.findByRole("button", { name: "Verificar transferência" });
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
     fireEvent.click(verificar);
-    await screen.findByTitle("Termo de responsabilidade 12/2026");
+    expect(await screen.findByRole("alertdialog")).toHaveAccessibleName("Deseja preencher o formulário Dados do recebimento?");
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
     expect(mocks.rpc.mock.calls[0]).toEqual(mocks.rpc.mock.calls[1]);
     expect(onSaved).toHaveBeenCalledOnce();
@@ -149,7 +150,7 @@ describe("formulário de transferência", () => {
     await screen.findByDisplayValue("Maria Silva");
     fireEvent.click(screen.getByRole("checkbox", { name: /Selecionar RED 123/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
-    await screen.findByTitle("Termo de responsabilidade 12/2026");
+    expect(await screen.findByRole("alertdialog")).toHaveAccessibleName("Deseja preencher o formulário Dados do recebimento?");
     expect(mocks.buscar).not.toHaveBeenCalled();
     expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
       _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
