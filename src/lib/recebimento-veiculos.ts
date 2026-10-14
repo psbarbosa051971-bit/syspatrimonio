@@ -86,7 +86,10 @@ export function extrairDadosVeiculo(descricao: string): { modelo: string; dados:
   return { modelo, dados };
 }
 
-export function descricaoDetalhada(dados: Record<string, string>): string {
-  return [["Ano/modelo", "ano_modelo"], ["Chassi", "chassi"], ["Renavam", "renavam"], ["Motor", "motor"], ["Placa", "placa"], ["KM", "km"]]
-    .filter(([, chave]) => dados[chave]?.trim()).map(([nome, chave]) => `${nome}: ${dados[chave].trim()}`).join(" • ");
+export function descricaoDetalhada(dados: Record<string, string>, modelo = ""): string {
+  return [
+    `VEÍCULO/MODELO: ${modelo.trim()}`,
+    ...[["ANO/MOD", "ano_modelo"], ["CHASSI", "chassi"], ["MOTOR Nº", "motor"], ["RENAVAM", "renavam"], ["PLACA", "placa"], ["KM", "km"]]
+      .map(([nome, chave]) => `${nome}: ${dados[chave]?.trim() ?? ""}`),
+  ].join("\n");
 }

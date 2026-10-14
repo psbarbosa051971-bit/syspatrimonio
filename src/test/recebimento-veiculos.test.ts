@@ -47,10 +47,10 @@ describe("recebimento de veículos", () => {
     });
   });
 
-  it("concatena somente os detalhes preenchidos, sem valores indefinidos", () => {
-    expect(descricaoDetalhada({ ano_modelo: "2025/2026", chassi: " ABC ", placa: "SIS4D13", km: "0" }))
-      .toBe("Ano/modelo: 2025/2026 • Chassi: ABC • Placa: SIS4D13 • KM: 0");
-    expect(descricaoDetalhada({})).toBe("");
+  it("organiza modelo e identificadores em linhas na ordem do exemplo, mantendo campos vazios", () => {
+    expect(descricaoDetalhada({ ano_modelo: "2025/2026", chassi: " ABC ", placa: "SIS4D13", km: "0" }, " VEÍCULO MARCA FIAT "))
+      .toBe("VEÍCULO/MODELO: VEÍCULO MARCA FIAT\nANO/MOD: 2025/2026\nCHASSI: ABC\nMOTOR Nº: \nRENAVAM: \nPLACA: SIS4D13\nKM: 0");
+    expect(descricaoDetalhada({})).toBe("VEÍCULO/MODELO: \nANO/MOD: \nCHASSI: \nMOTOR Nº: \nRENAVAM: \nPLACA: \nKM: ");
   });
 
   it("lê somente valores de texto do registro salvo", () => {

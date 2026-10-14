@@ -113,10 +113,11 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
     </label>;
   }
 
+  const modeloVeiculo = extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo;
   const automaticos = [
     ["Data cadastro", bem.incorporacao ?? ""], ["Patrimônio", formatarCodigoRed(bem.codigo_red)],
     ["Valor unitário", moeda(Number(bem.valor))], ["Incorporação", bem.tipo ?? ""],
-    ["Modelo do veículo", extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo],
+    ["Modelo do veículo", modeloVeiculo],
   ];
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando) onClose(); }}>
@@ -170,8 +171,15 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
             <div className="rounded-md border border-border">
               <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Descrição detalhada do veículo</h3>
               <div className="p-3">
-                <Textarea aria-label="Descrição detalhada do veículo" readOnly rows={4} value={descricaoDetalhada(dados)} className="bg-muted/40"
-                  placeholder="Preencha ano/modelo, chassi, Renavam, motor, placa e KM para gerar a descrição." />
+                <div role="textbox" aria-label="Descrição detalhada do veículo" aria-readonly="true" aria-multiline="true" tabIndex={0}
+                  className="min-h-[180px] rounded-md border border-input bg-background px-6 py-6 text-xs leading-snug text-foreground">
+                  {descricaoDetalhada(dados, modeloVeiculo).split("\n").map((linha) => {
+                    const separador = linha.indexOf(":");
+                    return <div key={linha.slice(0, separador)} className="whitespace-pre-wrap break-words">
+                      <strong className="font-bold">{linha.slice(0, separador + 1)}</strong>{" "}{linha.slice(separador + 1).trim()}
+                    </div>;
+                  })}
+                </div>
               </div>
             </div>
           </TabsContent>

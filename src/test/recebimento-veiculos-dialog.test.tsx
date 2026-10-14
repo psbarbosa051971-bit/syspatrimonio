@@ -62,7 +62,13 @@ describe("formulário de recebimento de veículos", () => {
     expect(screen.getByLabelText("Secretaria")).toHaveValue("12 SECRETARIA");
     fireEvent.change(screen.getByLabelText("Ano/modelo"), { target: { value: "2025/2026" } });
     fireEvent.change(screen.getByLabelText("Placa"), { target: { value: "ABC1234" } });
-    expect(screen.getByLabelText("Descrição detalhada do veículo")).toHaveValue("Ano/modelo: 2025/2026 • Placa: ABC1234");
+    const detalhada = screen.getByRole("textbox", { name: "Descrição detalhada do veículo" });
+    expect(detalhada).toHaveAttribute("aria-readonly", "true");
+    expect(Array.from(detalhada.children, (linha) => linha.textContent)).toEqual([
+      "VEÍCULO/MODELO: VEÍCULO MARCA FIAT", "ANO/MOD: 2025/2026", "CHASSI: ",
+      "MOTOR Nº: ", "RENAVAM: ", "PLACA: ABC1234", "KM: ",
+    ]);
+    expect(detalhada.querySelectorAll("strong")).toHaveLength(7);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Check-list" }), { button: 0, ctrlKey: false });
     fireEvent.change(await screen.findByLabelText("Triângulo"), { target: { value: "Sim" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
@@ -89,9 +95,11 @@ describe("formulário de recebimento de veículos", () => {
       "VEÍCULO MARCA FIAT MODELO UNO MILLE ECON 4 PORTAS MOTOR ECON. 1.0 FLEX COR BRANCA BANHISA",
     );
     fireEvent.change(screen.getByLabelText("KM"), { target: { value: "145" } });
-    expect(screen.getByLabelText("Descrição detalhada do veículo")).toHaveValue(
-      "Ano/modelo: 2010/2010 • Chassi: 9BD18522AA6449007 • Renavam: 205414427 • Motor: 146E1011*9856637 • Placa: HLF-2823 • KM: 145",
-    );
+    expect(Array.from(screen.getByLabelText("Descrição detalhada do veículo").children, (linha) => linha.textContent)).toEqual([
+      "VEÍCULO/MODELO: VEÍCULO MARCA FIAT MODELO UNO MILLE ECON 4 PORTAS MOTOR ECON. 1.0 FLEX COR BRANCA BANHISA",
+      "ANO/MOD: 2010/2010", "CHASSI: 9BD18522AA6449007", "MOTOR Nº: 146E1011*9856637",
+      "RENAVAM: 205414427", "PLACA: HLF-2823", "KM: 145",
+    ]);
     fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
     await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
       dados: expect.objectContaining({
