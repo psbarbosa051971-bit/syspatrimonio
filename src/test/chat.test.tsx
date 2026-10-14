@@ -44,17 +44,21 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Chat por perfil e tamanho da tela", () => {
-  it.each(["operador", "visualizador"] as const)("não mostra chat para %s no computador", (role) => {
-    render(<Chat userId="usuario-1" role={role} />);
-    expect(screen.queryByRole("button", { name: "Chat" })).not.toBeInTheDocument();
-  });
-
-  it.each(["operador", "visualizador"] as const)("mostra chat para %s no celular", (role) => {
-    tamanhoCelular(true);
-    render(<Chat userId="usuario-1" role={role} />);
-    fireEvent.click(screen.getByRole("button", { name: "Chat" }));
-    expect(screen.getByRole("heading", { name: "Chat com o administrador" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Conversas")).not.toBeInTheDocument();
+  describe.each([
+    { tela: "computador", celular: false },
+    { tela: "celular", celular: true },
+  ])("no $tela", ({ celular }) => {
+    it.each(["operador", "visualizador"] as const)("permite que %s digite e envie ao administrador", async (role) => {
+      tamanhoCelular(celular);
+      render(<Chat userId="usuario-1" role={role} />);
+      fireEvent.click(screen.getByRole("button", { name: "Chat" }));
+      expect(screen.getByRole("heading", { name: "Chat com o administrador" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Conversas")).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Mensagem"), { target: { value: "Olá, administrador" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      await waitFor(() => expect(estado.enviar).toHaveBeenCalledWith("Olá, administrador"));
+      await waitFor(() => expect(screen.getByLabelText("Mensagem")).toHaveValue(""));
+    });
   });
 
   it("mostra ao administrador a lista de conversas no computador", () => {

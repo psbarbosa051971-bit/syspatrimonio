@@ -9,16 +9,7 @@ import type { Papel } from "@/hooks/use-role";
 import { useChat } from "@/hooks/use-chat";
 
 export function Chat({ userId, role }: { userId: string; role: Papel | null }) {
-  const [celular, setCelular] = useState(false);
-  useEffect(() => {
-    const tela = window.matchMedia("(max-width: 767px)");
-    const atualizar = () => setCelular(tela.matches);
-    atualizar();
-    tela.addEventListener("change", atualizar);
-    return () => tela.removeEventListener("change", atualizar);
-  }, []);
-
-  const permitido = role === "admin" || (celular && (role === "operador" || role === "visualizador"));
+  const permitido = role === "admin" || role === "operador" || role === "visualizador";
   return permitido ? <JanelaChat key={userId} userId={userId} administrador={role === "admin"} /> : null;
 }
 
@@ -60,7 +51,7 @@ function JanelaChat({ userId, administrador }: { userId: string; administrador: 
           {administrador && (
             <aside aria-label="Conversas" className={`${chat.selecionada ? "hidden sm:flex" : "flex"} w-full flex-col gap-2 overflow-y-auto sm:w-56 sm:shrink-0 sm:border-r sm:pr-3`}>
               <h3 className="text-sm font-semibold">Conversas ({chat.conversas.length})</h3>
-              {!chat.conversas.length && <p className="text-sm text-muted-foreground">{chat.carregando ? "Carregando..." : "Nenhuma conversa ainda. Ela aparecerá quando um usuário enviar uma mensagem pelo celular."}</p>}
+              {!chat.conversas.length && <p className="text-sm text-muted-foreground">{chat.carregando ? "Carregando..." : "Nenhuma conversa ainda. Ela aparecerá quando um usuário enviar uma mensagem pelo computador ou celular."}</p>}
               {chat.conversas.map((item) => (
                 <Button key={item.user_id} variant={chat.selecionada === item.user_id ? "secondary" : "ghost"}
                   className="h-auto w-full flex-col items-start whitespace-normal py-3 text-left"
