@@ -38,7 +38,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.carregar.mockResolvedValue({ data: null, error: null });
   mocks.historico.mockResolvedValue({ data: [], error: null });
-  mocks.gravar.mockResolvedValue({ data: { bem_id: bem.id }, error: null });
+  mocks.gravar.mockResolvedValue({ data: {
+    bem_id: bem.id, numero: 2, ano: 2026, criado_em: "2026-10-14T12:00:00Z",
+    dados: {}, atualizado_por: "usuario", atualizado_em: "2026-10-14T12:00:00Z",
+  }, error: null });
 });
 
 async function aguardarCarga() {
@@ -200,6 +203,26 @@ describe("formulário de recebimento de veículos", () => {
     render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
     await aguardarCarga();
     expect(screen.getByLabelText("Nota fiscal")).toHaveValue("044593");
+  });
+
+  it("exibe o número do termo existente e salva os dados da comissão", async () => {
+    mocks.carregar.mockResolvedValue({ data: {
+      bem_id: bem.id, numero: 2, ano: 2026, dados: { portaria: "310/2026", assinante_1: "Presidente" },
+    }, error: null });
+    const onSaved = vi.fn();
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} onSaved={onSaved} />);
+    await aguardarCarga();
+    expect(screen.getByText("Termo Nº 002/2026")).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Portaria da comissão (nº/ano)")).toHaveValue("310/2026");
+    expect(screen.getByLabelText("Nome / matrícula 1")).toHaveValue("Presidente");
+    fireEvent.change(screen.getByLabelText("Observações gerais / conclusão da comissão"), { target: { value: "Inspeção concluída sem ressalvas." } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ portaria: "310/2026", local_fisico: "12 SECRETARIA", observacoes_gerais: "Inspeção concluída sem ressalvas." }),
+    }), { onConflict: "bem_id" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.sucesso).toHaveBeenCalledWith("Termo de recebimento Nº 002/2026 salvo.");
   });
 
   it("bloqueia a gravação após falha ao carregar e permite tentar novamente", async () => {

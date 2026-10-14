@@ -29,6 +29,7 @@ import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog"
 import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
 import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
+import { RecebimentosVeiculos } from "@/components/RecebimentosVeiculos";
 import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -741,6 +742,7 @@ function DepartamentosPage() {
             </form>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-start gap-1 xl:justify-end [&_button]:text-base [&_a]:text-base">
+            <RecebimentosVeiculos />
             <Button
               variant="ghost"
               size="sm"

@@ -77,24 +77,39 @@ export type Database = {
           },
         ]
       }
+      recebimentos_veiculos_contadores: {
+        Row: { ano: number; ultimo_numero: number }
+        Insert: { ano: number; ultimo_numero?: number }
+        Update: { ano?: number; ultimo_numero?: number }
+        Relationships: []
+      }
       recebimentos_veiculos: {
         Row: {
           bem_id: string
           dados: Json
           atualizado_por: string
           atualizado_em: string
+          numero: number
+          ano: number
+          criado_em: string
         }
         Insert: {
           bem_id: string
           dados?: Json
           atualizado_por?: string
           atualizado_em?: string
+          numero?: number
+          ano?: number
+          criado_em?: string
         }
         Update: {
           bem_id?: string
           dados?: Json
           atualizado_por?: string
           atualizado_em?: string
+          numero?: number
+          ano?: number
+          criado_em?: string
         }
         Relationships: [
           {

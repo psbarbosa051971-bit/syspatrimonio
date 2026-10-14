@@ -13,6 +13,9 @@ export const gruposChecklist = [
     { chave: "alto_falante", nome: "Alto-falante", opcoes: simNao },
     { chave: "farol_auxiliar", nome: "Farol auxiliar", opcoes: simNao },
     { chave: "ar_condicionado", nome: "Ar-condicionado", opcoes: simNao },
+    { chave: "cambio", nome: "Câmbio", opcoes: ["Manual / mecânico", "Automático", "Automatizado", "CVT"] },
+    { chave: "estepe", nome: "Estepe", opcoes: simNao },
+    { chave: "drl", nome: "DRL / luz diurna", opcoes: simNao },
   ] },
   { titulo: "Acessórios especiais", campos: [
     { chave: "bancos", nome: "Bancos", opcoes: ["Couro", "Tecido", "Híbrido"] },

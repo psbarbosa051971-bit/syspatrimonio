@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Car, Save } from "lucide-react";
+import { Car, Printer, Save } from "lucide-react";
+import { htmlTermoVeiculo, numeroTermoVeiculo } from "@/lib/recebimento-veiculos-impressao";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Bem = Tables<"bens">;
-type Props = { bem: Bem; onClose: () => void };
+type Props = { bem: Bem; onClose: () => void; onSaved?: () => void };
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const identificacao = [
   { chave: "nota_fiscal", nome: "Nota fiscal" }, { chave: "emissao", nome: "Emissão", tipo: "date" },
@@ -40,7 +41,8 @@ export function BotaoRecebimentoVeiculo({ bem }: { bem: Bem }) {
   </>;
 }
 
-export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
+export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
+  const [termo, setTermo] = useState<Tables<"recebimentos_veiculos"> | null>(null);
   const [dados, setDados] = useState<Record<string, string>>({});
   const [localOrigem, setLocalOrigem] = useState("");
   const [secretarias, setSecretarias] = useState<string[]>([]);
@@ -57,7 +59,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
     void (async () => {
       try {
         const [recebimento, local, historico] = await Promise.all([
-          supabase.from("recebimentos_veiculos").select("dados").eq("bem_id", bem.id).maybeSingle(),
+          supabase.from("recebimentos_veiculos").select("*").eq("bem_id", bem.id).maybeSingle(),
           bem.sala_id ? supabase.from("salas").select("nome").eq("id", bem.sala_id).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
           supabase.from("recebimentos_veiculos").select("secretaria:dados->>secretaria")
@@ -66,8 +68,11 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
         if (recebimento.error) throw recebimento.error;
         if (local.error) throw local.error;
         if (cancelado) return;
+        setTermo(recebimento.data ?? null);
         const salvos = lerDadosRecebimento(recebimento.data?.dados);
-        const preenchidos = { ...extrairDadosVeiculo(limparDescricao(bem.descricao)).dados };
+        const hoje = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
+        const preenchidos: Record<string, string> = { data_termo: hoje, orgao: "PREFEITURA MUNICIPAL DE ITAJUBÁ", cidade: "Itajubá",
+          ...extrairDadosVeiculo(limparDescricao(bem.descricao)).dados };
         for (const [chave, valor] of Object.entries(salvos)) {
           if (valor.trim() || !(chave in preenchidos)) preenchidos[chave] = valor;
         }
@@ -89,19 +94,34 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
     return () => { cancelado = true; };
   }, [bem.id, bem.sala_id, bem.descricao, tentativa]);
 
-  async function salvar() {
+  async function salvar(imprimir = false) {
     if (carregando || erro || salvando || !bem.sala_id) return;
+    const janela = imprimir ? window.open("", "_blank") : null;
+    if (imprimir && !janela) {
+      toast.error("Permita a abertura de janelas para salvar e imprimir o termo.");
+      return;
+    }
+    if (janela) { janela.opener = null; janela.document.body.textContent = "Salvando termo…"; }
     setSalvando(true);
     try {
       const { data: { user }, error: erroUsuario } = await supabase.auth.getUser();
       if (erroUsuario || !user) throw new Error("Sessão indisponível");
-      const { error } = await supabase.from("recebimentos_veiculos").upsert({
-        bem_id: bem.id, dados, atualizado_por: user.id, atualizado_em: new Date().toISOString(),
-      }, { onConflict: "bem_id" }).select("bem_id").single();
-      if (error) throw error;
-      toast.success("Recebimento de veículo e check-list salvos.");
+      const { data: salvo, error } = await supabase.from("recebimentos_veiculos").upsert({
+        bem_id: bem.id, dados: { ...dados, local_fisico: localOrigem }, atualizado_por: user.id, atualizado_em: new Date().toISOString(),
+      }, { onConflict: "bem_id" }).select("*").single();
+      if (error || !salvo) throw error ?? new Error("Termo não retornado");
+      setTermo(salvo);
+      toast.success(`Termo de recebimento Nº ${numeroTermoVeiculo(salvo)} salvo.`);
+      if (janela && !janela.closed) {
+        janela.document.open();
+        janela.document.write(htmlTermoVeiculo(bem, salvo, localOrigem));
+        janela.document.close();
+        janela.focus();
+      }
+      onSaved?.();
       onClose();
     } catch {
+      janela?.close();
       toast.error("Não foi possível salvar o recebimento. Seus dados foram mantidos para tentar novamente.");
     } finally { setSalvando(false); }
   }
@@ -125,7 +145,9 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando) onClose(); }}>
     <DialogContent className="flex max-h-[96dvh] w-[calc(100%_-_1rem)] max-w-6xl flex-col gap-3 overflow-hidden p-4">
       <DialogHeader className="shrink-0 pr-6">
-        <DialogTitle className="flex items-center gap-2"><Car className="h-5 w-5" />Recebimento de Veículos</DialogTitle>
+        <DialogTitle className="flex flex-wrap items-center gap-2"><Car className="h-5 w-5 text-primary" />Recebimento de Veículos
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{termo ? `Termo Nº ${numeroTermoVeiculo(termo)}` : "Novo termo · número gerado ao salvar"}</span>
+        </DialogTitle>
         <DialogDescription className="line-clamp-2 text-xs">Patrimônio {formatarCodigoRed(bem.codigo_red)} — {limparDescricao(bem.descricao)}</DialogDescription>
       </DialogHeader>
       {carregando && <p role="status" className="text-sm text-muted-foreground">Carregando recebimento...</p>}
@@ -135,9 +157,10 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
       </div>}
       {!bem.sala_id && <p role="alert" className="text-sm text-destructive">Vincule este bem a um Local Físico antes de salvar o recebimento.</p>}
       <Tabs defaultValue="recebimento" className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="grid w-full shrink-0 grid-cols-2">
+        <TabsList className="grid w-full shrink-0 grid-cols-3">
           <TabsTrigger value="recebimento">Recebimento</TabsTrigger>
           <TabsTrigger value="checklist">Check-list</TabsTrigger>
+          <TabsTrigger value="termo">Termo e assinaturas</TabsTrigger>
         </TabsList>
         <fieldset disabled={carregando || erro || salvando} className="mt-2 min-h-0 min-w-0 overflow-y-auto pr-1 disabled:opacity-60">
           <TabsContent value="recebimento" className="mt-0 space-y-2">
@@ -212,13 +235,51 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
               </div>
             </section>)}
           </TabsContent>
+          <TabsContent value="termo" className="mt-0 space-y-3">
+            <section className="overflow-hidden rounded-xl border border-border">
+              <h3 className="bg-muted px-4 py-2 text-xs font-bold uppercase tracking-wide">Identificação do documento</h3>
+              <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3">
+                {campo("orgao", "Órgão / Prefeitura")}
+                {campo("endereco_orgao", "Endereço do órgão")}
+                {campo("cnpj_orgao", "CNPJ do órgão")}
+                {campo("portaria", "Portaria da comissão (nº/ano)")}
+                {campo("data_termo", "Data do termo", "date")}
+                {campo("cidade", "Cidade")}
+                {campo("via", "Via do documento")}
+              </div>
+            </section>
+            <section className="overflow-hidden rounded-xl border border-border">
+              <h3 className="bg-muted px-4 py-2 text-xs font-bold uppercase tracking-wide">Observações gerais / conclusão da comissão</h3>
+              <div className="p-3"><label className="space-y-1 text-xs font-semibold">
+                <span>Registre o resultado da conferência e eventuais ressalvas</span>
+                <Textarea aria-label="Observações gerais / conclusão da comissão" rows={4} maxLength={5000}
+                  placeholder="Após a conferência e inspeção, a comissão conclui que…"
+                  value={dados.observacoes_gerais ?? ""} onChange={(e) => alterar("observacoes_gerais", e.target.value)} />
+              </label></div>
+            </section>
+            <section className="overflow-hidden rounded-xl border border-border">
+              <h3 className="bg-muted px-4 py-2 text-xs font-bold uppercase tracking-wide">Assinaturas da comissão</h3>
+              <div className="grid gap-3 p-3 sm:grid-cols-2">
+                {[1, 2, 3, 4].map((i) => <div key={i} className="space-y-2 rounded-lg bg-muted/30 p-3">
+                  <p className="text-xs font-bold text-primary">{i === 1 ? "Presidente" : `Membro ${i - 1}`}</p>
+                  {campo(`assinante_${i}`, `Nome / matrícula ${i}`)}
+                  {campo(`cargo_${i}`, `Cargo / função ${i}`)}
+                </div>)}
+              </div>
+            </section>
+          </TabsContent>
         </fieldset>
       </Tabs>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
         <p className="max-w-xl text-xs text-muted-foreground">O recebimento e o check-list são salvos para este patrimônio, sem alterar o cadastro do bem ou o Local Físico.</p>
-        <Button type="button" onClick={salvar} disabled={carregando || erro || salvando || !bem.sala_id}>
-          <Save className="mr-2 h-4 w-4" />{salvando ? "Salvando..." : "Salvar recebimento e check-list"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={() => salvar()} disabled={carregando || erro || salvando || !bem.sala_id}>
+            <Save className="mr-2 h-4 w-4" />{salvando ? "Salvando..." : "Salvar recebimento e check-list"}
+          </Button>
+          <Button type="button" onClick={() => salvar(true)} disabled={carregando || erro || salvando || !bem.sala_id}>
+            <Printer className="mr-2 h-4 w-4" />Salvar e imprimir termo
+          </Button>
+        </div>
       </div>
     </DialogContent>
   </Dialog>;
