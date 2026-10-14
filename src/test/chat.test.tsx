@@ -10,6 +10,15 @@ const estado = vi.hoisted(() => ({
   selecionada: null as string | null,
   recebida: null as { id: number; conversa_id: string } | null,
   erro: "",
+  pushEstado: "desativado" as "desativado" | "ativado" | "bloqueado" | "indisponivel",
+  ativarPush: vi.fn(),
+  desativarPush: vi.fn(),
+}));
+vi.mock("@/hooks/use-chat-push", () => ({
+  useChatPush: () => ({
+    estado: estado.pushEstado, ocupado: false, erro: "",
+    ativar: estado.ativarPush, desativar: estado.desativarPush,
+  }),
 }));
 vi.mock("@/hooks/use-chat", () => ({
   useChat: () => ({
@@ -37,11 +46,38 @@ beforeEach(() => {
   estado.recebida = null;
   estado.mensagens = [];
   estado.erro = "";
+  estado.pushEstado = "desativado";
+  estado.ativarPush.mockReset();
+  estado.desativarPush.mockReset();
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Chat flutuante", () => {
+  it.each(["admin", "operador", "visualizador"] as const)("permite que %s ative avisos fora do sistema", (role) => {
+    render(<Chat userId="usuario-1" role={role} />);
+    fireEvent.click(screen.getByText("Receber avisos mesmo com o sistema fechado"));
+    fireEvent.click(screen.getByRole("button", { name: "Ativar avisos neste computador" }));
+    expect(estado.ativarPush).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Em computador compartilhado, desative antes de sair/)).toBeVisible();
+  });
+
+  it("permite desativar os avisos já autorizados", () => {
+    estado.pushEstado = "ativado";
+    render(<Chat userId="admin-1" role="admin" />);
+    fireEvent.click(screen.getByText("Avisos neste computador: ativados"));
+    fireEvent.click(screen.getByRole("button", { name: "Desativar avisos neste computador" }));
+    expect(estado.desativarPush).toHaveBeenCalledTimes(1);
+  });
+
+  it("explica como liberar a permissão bloqueada sem pedir novamente", () => {
+    estado.pushEstado = "bloqueado";
+    render(<Chat userId="usuario-1" role="operador" />);
+    fireEvent.click(screen.getByText("Receber avisos mesmo com o sistema fechado"));
+    expect(screen.getByText(/Notificações bloqueadas/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Ativar avisos neste computador" })).not.toBeInTheDocument();
+  });
+
   it.each(["operador", "visualizador"] as const)("mostra a saudação automática para %s", (role) => {
     render(<Chat userId="usuario-1" role={role} />);
     expect(screen.getByText("Olá! Seja muito bem-vindo(a) ao Departamento de Patrimônio! ✨ É um prazer receber o seu contato. Por favor, aguarde um momento que em instantes iremos atender você.")).toBeVisible();

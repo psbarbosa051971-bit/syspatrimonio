@@ -14,6 +14,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_push_config: {
+        Row: { id: boolean; dispatch_token: string; vapid_public_key: string | null; vapid_private_key: string | null }
+        Insert: { id?: boolean; dispatch_token?: string; vapid_public_key?: string | null; vapid_private_key?: string | null }
+        Update: { dispatch_token?: string; vapid_public_key?: string | null; vapid_private_key?: string | null }
+        Relationships: []
+      }
+      chat_push_assinaturas: {
+        Row: { endpoint: string; user_id: string; p256dh: string; auth: string; criado_em: string }
+        Insert: { endpoint: string; user_id: string; p256dh: string; auth: string; criado_em?: string }
+        Update: { user_id?: string; p256dh?: string; auth?: string }
+        Relationships: []
+      }
       chat_conversas: {
         Row: { user_id: string; nome: string; criado_em: string }
         Insert: { user_id: string; nome?: string; criado_em?: string }

@@ -1,1 +1,5 @@
 project_id = "wdkimydszbyxnmduedid"
+
+[functions.chat-push]
+# A função valida a sessão do usuário ou o segredo exclusivo do envio pelo banco.
+verify_jwt = false

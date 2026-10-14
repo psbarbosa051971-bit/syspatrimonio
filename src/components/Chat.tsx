@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Papel } from "@/hooks/use-role";
 import { useChat } from "@/hooks/use-chat";
+import { useChatPush } from "@/hooks/use-chat-push";
 
 export function Chat({ userId, role }: { userId: string; role: Papel | null }) {
   const permitido = role === "admin" || role === "operador" || role === "visualizador";
@@ -17,6 +18,7 @@ function JanelaChat({ userId, administrador }: { userId: string; administrador: 
   const [mensagemSelecionada, setMensagemSelecionada] = useState<number | "boas-vindas" | null>(null);
   const [boasVindasOculta, setBoasVindasOculta] = useState(false);
   const chat = useChat(userId, administrador, aberto);
+  const push = useChatPush(userId);
   const recebidaTratada = useRef<number | null>(null);
   const fim = useRef<HTMLDivElement>(null);
 
@@ -67,6 +69,22 @@ function JanelaChat({ userId, administrador }: { userId: string; administrador: 
             <Minus className="h-4 w-4" aria-hidden="true" />
           </Button>
         </header>
+        <details className="shrink-0 rounded-md border bg-muted/40 px-2 py-1 text-xs">
+          <summary className="cursor-pointer font-medium">
+            {push.estado === "ativado" ? "Avisos neste computador: ativados" : "Receber avisos mesmo com o sistema fechado"}
+          </summary>
+          <div className="mt-2 max-h-48 space-y-2 overflow-y-auto pb-1">
+            <p>Ative uma vez em cada navegador, com sua conta. Administradores recebem avisos das mensagens dos usuários; operadores e visualizadores recebem as respostas dos administradores, mesmo sem login.</p>
+            <p>O aviso não mostra o texto privado. Para ler e responder, entre no sistema. É necessário internet e notificações permitidas no navegador e no computador; com o navegador totalmente encerrado, a entrega depende dele. Em computador compartilhado, desative antes de sair.</p>
+            {push.estado === "indisponivel" ? <p>Abra o site publicado em uma aba própria de um navegador compatível. No iPhone/iPad, adicione o site à Tela de Início e abra por lá.</p>
+              : push.estado === "bloqueado" ? <p>Notificações bloqueadas. Libere nas permissões deste site no navegador e recarregue a página.</p>
+              : <Button type="button" variant="outline" size="sm" disabled={push.ocupado || push.estado === "verificando"}
+                onClick={() => void (push.estado === "ativado" ? push.desativar() : push.ativar())}>
+                {push.ocupado ? "Aguarde..." : push.estado === "verificando" ? "Verificando avisos..." : push.estado === "ativado" ? "Desativar avisos neste computador" : "Ativar avisos neste computador"}
+              </Button>}
+            {push.erro && <p role="alert" className="text-destructive">{push.erro}</p>}
+          </div>
+        </details>
         {pendente && <div role="status" className="rounded-md border bg-accent p-2 text-sm text-accent-foreground">
           <p>Nova mensagem de {chat.conversas.find((item) => item.user_id === pendente)?.nome ?? "outro usuário"}. Seu texto atual foi mantido.</p>
           <Button variant="outline" size="sm" disabled={chat.enviando} onClick={() => {
