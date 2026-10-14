@@ -17,10 +17,11 @@ type Props = { bem: Bem; onClose: () => void };
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const identificacao = [
   { chave: "nota_fiscal", nome: "Nota fiscal" }, { chave: "emissao", nome: "Emissão", tipo: "date" },
-  { chave: "fornecedor", nome: "Fornecedor" }, { chave: "data_recebimento", nome: "Data do recebimento", tipo: "date" },
+  { chave: "data_recebimento", nome: "Data do recebimento", tipo: "date" },
   { chave: "pedido", nome: "Pedido" },
   { chave: "ano_empenho", nome: "Ano do empenho", tipo: "number" },
   { chave: "empenho", nome: "Empenho" },
+  { chave: "fornecedor", nome: "Fornecedor" },
 ];
 const detalhes = [
   { chave: "ano_modelo", nome: "Ano/modelo" }, { chave: "chassi", nome: "Chassi" },
@@ -42,6 +43,7 @@ export function BotaoRecebimentoVeiculo({ bem }: { bem: Bem }) {
 export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
   const [dados, setDados] = useState<Record<string, string>>({});
   const [localOrigem, setLocalOrigem] = useState("");
+  const [secretarias, setSecretarias] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [tentativa, setTentativa] = useState(0);
@@ -54,10 +56,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
     setErro(false);
     void (async () => {
       try {
-        const [recebimento, local] = await Promise.all([
+        const [recebimento, local, historico] = await Promise.all([
           supabase.from("recebimentos_veiculos").select("dados").eq("bem_id", bem.id).maybeSingle(),
           bem.sala_id ? supabase.from("salas").select("nome").eq("id", bem.sala_id).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
+          supabase.from("recebimentos_veiculos").select("secretaria:dados->>secretaria")
+            .order("atualizado_em", { ascending: false }).limit(100),
         ]);
         if (recebimento.error) throw recebimento.error;
         if (local.error) throw local.error;
@@ -68,7 +72,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
           if (valor.trim() || !(chave in preenchidos)) preenchidos[chave] = valor;
         }
         setLocalOrigem(local.data?.nome ?? "");
-        setDados({ ...preenchidos, secretaria: salvos.secretaria ?? "",
+        const nomesSecretarias = Array.from(new Set([
+          salvos.secretaria ?? "",
+          ...(historico.data ?? []).map((item) => typeof item.secretaria === "string" ? item.secretaria : ""),
+        ].map((nome) => nome.trim()).filter(Boolean)));
+        setSecretarias(nomesSecretarias);
+        setDados({ ...preenchidos, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
           modelo_veiculo: salvos.modelo_veiculo ?? extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
           nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
         });
@@ -98,9 +107,11 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
   }
 
   function campo(chave: string, nome: string, tipo = "text") {
-    return <label key={chave} className={`min-w-0 space-y-1 text-xs font-semibold ${chave === "chassi" ? "sm:col-span-2" : ""}`}>
+    const largura = chave === "fornecedor" ? "sm:col-span-3" : chave === "chassi" ? "sm:col-span-2" : "";
+    return <label key={chave} className={`min-w-0 space-y-1 text-xs font-semibold ${largura}`}>
       <span className="block uppercase">{nome}</span>
       <Input type={tipo} min={tipo === "number" ? 0 : undefined} maxLength={tipo === "text" ? 200 : undefined}
+        className="h-8 min-w-0 px-2 text-xs md:text-xs"
         value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)} />
     </label>;
   }
@@ -112,10 +123,10 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
   ];
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando) onClose(); }}>
-    <DialogContent className="max-h-[92vh] w-[calc(100%_-_1rem)] max-w-5xl overflow-y-auto">
-      <DialogHeader>
+    <DialogContent className="flex max-h-[96dvh] w-[calc(100%_-_1rem)] max-w-6xl flex-col gap-3 overflow-hidden p-4">
+      <DialogHeader className="shrink-0 pr-6">
         <DialogTitle className="flex items-center gap-2"><Car className="h-5 w-5" />Recebimento de Veículos</DialogTitle>
-        <DialogDescription>Patrimônio {formatarCodigoRed(bem.codigo_red)} — {limparDescricao(bem.descricao)}</DialogDescription>
+        <DialogDescription className="line-clamp-2 text-xs">Patrimônio {formatarCodigoRed(bem.codigo_red)} — {limparDescricao(bem.descricao)}</DialogDescription>
       </DialogHeader>
       {carregando && <p role="status" className="text-sm text-muted-foreground">Carregando recebimento...</p>}
       {erro && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
@@ -123,73 +134,77 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
         <Button type="button" variant="outline" size="sm" onClick={() => setTentativa((valor) => valor + 1)}>Tentar novamente</Button>
       </div>}
       {!bem.sala_id && <p role="alert" className="text-sm text-destructive">Vincule este bem a um Local Físico antes de salvar o recebimento.</p>}
-      <Tabs defaultValue="recebimento">
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs defaultValue="recebimento" className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="grid w-full shrink-0 grid-cols-2">
           <TabsTrigger value="recebimento">Recebimento</TabsTrigger>
           <TabsTrigger value="checklist">Check-list</TabsTrigger>
         </TabsList>
-        <fieldset disabled={carregando || erro || salvando} className="mt-3 disabled:opacity-60">
-          <TabsContent value="recebimento" className="space-y-4">
-            <div className="rounded-md border border-border">
-              <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Secretaria/Local</h3>
-              <div className="p-3">
-                <Input aria-label="Secretaria/Local" readOnly value={localOrigem} className="bg-muted/40" />
-                <p className="mt-1 text-xs text-muted-foreground">Preenchido com o Local Físico do bem.</p>
-              </div>
+        <fieldset disabled={carregando || erro || salvando} className="mt-2 min-h-0 min-w-0 overflow-y-auto pr-1 disabled:opacity-60">
+          <TabsContent value="recebimento" className="mt-0 space-y-2">
+            <div className="grid items-center gap-2 rounded-md border border-border px-3 py-2 sm:grid-cols-[auto_1fr]">
+              <h3 className="text-xs font-bold uppercase">Secretaria/Local</h3>
+              <Input aria-label="Secretaria/Local" readOnly value={localOrigem} className="h-8 bg-muted/40 text-xs md:text-xs" title="Preenchido com o Local Físico do bem." />
             </div>
             <div className="rounded-md border border-border">
-              <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Recebimento de veículo</h3>
-              <div className="grid gap-3 p-3 sm:grid-cols-3">
+              <h3 className="bg-muted px-3 py-1 text-xs font-bold uppercase">Recebimento de veículo</h3>
+              <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3 lg:grid-cols-6">
                 {identificacao.map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}
               </div>
             </div>
-            <div className="rounded-md border border-border">
-              <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Dados do cadastro patrimonial</h3>
-              <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
-                {automaticos.map(([nome, valor]) => <label key={nome} className="space-y-1 text-xs font-semibold">
-                  <span className="block uppercase">{nome}</span>
-                  <Input readOnly value={valor} className="bg-muted/40" />
-                </label>)}
-                <label className="min-w-0 space-y-1 text-xs font-semibold sm:col-span-2">
-                  <span className="block uppercase">Modelo do veículo</span>
-                  <Textarea value={modeloVeiculo} rows={5} className="min-h-32 resize-y"
-                    onChange={(evento) => alterar("modelo_veiculo", evento.target.value)} />
-                </label>
-                <label className="min-w-0 space-y-1 text-xs font-semibold sm:col-span-2">
-                  <span className="block uppercase">Secretaria</span>
-                  <Textarea aria-label="Secretaria" value={dados.secretaria ?? ""} maxLength={500} rows={5}
-                    className="min-h-32 resize-y" placeholder="Digite a secretaria"
-                    onChange={(evento) => alterar("secretaria", evento.target.value)} />
-                  <span className="block text-xs font-normal text-muted-foreground">Informação preenchida pelo usuário.</span>
-                </label>
+            <div className="grid items-start gap-2 lg:grid-cols-[3fr_2fr]">
+              <div className="rounded-md border border-border">
+                <h3 className="bg-muted px-3 py-1 text-xs font-bold uppercase">Dados do cadastro patrimonial</h3>
+                <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-4">
+                  {automaticos.map(([nome, valor]) => <label key={nome} className="min-w-0 space-y-1 text-xs font-semibold">
+                    <span className="block uppercase">{nome}</span>
+                    <Input readOnly value={valor} className="h-8 bg-muted/40 px-2 text-xs md:text-xs" />
+                  </label>)}
+                  <label className="col-span-2 min-w-0 space-y-1 text-xs font-semibold sm:col-span-4">
+                    <span className="block uppercase">Modelo do veículo</span>
+                    <Textarea value={modeloVeiculo} rows={5} className="min-h-32 resize-y text-xs md:text-xs"
+                      onChange={(evento) => alterar("modelo_veiculo", evento.target.value)} />
+                  </label>
+                  <label className="col-span-2 min-w-0 space-y-1 text-xs font-semibold sm:col-span-4">
+                    <span className="block uppercase">Secretaria</span>
+                    <Input aria-label="Secretaria" value={dados.secretaria ?? ""} maxLength={500}
+                      list="secretarias-recebimento" className="h-8 text-xs md:text-xs" placeholder="Digite ou escolha uma secretaria salva"
+                      onChange={(evento) => alterar("secretaria", evento.target.value)} />
+                    <datalist id="secretarias-recebimento">
+                      {secretarias.map((nome) => <option key={nome} value={nome} />)}
+                    </datalist>
+                    <span className="block text-xs font-normal text-muted-foreground">Ao salvar o recebimento, a secretaria fica disponível para os próximos veículos.</span>
+                  </label>
+                </div>
               </div>
-            </div>
-            <div className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-3 lg:grid-cols-7">
-              {detalhes.map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}
-            </div>
-            <div className="rounded-md border border-border">
-              <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Descrição detalhada do veículo</h3>
-              <div className="p-3">
-                <div role="textbox" aria-label="Descrição detalhada do veículo" aria-readonly="true" aria-multiline="true" tabIndex={0}
-                  className="min-h-[180px] rounded-md border border-input bg-background px-6 py-6 text-xs leading-snug text-foreground">
-                  {descricaoDetalhada(dados, modeloVeiculo).split("\n").map((linha) => {
-                    const separador = linha.indexOf(":");
-                    return <div key={linha.slice(0, separador)} className="whitespace-pre-wrap break-words">
-                      <strong className="font-bold">{linha.slice(0, separador + 1)}</strong>{" "}{linha.slice(separador + 1).trim()}
-                    </div>;
-                  })}
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2 rounded-md border border-border p-2 sm:grid-cols-3">
+                  {detalhes.map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}
+                </div>
+                <div className="rounded-md border border-border">
+                  <h3 className="bg-muted px-3 py-1 text-xs font-bold uppercase">Descrição detalhada do veículo</h3>
+                  <div className="p-2">
+                    <div role="textbox" aria-label="Descrição detalhada do veículo" aria-readonly="true" aria-multiline="true" tabIndex={0}
+                      className="rounded-md border border-input bg-background p-2 text-xs leading-snug text-foreground">
+                      {descricaoDetalhada(dados, modeloVeiculo).split("\n").map((linha) => {
+                        const separador = linha.indexOf(":");
+                        return <div key={linha.slice(0, separador)} className="whitespace-pre-wrap break-words">
+                          <strong className="font-bold">{linha.slice(0, separador + 1)}</strong>{" "}{linha.slice(separador + 1).trim()}
+                        </div>;
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="checklist" className="space-y-4">
+          <TabsContent value="checklist" className="mt-0 space-y-2">
             {gruposChecklist.map((grupo) => <section key={grupo.titulo} className="rounded-md border border-border">
-              <h3 className="bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">{grupo.titulo}</h3>
-              <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">
-                {grupo.campos.map(({ chave, nome, opcoes }) => <label key={chave} className="space-y-1 text-xs font-semibold">
+              <h3 className="bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">{grupo.titulo}</h3>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 p-2 sm:grid-cols-4 lg:grid-cols-6">
+                {grupo.campos.map(({ chave, nome, opcoes }) => <label key={chave} className="min-w-0 space-y-0.5 text-xs font-semibold">
                   <span className="block">{nome}</span>
                   <select value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                    className="h-7 w-full min-w-0 rounded-md border border-input bg-background px-1.5 text-xs text-foreground">
                     <option value="">Selecione...</option>
                     {opcoes.map((opcao) => <option key={opcao} value={opcao}>{opcao}</option>)}
                   </select>
@@ -199,7 +214,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
           </TabsContent>
         </fieldset>
       </Tabs>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
         <p className="max-w-xl text-xs text-muted-foreground">O recebimento e o check-list são salvos para este patrimônio, sem alterar o cadastro do bem ou o Local Físico.</p>
         <Button type="button" onClick={salvar} disabled={carregando || erro || salvando || !bem.sala_id}>
           <Save className="mr-2 h-4 w-4" />{salvando ? "Salvando..." : "Salvar recebimento e check-list"}

@@ -2,12 +2,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tables } from "@/integrations/supabase/types";
 
-const mocks = vi.hoisted(() => ({ carregar: vi.fn(), gravar: vi.fn(), upsert: vi.fn(), erro: vi.fn(), sucesso: vi.fn() }));
+const mocks = vi.hoisted(() => ({ carregar: vi.fn(), historico: vi.fn(), gravar: vi.fn(), upsert: vi.fn(), erro: vi.fn(), sucesso: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: "usuario" } }, error: null }) },
     from: (tabela: string) => tabela === "recebimentos_veiculos" ? {
-      select: () => ({ eq: () => ({ maybeSingle: mocks.carregar }) }),
+      select: () => ({
+        eq: () => ({ maybeSingle: mocks.carregar }),
+        order: () => ({ limit: mocks.historico }),
+      }),
       upsert: (...args: unknown[]) => {
         mocks.upsert(...args);
         return { select: () => ({ single: mocks.gravar }) };
@@ -34,6 +37,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.carregar.mockResolvedValue({ data: null, error: null });
+  mocks.historico.mockResolvedValue({ data: [], error: null });
   mocks.gravar.mockResolvedValue({ data: { bem_id: bem.id }, error: null });
 });
 
@@ -153,6 +157,42 @@ describe("formulário de recebimento de veículos", () => {
     await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
       dados: expect.objectContaining({ modelo_veiculo: "CHEVROLET SPIN COR BRANCA", nota_fiscal: "044594", data_recebimento: "2026-06-10" }),
     }), { onConflict: "bem_id" }));
+  });
+
+  it("reutiliza a secretaria mais recente nos próximos veículos e oferece os nomes já salvos", async () => {
+    mocks.historico.mockResolvedValue({ data: [
+      { secretaria: "Secretaria da Saúde" }, { secretaria: "Secretaria da Educação" },
+      { secretaria: "Secretaria da Saúde" }, { secretaria: " " }, { secretaria: null },
+    ], error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    const secretaria = screen.getByLabelText("Secretaria");
+    expect(secretaria).toHaveValue("Secretaria da Saúde");
+    expect(secretaria).toHaveAttribute("list", "secretarias-recebimento");
+    expect(Array.from(document.querySelectorAll("#secretarias-recebimento option"), (opcao) => opcao.getAttribute("value")))
+      .toEqual(["Secretaria da Saúde", "Secretaria da Educação"]);
+    expect(screen.getByLabelText("Fornecedor").parentElement).toHaveClass("sm:col-span-3");
+    fireEvent.change(secretaria, { target: { value: "Secretaria da Educação" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ secretaria: "Secretaria da Educação" }),
+    }), { onConflict: "bem_id" }));
+  });
+
+  it("mantém a secretaria deste patrimônio mesmo quando outro nome foi usado depois", async () => {
+    mocks.carregar.mockResolvedValue({ data: { dados: { secretaria: "Secretaria da Educação" } }, error: null });
+    mocks.historico.mockResolvedValue({ data: [{ secretaria: "Secretaria da Saúde" }], error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByLabelText("Secretaria")).toHaveValue("Secretaria da Educação");
+  });
+
+  it("permite preencher o recebimento mesmo se as sugestões de secretaria falharem", async () => {
+    mocks.historico.mockResolvedValue({ data: null, error: { message: "Falha no histórico" } });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByLabelText("Secretaria")).toHaveValue("");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("preserva o antigo conteúdo de Material no campo Nota fiscal", async () => {
