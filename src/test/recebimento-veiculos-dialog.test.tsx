@@ -74,6 +74,43 @@ describe("formulário de recebimento de veículos", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  it("distribui os identificadores do anexo e deixa somente a descrição no modelo", async () => {
+    const descricao = "VEÍCULO MARCA FIAT MODELO UNO MILLE ECON 4 PORTAS ANO/MOD 2010/2010 PLACA HLF-2823 MOTOR ECON. 1.0 FLEX MOTOR Nº 146E1011*9856637 COR BRANCA BANHISA RENAVAM 205414427 / CHASSI Nº 9BD18522AA6449007 SEMIN";
+    render(<RecebimentoVeiculosDialog bem={{ ...bem, descricao }} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByLabelText("Ano/modelo")).toHaveValue("2010/2010");
+    expect(screen.getByLabelText("Chassi")).toHaveValue("9BD18522AA6449007");
+    expect(screen.getByLabelText("Renavam")).toHaveValue("205414427");
+    expect(screen.getByLabelText("Motor")).toHaveValue("146E1011*9856637");
+    expect(screen.getByLabelText("Placa")).toHaveValue("HLF-2823");
+    // A descrição do anexo não informa quilometragem: não inventa o valor 145.
+    expect(screen.getByLabelText("KM")).toHaveValue(null);
+    expect(screen.getByLabelText("Modelo do veículo")).toHaveValue(
+      "VEÍCULO MARCA FIAT MODELO UNO MILLE ECON 4 PORTAS MOTOR ECON. 1.0 FLEX COR BRANCA BANHISA",
+    );
+    fireEvent.change(screen.getByLabelText("KM"), { target: { value: "145" } });
+    expect(screen.getByLabelText("Descrição detalhada do veículo")).toHaveValue(
+      "Ano/modelo: 2010/2010 • Chassi: 9BD18522AA6449007 • Renavam: 205414427 • Motor: 146E1011*9856637 • Placa: HLF-2823 • KM: 145",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({
+        ano_modelo: "2010/2010", chassi: "9BD18522AA6449007", renavam: "205414427",
+        motor: "146E1011*9856637", placa: "HLF-2823", km: "145",
+      }),
+    }), { onConflict: "bem_id" }));
+  });
+
+  it("completa campos vazios pela descrição e preserva valores já salvos", async () => {
+    mocks.carregar.mockResolvedValue({ data: { dados: { placa: "XYZ1234", ano_modelo: "", km: "145" } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={{ ...bem, descricao: "VEÍCULO ANO/MOD 2010/2010 PLACA HLF-2823 KM 200" }} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByLabelText("Ano/modelo")).toHaveValue("2010/2010");
+    expect(screen.getByLabelText("Placa")).toHaveValue("XYZ1234");
+    expect(screen.getByLabelText("KM")).toHaveValue(145);
+    expect(screen.getByLabelText("Modelo do veículo")).toHaveValue("VEÍCULO");
+  });
+
   it("recupera o recebimento salvo sem substituir a secretaria digitada", async () => {
     mocks.carregar.mockResolvedValue({ data: { dados: { secretaria: "Outra secretaria", placa: "XYZ1234", pintura: "Regular" } }, error: null });
     render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);

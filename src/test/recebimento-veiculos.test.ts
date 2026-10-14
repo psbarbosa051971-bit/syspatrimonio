@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { descricaoDetalhada, ehVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
+import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 
 describe("recebimento de veículos", () => {
   it.each([
@@ -13,6 +13,38 @@ describe("recebimento de veículos", () => {
     "CARRO DE MÃO", "PNEU PARA VEÍCULO", "MOTOR DE AUTOMÓVEL", "MINIATURA DE CARRO",
   ])("não exibe recebimento para %s", (descricao) => {
     expect(ehVeiculo({ descricao, tipo: "Aquisição" })).toBe(false);
+  });
+
+  it("separa os identificadores do exemplo sem retirar a motorização do modelo", () => {
+    const descricao = "VEÍCULO MARCA FIAT MODELO UNO MILLE ECON 4 PORTAS ANO/MOD 2010/2010 PLACA HLF-2823 MOTOR ECON. 1.0 FLEX MOTOR Nº 146E1011*9856637 COR BRANCA BANHISA RENAVAM 205414427 / CHASSI Nº 9BD18522AA6449007 SEMIN";
+    expect(extrairDadosVeiculo(descricao)).toEqual({
+      modelo: "VEÍCULO MARCA FIAT MODELO UNO MILLE ECON 4 PORTAS MOTOR ECON. 1.0 FLEX COR BRANCA BANHISA",
+      dados: {
+        ano_modelo: "2010/2010", chassi: "9BD18522AA6449007", renavam: "205414427",
+        motor: "146E1011*9856637", placa: "HLF-2823",
+      },
+    });
+  });
+
+  it("extrai KM apenas quando informado, preservando zeros dos identificadores", () => {
+    expect(extrairDadosVeiculo("VEÍCULO ANO/MODELO: 2020/2021 CHASSI: 9BD18522AA6449007 RENAVAM: 00123456789 MOTOR: ABC12345 PLACA: ABC1D23 KM: 145")).toEqual({
+      modelo: "VEÍCULO",
+      dados: {
+        ano_modelo: "2020/2021", chassi: "9BD18522AA6449007", renavam: "00123456789",
+        motor: "ABC12345", placa: "ABC1D23", km: "145",
+      },
+    });
+    expect(extrairDadosVeiculo("VEÍCULO KM: 12.345").dados.km).toBe("12345");
+    expect(extrairDadosVeiculo("VEÍCULO MOTOR ECON. 1.0 FLEX")).toEqual({
+      modelo: "VEÍCULO MOTOR ECON. 1.0 FLEX", dados: {},
+    });
+  });
+
+  it("mantém descrições sem identificadores reconhecidos", () => {
+    expect(extrairDadosVeiculo("VEÍCULO MARCA FIAT")).toEqual({ modelo: "VEÍCULO MARCA FIAT", dados: {} });
+    expect(extrairDadosVeiculo("VEÍCULO MOTOR NOVO 1.0 FLEX")).toEqual({
+      modelo: "VEÍCULO MOTOR NOVO 1.0 FLEX", dados: {},
+    });
   });
 
   it("concatena somente os detalhes preenchidos, sem valores indefinidos", () => {

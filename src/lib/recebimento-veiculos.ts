@@ -54,6 +54,38 @@ export function lerDadosRecebimento(json: Json | undefined): Record<string, stri
   return Object.fromEntries(Object.entries(json).filter((entrada): entrada is [string, string] => typeof entrada[1] === "string"));
 }
 
+// Separa apenas identificadores reconhecidos; mantém marca, modelo, cor e motorização.
+export function extrairDadosVeiculo(descricao: string): { modelo: string; dados: Record<string, string> } {
+  const dados: Record<string, string> = {};
+  const numero = String.raw`(?:N(?:\s*[º°o.]|\b)\s*)?[:=\-]?\s*`;
+  const campos: { chave: string; padrao: RegExp; validar?: (valor: string) => boolean }[] = [
+    { chave: "ano_modelo", padrao: new RegExp(String.raw`\bANO\s*(?:\/\s*|[- ]\s*)MOD(?:ELO)?\.?\s*[:=\-]?\s*(\d{4}\s*[/\-]\s*\d{4})\b`, "gi") },
+    { chave: "chassi", padrao: new RegExp(String.raw`\bCHASS[IÍ]S?\s*${numero}([A-Z0-9]{11,17})\b`, "gi") },
+    { chave: "renavam", padrao: new RegExp(String.raw`\bRENAVAM\s*${numero}(\d{9,11})\b`, "gi") },
+    { chave: "motor", padrao: new RegExp(String.raw`\bMOTOR\s*${numero}([A-Z0-9][A-Z0-9*./-]{3,})\b`, "gi"),
+      validar: (valor) => (valor.match(/\d/g) ?? []).length >= 4 },
+    { chave: "placa", padrao: new RegExp(String.raw`\bPLACA\s*${numero}([A-Z]{3}\s*-?\s*\d[A-Z0-9]\d{2})\b`, "gi") },
+    { chave: "km", padrao: /\b(?:KM|QUILOMETRAGEM)\s*[:=\-]?\s*(\d+(?:[.,]\d+)*)\b/gi },
+  ];
+  let modelo = descricao;
+  for (const { chave, padrao, validar } of campos) {
+    modelo = modelo.replace(padrao, (trecho: string, valor: string) => {
+      if (validar && !validar(valor)) return trecho;
+      // Em caso de identificadores repetidos, não descarta informações diferentes.
+      const extraido = chave === "km" ? valor.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".")
+        : valor.replace(/\s/g, "").replace(/^(\d{4})-(\d{4})$/, "$1/$2");
+      if (dados[chave] && dados[chave] !== extraido) return trecho;
+      dados[chave] = extraido;
+      return " ";
+    });
+  }
+  modelo = modelo.replace(/\bSEMIN\s*$/i, "")
+    .replace(/\s+/g, " ").replace(/\s+([,;])/g, "$1")
+    .replace(/(?:\s*[,;/|]\s*){2,}/g, ", ")
+    .replace(/^[\s,;/|\-]+|[\s,;/|\-]+$/g, "").trim();
+  return { modelo, dados };
+}
+
 export function descricaoDetalhada(dados: Record<string, string>): string {
   return [["Ano/modelo", "ano_modelo"], ["Chassi", "chassi"], ["Renavam", "renavam"], ["Motor", "motor"], ["Placa", "placa"], ["KM", "km"]]
     .filter(([, chave]) => dados[chave]?.trim()).map(([nome, chave]) => `${nome}: ${dados[chave].trim()}`).join(" • ");

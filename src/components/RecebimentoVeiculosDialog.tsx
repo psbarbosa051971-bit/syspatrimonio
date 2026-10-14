@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
-import { descricaoDetalhada, ehVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
+import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,8 +63,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
         if (local.error) throw local.error;
         if (cancelado) return;
         const salvos = lerDadosRecebimento(recebimento.data?.dados);
+        const preenchidos = { ...extrairDadosVeiculo(limparDescricao(bem.descricao)).dados };
+        for (const [chave, valor] of Object.entries(salvos)) {
+          if (valor.trim() || !(chave in preenchidos)) preenchidos[chave] = valor;
+        }
         setLocalOrigem(local.data?.nome ?? "");
-        setDados({ ...salvos, secretaria: salvos.secretaria ?? local.data?.nome ?? "" });
+        setDados({ ...preenchidos, secretaria: salvos.secretaria ?? local.data?.nome ?? "" });
         setCarregando(false);
       } catch {
         if (!cancelado) { setErro(true); setCarregando(false); }
@@ -82,7 +86,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
       if (!cancelado) setLocais([...new Set(nomes)]);
     })().catch(() => { /* É possível digitar a secretaria sem as sugestões. */ });
     return () => { cancelado = true; };
-  }, [bem.id, bem.sala_id, tentativa]);
+  }, [bem.id, bem.sala_id, bem.descricao, tentativa]);
 
   async function salvar() {
     if (carregando || erro || salvando || !bem.sala_id) return;
@@ -112,7 +116,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
   const automaticos = [
     ["Data cadastro", bem.incorporacao ?? ""], ["Patrimônio", formatarCodigoRed(bem.codigo_red)],
     ["Valor unitário", moeda(Number(bem.valor))], ["Incorporação", bem.tipo ?? ""],
-    ["Modelo do veículo", limparDescricao(bem.descricao)],
+    ["Modelo do veículo", extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo],
   ];
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando) onClose(); }}>
