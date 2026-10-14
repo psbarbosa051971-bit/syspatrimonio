@@ -77,6 +77,18 @@ export type Database = {
           },
         ]
       }
+      checklists_veiculos: {
+        Row: { id: string; user_id: string; dados: Json; bem_id: string | null; criado_em: string; atualizado_em: string }
+        Insert: { id?: string; user_id?: string; dados?: Json; bem_id?: string | null; criado_em?: string; atualizado_em?: string }
+        Update: { dados?: Json; atualizado_em?: string }
+        Relationships: [{
+          foreignKeyName: "checklists_veiculos_bem_id_fkey"
+          columns: ["bem_id"]
+          isOneToOne: true
+          referencedRelation: "bens"
+          referencedColumns: ["id"]
+        }]
+      }
       recebimentos_veiculos_contadores: {
         Row: { ano: number; ultimo_numero: number }
         Insert: { ano: number; ultimo_numero?: number }
@@ -470,6 +482,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      associar_checklist_veiculo: {
+        Args: { _checklist_id: string; _bem_id: string }
+        Returns: Json
+      }
       salvar_recebimento_termo: {
         Args: { _importacao_id: string; _recebedor: string; _cpf: string }
         Returns: Json

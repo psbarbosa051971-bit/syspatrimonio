@@ -9,6 +9,7 @@ import { ehVeiculo, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
 import { imprimirTermoVeiculo, numeroTermoVeiculo } from "@/lib/recebimento-veiculos-impressao";
 import { RecebimentoVeiculosDialog } from "@/components/RecebimentoVeiculosDialog";
+import { ChecklistsVeiculos } from "@/components/ChecklistsVeiculos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,7 +20,7 @@ type Termo = Tables<"recebimentos_veiculos"> & { bem: (Bem & { sala: { nome: str
 
 export function RecebimentosVeiculos() {
   const [aberto, setAberto] = useState(false);
-  const [aba, setAba] = useState("termos");
+  const [aba, setAba] = useState("checklists");
   const [termos, setTermos] = useState<Termo[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(false);
@@ -75,21 +76,25 @@ export function RecebimentosVeiculos() {
       <DialogContent className="flex max-h-[94dvh] w-[calc(100%_-_1rem)] max-w-6xl flex-col gap-4 overflow-hidden p-4 sm:p-6">
         <DialogHeader className="shrink-0 pr-6">
           <DialogTitle className="flex items-center gap-2 text-xl"><Car className="h-6 w-6 text-primary" />Recebimento de Veículos</DialogTitle>
-          <DialogDescription>Cadastre a conferência, acompanhe os termos numerados e imprima o documento completo para assinatura.</DialogDescription>
+          <DialogDescription>Preencha um checklist vazio antes da importação, associe o código RED depois e acompanhe os termos numerados para impressão.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-4">
           <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Termos registrados</p><p className="text-3xl font-bold text-primary">{carregando ? "…" : erro ? "—" : termos.length}</p></div>
           <p className="max-w-md text-sm text-muted-foreground">Numeração automática por ano, no formato 001/2026. Editar um recebimento mantém o número original.</p>
         </div>
         <Tabs value={aba} onValueChange={setAba} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="grid w-full shrink-0 grid-cols-2">
-            <TabsTrigger value="termos"><FileText className="mr-2 h-4 w-4" />Termos emitidos</TabsTrigger>
-            <TabsTrigger value="novo"><Plus className="mr-2 h-4 w-4" />Novo recebimento</TabsTrigger>
+          <TabsList className="flex h-auto w-full shrink-0 flex-wrap gap-1">
+            <TabsTrigger value="checklists" className="flex-1">Checklists pendentes</TabsTrigger>
+            <TabsTrigger value="termos" className="flex-1"><FileText className="mr-2 h-4 w-4" />Termos emitidos</TabsTrigger>
+            <TabsTrigger value="novo" className="flex-1"><Plus className="mr-2 h-4 w-4" />Veículo já importado</TabsTrigger>
           </TabsList>
+          <TabsContent value="checklists" className="min-h-0 space-y-3 overflow-y-auto">
+            <ChecklistsVeiculos onAssociated={(veiculo) => { setVersao((v) => v + 1); setAba("termos"); setBem(veiculo); }} />
+          </TabsContent>
           <TabsContent value="termos" className="min-h-0 overflow-y-auto space-y-3">
             <Input aria-label="Filtrar termos de veículos" placeholder="Filtrar por número/ano, patrimônio, modelo ou secretaria…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
             {carregando ? <p role="status" className="py-8 text-center text-muted-foreground">Carregando termos...</p> : erro ? <div role="alert" className="rounded-lg border border-destructive p-4"><p>Não foi possível carregar os termos.</p><Button variant="outline" className="mt-2" onClick={() => setVersao((v) => v + 1)}>Tentar novamente</Button></div> : <>
-              {filtrados.length === 0 && <p className="py-10 text-center text-muted-foreground">{termos.length ? "Nenhum termo corresponde ao filtro." : "Nenhum termo registrado. Abra Novo recebimento para começar."}</p>}
+              {filtrados.length === 0 && <p className="py-10 text-center text-muted-foreground">{termos.length ? "Nenhum termo corresponde ao filtro." : "Nenhum termo registrado. Preencha um checklist ou localize um veículo já importado para começar."}</p>}
               {filtrados.map((t) => <article key={t.bem_id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
                 <div className="min-w-0 flex-1"><p className="text-sm font-bold text-primary">TERMO Nº {numeroTermoVeiculo(t)}</p><p className="mt-1 text-sm font-semibold">Patrimônio {t.bem ? formatarCodigoRed(t.bem.codigo_red) : "indisponível"}</p><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{t.bem ? limparDescricao(t.bem.descricao) : "Veículo não disponível para esta conta."}</p><p className="mt-2 text-xs text-muted-foreground">{lerDadosRecebimento(t.dados).secretaria || "Secretaria não informada"} · Atualizado em {new Date(t.atualizado_em).toLocaleDateString("pt-BR")}</p></div>
                 <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={!t.bem} onClick={() => setBem(t.bem)}><Pencil className="mr-2 h-4 w-4" />Editar</Button><Button size="sm" disabled={!t.bem} onClick={() => { if (t.bem && !imprimirTermoVeiculo(t.bem, t, t.bem.sala?.nome ?? "")) toast.error("Permita a abertura de janelas para imprimir o termo."); }}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button></div>

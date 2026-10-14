@@ -7,6 +7,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
 import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
+import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,7 +84,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         ].map((nome) => nome.trim()).filter(Boolean)));
         setSecretarias(nomesSecretarias);
         setDados({ ...preenchidos, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
-          modelo_veiculo: salvos.modelo_veiculo ?? extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
+          modelo_veiculo: salvos.modelo_veiculo?.trim() || extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
           nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
         });
         setCarregando(false);
@@ -164,6 +165,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         </TabsList>
         <fieldset disabled={carregando || erro || salvando} className="mt-2 min-h-0 min-w-0 overflow-y-auto pr-1 disabled:opacity-60">
           <TabsContent value="recebimento" className="mt-0 space-y-2">
+            <ChaveAcessoNfe dados={dados} onChange={(valores) => setDados((atuais) => ({ ...atuais, ...valores }))} />
             <div className="grid items-center gap-2 rounded-md border border-border px-3 py-2 sm:grid-cols-[auto_1fr]">
               <h3 className="text-xs font-bold uppercase">Secretaria/Local</h3>
               <Input aria-label="Secretaria/Local" readOnly value={localOrigem} className="h-8 bg-muted/40 text-xs md:text-xs" title="Preenchido com o Local Físico do bem." />
