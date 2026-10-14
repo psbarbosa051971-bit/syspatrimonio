@@ -486,6 +486,10 @@ export type Database = {
         Args: { _checklist_id: string; _bem_id: string }
         Returns: Json
       }
+      associar_checklist_veiculo_por_red: {
+        Args: { _checklist_id: string; _codigo_red: string; _sala_id?: string }
+        Returns: Json
+      }
       salvar_recebimento_termo: {
         Args: { _importacao_id: string; _recebedor: string; _cpf: string }
         Returns: Json

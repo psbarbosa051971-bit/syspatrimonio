@@ -48,8 +48,8 @@ export function ChecklistsVeiculos({ onAssociated }: Props) {
 
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-4">
-      <div className="max-w-xl space-y-1"><h3 className="font-semibold text-primary">Checklists antes da importação</h3>
-        <p className="text-sm text-muted-foreground">1. Preencha e salve o checklist. 2. Importe o veículo pelo HTML em Departamento. 3. Volte aqui e associe o código RED para gerar o termo.</p>
+      <div className="max-w-xl space-y-1"><h3 className="font-semibold text-primary">Checklists pendentes de código RED</h3>
+        <p className="text-sm text-muted-foreground">1. Preencha e salve o checklist. 2. Clique em Associar código RED e informe o código do veículo. Se ainda não estiver cadastrado, escolha o Local Físico para cadastrá-lo com os dados do checklist e gerar o termo, sem importar HTML.</p>
         <p className="text-xs text-muted-foreground">Acesse com a mesma conta no celular ou notebook para continuar o preenchimento. Administradores também podem acompanhar os pendentes.</p>
       </div>
       <Button onClick={() => setEdicao({ checklist: null })}><Plus className="mr-2 h-4 w-4" />Novo checklist vazio</Button>

@@ -76,7 +76,7 @@ export function RecebimentosVeiculos() {
       <DialogContent className="flex max-h-[94dvh] w-[calc(100%_-_1rem)] max-w-6xl flex-col gap-4 overflow-hidden p-4 sm:p-6">
         <DialogHeader className="shrink-0 pr-6">
           <DialogTitle className="flex items-center gap-2 text-xl"><Car className="h-6 w-6 text-primary" />Recebimento de Veículos</DialogTitle>
-          <DialogDescription>Preencha um checklist vazio antes da importação, associe o código RED depois e acompanhe os termos numerados para impressão.</DialogDescription>
+          <DialogDescription>Preencha e salve o checklist, associe o veículo pelo código RED e acompanhe os termos numerados para impressão. Não é necessário importar HTML para associar o checklist.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-4">
           <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Termos registrados</p><p className="text-3xl font-bold text-primary">{carregando ? "…" : erro ? "—" : termos.length}</p></div>
