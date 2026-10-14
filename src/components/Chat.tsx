@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, MessageCircle, Minus, Send } from "lucide-react";
+import { ArrowLeft, MessageCircle, Minus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { Papel } from "@/hooks/use-role";
@@ -14,6 +14,8 @@ function JanelaChat({ userId, administrador }: { userId: string; administrador: 
   const [aberto, setAberto] = useState(true);
   const [texto, setTexto] = useState("");
   const [pendente, setPendente] = useState<string | null>(null);
+  const [mensagemSelecionada, setMensagemSelecionada] = useState<number | "boas-vindas" | null>(null);
+  const [boasVindasOculta, setBoasVindasOculta] = useState(false);
   const chat = useChat(userId, administrador, aberto);
   const recebidaTratada = useRef<number | null>(null);
   const fim = useRef<HTMLDivElement>(null);
@@ -100,15 +102,34 @@ function JanelaChat({ userId, administrador }: { userId: string; administrador: 
             {!exibirMensagens ? <p className="m-auto text-center text-sm text-muted-foreground">Selecione uma conversa ao lado.</p> : <>
               <div role="log" aria-label="Histórico da conversa" aria-live="polite" aria-relevant="additions" className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-md bg-muted/40 p-3">
                 {chat.temAnteriores && <Button variant="outline" size="sm" onClick={chat.carregarAnteriores} disabled={chat.carregando}>Carregar mensagens anteriores</Button>}
+                {!administrador && !boasVindasOculta && <article className="relative mr-auto w-fit max-w-[90%] rounded-lg border bg-card px-3 py-2 text-card-foreground">
+                  <button type="button" className={`block w-full text-left ${mensagemSelecionada === "boas-vindas" ? "pr-7" : ""}`}
+                    aria-expanded={mensagemSelecionada === "boas-vindas"} onClick={() => setMensagemSelecionada(mensagemSelecionada === "boas-vindas" ? null : "boas-vindas")}>
+                    <span className="mb-1 block text-xs font-semibold">Departamento de Patrimônio · Mensagem automática</span>
+                    <span className="block whitespace-pre-wrap break-words text-sm">Olá! Seja muito bem-vindo(a) ao Departamento de Patrimônio! ✨ É um prazer receber o seu contato. Por favor, aguarde um momento que em instantes iremos atender você.</span>
+                  </button>
+                  {mensagemSelecionada === "boas-vindas" && <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1 h-7 w-7" aria-label="Excluir mensagem automática"
+                    onClick={() => { setBoasVindasOculta(true); setMensagemSelecionada(null); }}><X className="h-4 w-4" aria-hidden="true" /></Button>}
+                </article>}
                 {chat.carregando && !chat.mensagens.length && <p className="text-sm text-muted-foreground">Carregando mensagens...</p>}
                 {!chat.carregando && !chat.mensagens.length && <p className="text-sm text-muted-foreground">Nenhuma mensagem ainda. Escreva abaixo para iniciar.</p>}
                 {chat.mensagens.map((mensagem) => {
                   const propria = mensagem.autor_id === userId;
                   return (
-                    <article key={mensagem.id} className={`${propria ? "ml-auto bg-primary text-primary-foreground" : "mr-auto border bg-card text-card-foreground"} w-fit max-w-[90%] rounded-lg px-3 py-2`}>
-                      <p className="mb-1 text-xs font-semibold">{propria ? "Você" : mensagem.autor_id === (administrador ? chat.selecionada : userId) ? (conversa?.nome ?? "Usuário") : "Administrador"}</p>
-                      <p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{mensagem.conteudo}</p>
-                      <time dateTime={mensagem.criado_em} className="mt-1 block text-[10px] opacity-80">{new Date(mensagem.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</time>
+                    <article key={mensagem.id} className={`${propria ? "ml-auto bg-primary text-primary-foreground" : "mr-auto border bg-card text-card-foreground"} relative w-fit max-w-[90%] rounded-lg px-3 py-2`}>
+                      <button type="button" className={`block w-full text-left ${mensagemSelecionada === mensagem.id ? "pr-7" : ""}`}
+                        aria-expanded={mensagemSelecionada === mensagem.id}
+                        onClick={() => setMensagemSelecionada(mensagemSelecionada === mensagem.id ? null : mensagem.id)}>
+                        <span className="mb-1 block text-xs font-semibold">{propria ? "Você" : mensagem.autor_id === (administrador ? chat.selecionada : userId) ? (conversa?.nome ?? "Usuário") : "Administrador"}</span>
+                        <span className="block whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{mensagem.conteudo}</span>
+                        <time dateTime={mensagem.criado_em} className="mt-1 block text-[10px] opacity-80">{new Date(mensagem.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</time>
+                      </button>
+                      {mensagemSelecionada === mensagem.id && <button type="button" className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md hover:bg-foreground/10 focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+                        aria-label={`Excluir mensagem ${mensagem.id}`} title="Excluir para todos os participantes" disabled={chat.excluindo != null}
+                        onClick={async () => {
+                          if (!window.confirm("Excluir esta mensagem para todos os participantes? Esta ação não pode ser desfeita.")) return;
+                          if (await chat.excluir(mensagem.id)) setMensagemSelecionada(null);
+                        }}><X className="h-4 w-4" aria-hidden="true" /></button>}
                     </article>
                   );
                 })}
@@ -119,8 +140,13 @@ function JanelaChat({ userId, administrador }: { userId: string; administrador: 
                 <Textarea id="chat-mensagem" value={texto} onChange={(event) => setTexto(event.target.value)}
                   placeholder="Digite sua mensagem..." maxLength={2000} rows={2} disabled={chat.enviando}
                   className="max-h-32 resize-none" />
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">{texto.length}/2000 · Atualiza a cada 5 s</span>
+                <p className="text-xs text-muted-foreground">{texto.length}/2000 · Atualiza a cada 5 s</p>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button type="button" variant="outline" disabled={chat.enviando || chat.excluindo != null} onClick={() => {
+                    if (texto.trim() && !window.confirm("Encerrar o bate-papo e descartar o texto não enviado?")) return;
+                    setTexto(""); setPendente(null); setMensagemSelecionada(null);
+                    setBoasVindasOculta(false); setAberto(false);
+                  }}>Encerrar bate-papo</Button>
                   <Button type="submit" disabled={!texto.trim() || chat.enviando} className="gap-2">
                     <Send className="h-4 w-4" aria-hidden="true" />{chat.enviando ? "Enviando..." : "Enviar"}
                   </Button>

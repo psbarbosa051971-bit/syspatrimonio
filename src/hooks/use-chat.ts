@@ -12,6 +12,7 @@ export function useChat(userId: string, administrador: boolean, aberto: boolean)
   const [limite, setLimite] = useState(100);
   const [carregando, setCarregando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [excluindo, setExcluindo] = useState<number | null>(null);
   const [erro, setErro] = useState("");
   const [versao, setVersao] = useState(0);
   const [recebida, setRecebida] = useState<Pick<Mensagem, "id" | "conversa_id"> | null>(null);
@@ -109,8 +110,28 @@ export function useChat(userId: string, administrador: boolean, aberto: boolean)
     }
   }, [administrador, destino, enviando, userId]);
 
+  const excluir = useCallback(async (id: number) => {
+    if (!destino || excluindo !== null) return false;
+    setExcluindo(id);
+    setErro("");
+    try {
+      const { data, error } = await supabase.from("chat_mensagens").delete()
+        .eq("id", id).eq("conversa_id", destino).select("id");
+      if (error || !data?.length) throw error ?? new Error("Mensagem não encontrada");
+      setMensagens((atuais) => atuais.filter((mensagem) => mensagem.id !== id));
+      setVersao((v) => v + 1);
+      return true;
+    } catch {
+      setErro("Não foi possível excluir a mensagem. Tente novamente.");
+      return false;
+    } finally {
+      setExcluindo(null);
+    }
+  }, [destino, excluindo]);
+
   return {
     conversas, selecionada, setSelecionada, mensagens, carregando, enviando, erro, enviar, recebida,
+    excluir, excluindo,
     temAnteriores: mensagens.length >= limite,
     carregarAnteriores: () => setLimite((valor) => valor + 100),
   };
