@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRole } from "@/hooks/use-role";
 import { RelatoriosBens } from "@/components/RelatoriosBens";
+import { Chat } from "@/components/Chat";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -32,5 +33,6 @@ function AuthenticatedLayout() {
       </div>
     </div>}
     <Outlet />
+    <Chat key={session.user.id} userId={session.user.id} role={role} />
   </>;
 }

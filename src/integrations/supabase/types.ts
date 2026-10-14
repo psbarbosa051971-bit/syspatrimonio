@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_conversas: {
+        Row: { user_id: string; nome: string; criado_em: string }
+        Insert: { user_id: string; nome?: string; criado_em?: string }
+        Update: { user_id?: string; nome?: string; criado_em?: string }
+        Relationships: []
+      }
+      chat_mensagens: {
+        Row: { id: number; conversa_id: string; autor_id: string; conteudo: string; criado_em: string }
+        Insert: { id?: never; conversa_id: string; autor_id: string; conteudo: string; criado_em?: string }
+        Update: { id?: never; conversa_id?: string; autor_id?: string; conteudo?: string; criado_em?: string }
+        Relationships: [{
+          foreignKeyName: "chat_mensagens_conversa_id_fkey"
+          columns: ["conversa_id"]
+          isOneToOne: false
+          referencedRelation: "chat_conversas"
+          referencedColumns: ["user_id"]
+        }]
+      }
       bens: {
         Row: {
           codigo_red: string
