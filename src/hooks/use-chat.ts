@@ -14,7 +14,35 @@ export function useChat(userId: string, administrador: boolean, aberto: boolean)
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const [versao, setVersao] = useState(0);
+  const [recebida, setRecebida] = useState<Pick<Mensagem, "id" | "conversa_id"> | null>(null);
   const destino = administrador ? selecionada : userId;
+
+  // Continua verificando novas mensagens mesmo com a janela minimizada.
+  useEffect(() => {
+    let cancelado = false;
+    let consultando = false;
+    let ultimoId: number | null = null;
+    const verificar = async () => {
+      if (consultando) return;
+      consultando = true;
+      try {
+        const { data, error } = await supabase.from("chat_mensagens")
+          .select("id, conversa_id").neq("autor_id", userId)
+          .order("id", { ascending: false }).limit(1);
+        if (error || cancelado) return;
+        const ultima = data?.[0];
+        if (ultima && ultimoId !== null && ultima.id > ultimoId) setRecebida(ultima);
+        ultimoId = ultima?.id ?? ultimoId ?? 0;
+      } catch {
+        // Falhas transitórias são tentadas novamente no próximo intervalo.
+      } finally {
+        consultando = false;
+      }
+    };
+    void verificar();
+    const intervalo = setInterval(() => void verificar(), 5000);
+    return () => { cancelado = true; clearInterval(intervalo); };
+  }, [userId]);
 
   useEffect(() => {
     setMensagens([]);
@@ -53,7 +81,7 @@ export function useChat(userId: string, administrador: boolean, aberto: boolean)
     void carregar();
     const intervalo = setInterval(() => void carregar(), 5000);
     return () => { cancelado = true; clearInterval(intervalo); };
-  }, [aberto, administrador, destino, limite, versao]);
+  }, [aberto, administrador, destino, limite, versao, recebida?.id]);
 
   const enviar = useCallback(async (texto: string) => {
     const conteudo = texto.trim();
@@ -82,7 +110,7 @@ export function useChat(userId: string, administrador: boolean, aberto: boolean)
   }, [administrador, destino, enviando, userId]);
 
   return {
-    conversas, selecionada, setSelecionada, mensagens, carregando, enviando, erro, enviar,
+    conversas, selecionada, setSelecionada, mensagens, carregando, enviando, erro, enviar, recebida,
     temAnteriores: mensagens.length >= limite,
     carregarAnteriores: () => setLimite((valor) => valor + 100),
   };
