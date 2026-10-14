@@ -59,7 +59,10 @@ describe("formulário de recebimento de veículos", () => {
     expect(screen.getByLabelText("Data cadastro")).toHaveValue("13/10/2026");
     expect(screen.getByLabelText("Modelo do veículo")).toHaveValue("VEÍCULO MARCA FIAT");
     expect(screen.getByLabelText("Incorporação")).toHaveValue("Aquisição");
-    expect(screen.getByLabelText("Secretaria")).toHaveValue("12 SECRETARIA");
+    expect(screen.getByLabelText("Secretaria/Local")).toHaveValue("12 SECRETARIA");
+    expect(screen.getByLabelText("Secretaria/Local")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Secretaria")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Secretaria"), { target: { value: "Secretaria da Saúde" } });
     fireEvent.change(screen.getByLabelText("Ano/modelo"), { target: { value: "2025/2026" } });
     fireEvent.change(screen.getByLabelText("Placa"), { target: { value: "ABC1234" } });
     const detalhada = screen.getByRole("textbox", { name: "Descrição detalhada do veículo" });
@@ -74,7 +77,7 @@ describe("formulário de recebimento de veículos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
     await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
       bem_id: bem.id, atualizado_por: "usuario", dados: expect.objectContaining({
-        secretaria: "12 SECRETARIA", ano_modelo: "2025/2026", placa: "ABC1234", triangulo: "Sim",
+        secretaria: "Secretaria da Saúde", ano_modelo: "2025/2026", placa: "ABC1234", triangulo: "Sim",
       }),
     }), { onConflict: "bem_id" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -127,6 +130,36 @@ describe("formulário de recebimento de veículos", () => {
     expect(screen.getByLabelText("Placa")).toHaveValue("XYZ1234");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Check-list" }), { button: 0, ctrlKey: false });
     expect(await screen.findByLabelText("Pintura")).toHaveValue("Regular");
+  });
+
+  it("permite editar o modelo, a nota fiscal e a data do recebimento e recupera os valores salvos", async () => {
+    mocks.carregar.mockResolvedValue({ data: { dados: {
+      modelo_veiculo: "CHEVROLET SPIN LTZ 7 LUGARES", nota_fiscal: "044593", data_recebimento: "2026-06-09",
+    } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.queryByLabelText("Material")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Nota fiscal")).toHaveValue("044593");
+    expect(screen.getByLabelText("Data do recebimento")).toHaveValue("2026-06-09");
+    expect(screen.getByLabelText("Modelo do veículo")).toHaveValue("CHEVROLET SPIN LTZ 7 LUGARES");
+    expect(screen.getByLabelText("Modelo do veículo")).not.toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Modelo do veículo")).toHaveAttribute("rows", "5");
+    expect(screen.getByLabelText("Chassi").parentElement).toHaveClass("sm:col-span-2");
+    fireEvent.change(screen.getByLabelText("Modelo do veículo"), { target: { value: "CHEVROLET SPIN COR BRANCA" } });
+    fireEvent.change(screen.getByLabelText("Nota fiscal"), { target: { value: "044594" } });
+    fireEvent.change(screen.getByLabelText("Data do recebimento"), { target: { value: "2026-06-10" } });
+    expect(screen.getByLabelText("Descrição detalhada do veículo")).toHaveTextContent("VEÍCULO/MODELO: CHEVROLET SPIN COR BRANCA");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ modelo_veiculo: "CHEVROLET SPIN COR BRANCA", nota_fiscal: "044594", data_recebimento: "2026-06-10" }),
+    }), { onConflict: "bem_id" }));
+  });
+
+  it("preserva o antigo conteúdo de Material no campo Nota fiscal", async () => {
+    mocks.carregar.mockResolvedValue({ data: { dados: { material: "044593" } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByLabelText("Nota fiscal")).toHaveValue("044593");
   });
 
   it("bloqueia a gravação após falha ao carregar e permite tentar novamente", async () => {

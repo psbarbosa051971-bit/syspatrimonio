@@ -16,8 +16,9 @@ type Bem = Tables<"bens">;
 type Props = { bem: Bem; onClose: () => void };
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const identificacao = [
-  { chave: "material", nome: "Material" }, { chave: "emissao", nome: "Emissão", tipo: "date" },
-  { chave: "fornecedor", nome: "Fornecedor" }, { chave: "pedido", nome: "Pedido" },
+  { chave: "nota_fiscal", nome: "Nota fiscal" }, { chave: "emissao", nome: "Emissão", tipo: "date" },
+  { chave: "fornecedor", nome: "Fornecedor" }, { chave: "data_recebimento", nome: "Data do recebimento", tipo: "date" },
+  { chave: "pedido", nome: "Pedido" },
   { chave: "ano_empenho", nome: "Ano do empenho", tipo: "number" },
   { chave: "empenho", nome: "Empenho" },
 ];
@@ -40,7 +41,6 @@ export function BotaoRecebimentoVeiculo({ bem }: { bem: Bem }) {
 
 export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
   const [dados, setDados] = useState<Record<string, string>>({});
-  const [locais, setLocais] = useState<string[]>([]);
   const [localOrigem, setLocalOrigem] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
@@ -68,23 +68,15 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
           if (valor.trim() || !(chave in preenchidos)) preenchidos[chave] = valor;
         }
         setLocalOrigem(local.data?.nome ?? "");
-        setDados({ ...preenchidos, secretaria: salvos.secretaria ?? local.data?.nome ?? "" });
+        setDados({ ...preenchidos, secretaria: salvos.secretaria ?? "",
+          modelo_veiculo: salvos.modelo_veiculo ?? extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
+          nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
+        });
         setCarregando(false);
       } catch {
         if (!cancelado) { setErro(true); setCarregando(false); }
       }
     })();
-    // Os locais sugeridos são opcionais: uma falha não bloqueia os dados do veículo.
-    void (async () => {
-      const nomes: string[] = [];
-      for (let inicio = 0; ; inicio += 1000) {
-        const { data, error } = await supabase.from("salas").select("nome").order("nome").range(inicio, inicio + 999);
-        if (cancelado || error) return;
-        nomes.push(...(data ?? []).map((local) => local.nome));
-        if (!data || data.length < 1000) break;
-      }
-      if (!cancelado) setLocais([...new Set(nomes)]);
-    })().catch(() => { /* É possível digitar a secretaria sem as sugestões. */ });
     return () => { cancelado = true; };
   }, [bem.id, bem.sala_id, bem.descricao, tentativa]);
 
@@ -106,18 +98,17 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
   }
 
   function campo(chave: string, nome: string, tipo = "text") {
-    return <label key={chave} className="space-y-1 text-xs font-semibold">
+    return <label key={chave} className={`min-w-0 space-y-1 text-xs font-semibold ${chave === "chassi" ? "sm:col-span-2" : ""}`}>
       <span className="block uppercase">{nome}</span>
       <Input type={tipo} min={tipo === "number" ? 0 : undefined} maxLength={tipo === "text" ? 200 : undefined}
         value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)} />
     </label>;
   }
 
-  const modeloVeiculo = extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo;
+  const modeloVeiculo = dados.modelo_veiculo ?? extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo;
   const automaticos = [
     ["Data cadastro", bem.incorporacao ?? ""], ["Patrimônio", formatarCodigoRed(bem.codigo_red)],
     ["Valor unitário", moeda(Number(bem.valor))], ["Incorporação", bem.tipo ?? ""],
-    ["Modelo do veículo", modeloVeiculo],
   ];
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando) onClose(); }}>
@@ -140,7 +131,14 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
         <fieldset disabled={carregando || erro || salvando} className="mt-3 disabled:opacity-60">
           <TabsContent value="recebimento" className="space-y-4">
             <div className="rounded-md border border-border">
-              <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Secretaria / Recebimento de veículo</h3>
+              <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Secretaria/Local</h3>
+              <div className="p-3">
+                <Input aria-label="Secretaria/Local" readOnly value={localOrigem} className="bg-muted/40" />
+                <p className="mt-1 text-xs text-muted-foreground">Preenchido com o Local Físico do bem.</p>
+              </div>
+            </div>
+            <div className="rounded-md border border-border">
+              <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Recebimento de veículo</h3>
               <div className="grid gap-3 p-3 sm:grid-cols-3">
                 {identificacao.map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}
               </div>
@@ -148,24 +146,25 @@ export function RecebimentoVeiculosDialog({ bem, onClose }: Props) {
             <div className="rounded-md border border-border">
               <h3 className="bg-muted px-3 py-2 text-xs font-bold uppercase">Dados do cadastro patrimonial</h3>
               <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
-                {automaticos.map(([nome, valor]) => <label key={nome}
-                  className={`space-y-1 text-xs font-semibold ${nome === "Modelo do veículo" ? "sm:col-span-2" : ""}`}>
+                {automaticos.map(([nome, valor]) => <label key={nome} className="space-y-1 text-xs font-semibold">
                   <span className="block uppercase">{nome}</span>
-                  {nome === "Modelo do veículo" ? <Textarea readOnly value={valor} rows={2} className="bg-muted/40" />
-                    : <Input readOnly value={valor} className="bg-muted/40" />}
+                  <Input readOnly value={valor} className="bg-muted/40" />
                 </label>)}
-                <label className="space-y-1 text-xs font-semibold sm:col-span-2">
+                <label className="min-w-0 space-y-1 text-xs font-semibold sm:col-span-2">
+                  <span className="block uppercase">Modelo do veículo</span>
+                  <Textarea value={modeloVeiculo} rows={5} className="min-h-32 resize-y"
+                    onChange={(evento) => alterar("modelo_veiculo", evento.target.value)} />
+                </label>
+                <label className="min-w-0 space-y-1 text-xs font-semibold sm:col-span-2">
                   <span className="block uppercase">Secretaria</span>
-                  <Input aria-label="Secretaria" list={`secretarias-${bem.id}`} value={dados.secretaria ?? ""} maxLength={200}
-                    placeholder="Selecione ou digite a secretaria" onChange={(evento) => alterar("secretaria", evento.target.value)} />
-                  <datalist id={`secretarias-${bem.id}`}>
-                    {[...new Set([...locais, localOrigem, dados.secretaria ?? ""])].filter(Boolean).map((nome) => <option key={nome} value={nome} />)}
-                  </datalist>
-                  <span className="block text-xs font-normal text-muted-foreground">Local Físico de origem: {localOrigem || "—"}. Você pode digitar outra secretaria.</span>
+                  <Textarea aria-label="Secretaria" value={dados.secretaria ?? ""} maxLength={500} rows={5}
+                    className="min-h-32 resize-y" placeholder="Digite a secretaria"
+                    onChange={(evento) => alterar("secretaria", evento.target.value)} />
+                  <span className="block text-xs font-normal text-muted-foreground">Informação preenchida pelo usuário.</span>
                 </label>
               </div>
             </div>
-            <div className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-3 lg:grid-cols-7">
               {detalhes.map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}
             </div>
             <div className="rounded-md border border-border">

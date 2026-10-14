@@ -43,6 +43,8 @@ export const gruposChecklist = [
 
 export function ehVeiculo(bem: Pick<Tables<"bens">, "descricao" | "tipo">): boolean {
   const texto = `${bem.descricao} ${bem.tipo ?? ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  // O prefixo identifica o veículo mesmo no plural e com motor/peças na descrição.
+  if (/^\s*VEICULOS?\b/.test(texto)) return true;
   // Não confunde peças ou brinquedos com veículos completos.
   if (/\b(PECAS?|PNEUS?|BATERIA|BRINQUEDO|MINIATURA|CARRINHO|MOTOR|CARRO DE MAO|CARRO PARA|CARRO DE TRANSPORTE|CARRO DE EMERGENCIA|CARRO MACA|CARRO DE CURATIVO|CARRO DE LIMPEZA)\b/.test(texto)
     && !/^\s*(VEICULO|AUTOMOVEL|CAMINHAO|ONIBUS|MICRO.?ONIBUS|MOTOCICLETA|AMBULANCIA|CAMIONETA|CAMINHONETE)\b/.test(texto)) return false;

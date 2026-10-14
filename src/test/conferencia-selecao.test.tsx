@@ -14,6 +14,7 @@ vi.mock("sonner", () => ({ toast: { error: mocks.erro, success: vi.fn() } }));
 vi.mock("@/lib/pdf-parse", () => ({ limparDescricao: (texto: string) => texto }));
 vi.mock("@/components/ObservacoesBemDialog", () => ({ ObservacoesBemDialog: () => null }));
 vi.mock("@/components/RelatoriosBens", () => ({ RelatoriosBens: () => null }));
+vi.mock("@/hooks/use-role", () => ({ useRole: () => ({ podeEditar: true }) }));
 
 import { Route } from "@/routes/_authenticated/conferencia";
 const Page = Route.options.component as ComponentType;

@@ -4,6 +4,7 @@ import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, le
 describe("recebimento de veículos", () => {
   it.each([
     "VEÍCULO MARCA FIAT MOTOR 123 CHASSI 456", "AUTOMÓVEL PALIO", "CAMINHONETE", "ÔNIBUS", "MOTOCICLETA",
+    "VEICULO MOTOR 1.8", "VEÍCULOS MOTOR 1.8", "VEICULOS MOTOR 1.8", "  veículos motor flex",
   ])("identifica o veículo %s", (descricao) => {
     expect(ehVeiculo({ descricao, tipo: "Aquisição" })).toBe(true);
   });

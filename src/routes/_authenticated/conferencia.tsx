@@ -11,6 +11,8 @@ import type { Tables } from "@/integrations/supabase/types";
 import { ObservacoesBemDialog } from "@/components/ObservacoesBemDialog";
 import { RelatoriosBens } from "@/components/RelatoriosBens";
 import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
+import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
+import { useRole } from "@/hooks/use-role";
 
 export const Route = createFileRoute("/_authenticated/conferencia")({
   head: () => ({
@@ -56,6 +58,7 @@ function CabecalhoOrdenavel({ campo, titulo, ordenacao, onOrdenar, className = "
 
 function ConferenciaPage() {
   const navigate = useNavigate();
+  const { podeEditar } = useRole();
   const [salas, setSalas] = useState<Sala[]>([]);
   const [sala, setSala] = useState<Sala | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
@@ -275,7 +278,15 @@ function ConferenciaPage() {
                         {b.codigo_red}
                       </button>
                     </TableCell>
-                    <TableCell className="py-1">{limparDescricao(b.descricao)}<BotaoRecebimentoVeiculo bem={b} /></TableCell>
+                    <TableCell className="py-1">
+                      {limparDescricao(b.descricao)}
+                      {podeEditar && <EditarDescricaoBem bem={b} onSaved={(atualizado) => {
+                        setBens((itens) => itens.map((item) => item.id === atualizado.id ? { ...item, descricao: atualizado.descricao } : item));
+                        setObsBem((atual) => atual?.id === atualizado.id ? { ...atual, descricao: atualizado.descricao } : atual);
+                        setAtualizacaoRelatorios((valor) => valor + 1);
+                      }} />}
+                      <BotaoRecebimentoVeiculo bem={b} />
+                    </TableCell>
                     <TableCell className="py-2" aria-live="polite">
                       {b.conferido ? (
                         <span className="inline-flex whitespace-nowrap rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">LOCALIZADO</span>

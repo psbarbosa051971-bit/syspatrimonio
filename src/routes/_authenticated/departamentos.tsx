@@ -29,6 +29,7 @@ import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog"
 import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
 import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
+import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -224,6 +225,14 @@ function DepartamentosPage() {
   const [dialogSala, setDialogSala] = useState<Sala | null>(null);
   const [bensDialogSala, setBensDialogSala] = useState<Bem[]>([]);
   const [termoBem, setTermoBem] = useState<Bem | null>(null);
+  function atualizarDescricaoBem(atualizado: Bem) {
+    const atualizar = (itens: Bem[]) => itens.map((item) => item.id === atualizado.id ? atualizado : item);
+    setBens(atualizar);
+    setBensDialogSala(atualizar);
+    setBensParaTransferir(atualizar);
+    setResultadoPesquisa((atual) => atual ? { ...atual, bens: atualizar(atual.bens) } : null);
+    setTermoBem((atual) => atual?.id === atualizado.id ? atualizado : atual);
+  }
   const [importando, setImportando] = useState(false);
   const [impressaoImportacao, setImpressaoImportacao] = useState<{ id: string; salaId: string } | null>(null);
   useEffect(() => {
@@ -1200,6 +1209,7 @@ function DepartamentosPage() {
                       </TableCell>
                       <TableCell className="py-1">
                         {limparDescricao(b.descricao)}
+                        <EditarDescricaoBem bem={b} onSaved={atualizarDescricaoBem} />
                         <BotaoRecebimentoVeiculo bem={b} />
                         {resultadoPesquisa && <span className="block text-sm text-muted-foreground">
                           Local Físico: {b.sala_id ? resultadoPesquisa.locais[b.sala_id] : "—"}
@@ -1391,7 +1401,11 @@ function DepartamentosPage() {
               {bensDialogSala.map((b) => (
                 <TableRow key={b.id}>
                   <TableCell className="font-mono text-sm">{formatarCodigoRed(b.codigo_red)}</TableCell>
-                  <TableCell>{limparDescricao(b.descricao)}</TableCell>
+                  <TableCell>
+                    {limparDescricao(b.descricao)}
+                    <EditarDescricaoBem bem={b} onSaved={atualizarDescricaoBem} />
+                    <BotaoRecebimentoVeiculo bem={b} />
+                  </TableCell>
                   <TableCell>{b.incorporacao ?? ""}</TableCell>
                   <TableCell>{b.tipo ?? ""}</TableCell>
                   <TableCell className="text-right">
