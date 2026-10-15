@@ -1,0 +1,14 @@
+{
+  "id": "/checklist",
+  "name": "SysPatrimônio Checklist",
+  "short_name": "Checklist",
+  "description": "Novo checklist de veículo para preencher no celular.",
+  "lang": "pt-BR",
+  "start_url": "/checklist",
+  "scope": "/checklist",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#2459ad",
+  "icons": [{ "src": "/icons/syspatrimonio.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }]
+}
