@@ -39,7 +39,7 @@ describe("impressão após a importação", () => {
     const fechar = vi.fn();
     render(<ImprimirImportacaoDialog importacaoId="importacao" salaId="sala" origem="transferencia" onClose={fechar} />);
     expect(screen.getByRole("alertdialog")).toHaveAccessibleName("Deseja preencher o formulário Dados do recebimento?");
-    fireEvent.click(screen.getByRole("button", { name: "Não", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Não" }));
     expect(fechar).toHaveBeenCalledOnce();
     expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -48,7 +48,7 @@ describe("impressão após a importação", () => {
   it("abre Dados do recebimento somente após Sim e preenche a data atual automaticamente", async () => {
     render(<ImprimirImportacaoDialog importacaoId="importacao" salaId="sala" origem="transferencia" onClose={vi.fn()} />);
     expect(screen.queryByRole("textbox", { name: "Nome do recebedor" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Sim", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Sim" }));
     expect(await screen.findByRole("dialog")).toHaveAccessibleName("Dados do recebimento");
     const campoData = await screen.findByLabelText("Data do termo");
     expect(campoData).toHaveValue(new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }));
@@ -72,7 +72,7 @@ describe("impressão após a importação", () => {
     expect(screen.getByRole("textbox", { name: "Entregue por (usuário logado)" })).toHaveValue("João Operador");
     expect(screen.getByRole("textbox", { name: "Entregue por (usuário logado)" })).toHaveAttribute("readonly");
     expect(screen.getByRole("textbox", { name: "CPF do recebedor" })).toHaveValue("529.982.247-25");
-    fireEvent.click(screen.getByRole("button", { name: "Imprimir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Imprimir" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("salvar_recebimento_termo", {
       _importacao_id: "importacao", _recebedor: "Maria Recebedora", _cpf: "52998224725",
     }));
@@ -107,7 +107,7 @@ describe("impressão após a importação", () => {
   it("não grava nem abre o documento com CPF inválido", async () => {
     abrir(); await preencher();
     fireEvent.change(screen.getByRole("textbox", { name: "CPF do recebedor" }), { target: { value: "11111111111" } });
-    fireEvent.click(screen.getByRole("button", { name: "Imprimir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Imprimir" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Informe um CPF válido");
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(screen.queryByTitle("Termo desta importação")).not.toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("impressão após a importação", () => {
   it("mantém o formulário preenchido se houver falha ao gravar", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "Falha ao gravar" } });
     abrir(); await preencher();
-    fireEvent.click(screen.getByRole("button", { name: "Imprimir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Imprimir" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Falha ao gravar");
     expect(screen.getByRole("textbox", { name: "Nome do recebedor" })).toHaveValue("Maria Recebedora");
     expect(screen.queryByTitle("Termo desta importação")).not.toBeInTheDocument();
