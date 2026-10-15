@@ -1,3 +1,4 @@
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useEffect, useState } from "react";
 import { Car, Printer, Save } from "lucide-react";
 import { htmlTermoVeiculo, numeroTermoVeiculo } from "@/lib/recebimento-veiculos-impressao";
@@ -116,7 +117,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
       if (erroUsuario || !user) throw new Error("Sessão indisponível");
       const { data: salvo, error } = await supabase.from("recebimentos_veiculos").upsert({
         bem_id: bem.id, dados: { ...dados, local_fisico: localOrigem }, atualizado_por: user.id, atualizado_em: new Date().toISOString(),
-      }, { onConflict: "bem_id" }).select("*").single();
+      } as unknown as TablesInsert<"recebimentos_veiculos">, { onConflict: "bem_id" }).select("*").single();
       if (error || !salvo) throw error ?? new Error("Termo não retornado");
       setTermo(salvo);
       toast.success(`Termo de recebimento Nº ${numeroTermoVeiculo(salvo)} salvo.`);

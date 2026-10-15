@@ -14,36 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      chat_push_config: {
-        Row: { id: boolean; dispatch_token: string; vapid_public_key: string | null; vapid_private_key: string | null }
-        Insert: { id?: boolean; dispatch_token?: string; vapid_public_key?: string | null; vapid_private_key?: string | null }
-        Update: { dispatch_token?: string; vapid_public_key?: string | null; vapid_private_key?: string | null }
-        Relationships: []
-      }
-      chat_push_assinaturas: {
-        Row: { endpoint: string; user_id: string; p256dh: string; auth: string; criado_em: string }
-        Insert: { endpoint: string; user_id: string; p256dh: string; auth: string; criado_em?: string }
-        Update: { user_id?: string; p256dh?: string; auth?: string }
-        Relationships: []
-      }
-      chat_conversas: {
-        Row: { user_id: string; nome: string; criado_em: string }
-        Insert: { user_id: string; nome?: string; criado_em?: string }
-        Update: { user_id?: string; nome?: string; criado_em?: string }
-        Relationships: []
-      }
-      chat_mensagens: {
-        Row: { id: number; conversa_id: string; autor_id: string; conteudo: string; criado_em: string }
-        Insert: { id?: never; conversa_id: string; autor_id: string; conteudo: string; criado_em?: string }
-        Update: { id?: never; conversa_id?: string; autor_id?: string; conteudo?: string; criado_em?: string }
-        Relationships: [{
-          foreignKeyName: "chat_mensagens_conversa_id_fkey"
-          columns: ["conversa_id"]
-          isOneToOne: false
-          referencedRelation: "chat_conversas"
-          referencedColumns: ["user_id"]
-        }]
-      }
       bens: {
         Row: {
           codigo_red: string
@@ -107,55 +77,129 @@ export type Database = {
           },
         ]
       }
-      checklists_veiculos: {
-        Row: { id: string; user_id: string; dados: Json; bem_id: string | null; criado_em: string; atualizado_em: string }
-        Insert: { id?: string; user_id?: string; dados?: Json; bem_id?: string | null; criado_em?: string; atualizado_em?: string }
-        Update: { dados?: Json; atualizado_em?: string }
-        Relationships: [{
-          foreignKeyName: "checklists_veiculos_bem_id_fkey"
-          columns: ["bem_id"]
-          isOneToOne: true
-          referencedRelation: "bens"
-          referencedColumns: ["id"]
-        }]
-      }
-      recebimentos_veiculos_contadores: {
-        Row: { ano: number; ultimo_numero: number }
-        Insert: { ano: number; ultimo_numero?: number }
-        Update: { ano?: number; ultimo_numero?: number }
-        Relationships: []
-      }
-      recebimentos_veiculos: {
+      chat_conversas: {
         Row: {
-          bem_id: string
-          dados: Json
-          atualizado_por: string
-          atualizado_em: string
-          numero: number
-          ano: number
           criado_em: string
+          nome: string
+          user_id: string
         }
         Insert: {
-          bem_id: string
-          dados?: Json
-          atualizado_por?: string
-          atualizado_em?: string
-          numero?: number
-          ano?: number
           criado_em?: string
+          nome?: string
+          user_id: string
         }
         Update: {
-          bem_id?: string
-          dados?: Json
-          atualizado_por?: string
-          atualizado_em?: string
-          numero?: number
-          ano?: number
           criado_em?: string
+          nome?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_mensagens: {
+        Row: {
+          autor_id: string
+          conteudo: string
+          conversa_id: string
+          criado_em: string
+          id: number
+        }
+        Insert: {
+          autor_id: string
+          conteudo: string
+          conversa_id: string
+          criado_em?: string
+          id?: never
+        }
+        Update: {
+          autor_id?: string
+          conteudo?: string
+          conversa_id?: string
+          criado_em?: string
+          id?: never
         }
         Relationships: [
           {
-            foreignKeyName: "recebimentos_veiculos_bem_id_fkey"
+            foreignKeyName: "chat_mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversas"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      chat_push_assinaturas: {
+        Row: {
+          auth: string
+          criado_em: string
+          endpoint: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          criado_em?: string
+          endpoint: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          criado_em?: string
+          endpoint?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_push_config: {
+        Row: {
+          dispatch_token: string
+          id: boolean
+          vapid_private_key: string | null
+          vapid_public_key: string | null
+        }
+        Insert: {
+          dispatch_token?: string
+          id?: boolean
+          vapid_private_key?: string | null
+          vapid_public_key?: string | null
+        }
+        Update: {
+          dispatch_token?: string
+          id?: boolean
+          vapid_private_key?: string | null
+          vapid_public_key?: string | null
+        }
+        Relationships: []
+      }
+      checklists_veiculos: {
+        Row: {
+          atualizado_em: string
+          bem_id: string | null
+          criado_em: string
+          dados: Json
+          id: string
+          user_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          bem_id?: string | null
+          criado_em?: string
+          dados?: Json
+          id?: string
+          user_id?: string
+        }
+        Update: {
+          atualizado_em?: string
+          bem_id?: string | null
+          criado_em?: string
+          dados?: Json
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklists_veiculos_bem_id_fkey"
             columns: ["bem_id"]
             isOneToOne: true
             referencedRelation: "bens"
@@ -267,6 +311,59 @@ export type Database = {
           login?: string | null
           matricula?: string | null
           nome?: string | null
+        }
+        Relationships: []
+      }
+      recebimentos_veiculos: {
+        Row: {
+          ano: number
+          atualizado_em: string
+          atualizado_por: string
+          bem_id: string
+          criado_em: string
+          dados: Json
+          numero: number
+        }
+        Insert: {
+          ano: number
+          atualizado_em?: string
+          atualizado_por?: string
+          bem_id: string
+          criado_em?: string
+          dados?: Json
+          numero: number
+        }
+        Update: {
+          ano?: number
+          atualizado_em?: string
+          atualizado_por?: string
+          bem_id?: string
+          criado_em?: string
+          dados?: Json
+          numero?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recebimentos_veiculos_bem_id_fkey"
+            columns: ["bem_id"]
+            isOneToOne: true
+            referencedRelation: "bens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recebimentos_veiculos_contadores: {
+        Row: {
+          ano: number
+          ultimo_numero: number
+        }
+        Insert: {
+          ano: number
+          ultimo_numero?: number
+        }
+        Update: {
+          ano?: number
+          ultimo_numero?: number
         }
         Relationships: []
       }
@@ -513,19 +610,28 @@ export type Database = {
     }
     Functions: {
       associar_checklist_veiculo: {
-        Args: { _checklist_id: string; _bem_id: string }
+        Args: { _bem_id: string; _checklist_id: string }
         Returns: Json
       }
       associar_checklist_veiculo_por_red: {
         Args: { _checklist_id: string; _codigo_red: string; _sala_id?: string }
         Returns: Json
       }
-      salvar_recebimento_termo: {
-        Args: { _importacao_id: string; _recebedor: string; _cpf: string }
-        Returns: Json
-      }
       buscar_ultima_transferencia: { Args: { _codigo: string }; Returns: Json }
       can_edit: { Args: { _user_id: string }; Returns: boolean }
+      chave_codigo_red_importacao: {
+        Args: { _codigo: string }
+        Returns: string
+      }
+      consultar_bens_importacao: {
+        Args: { _bens: Json }
+        Returns: {
+          codigo_red: string
+          id: string
+          sala_id: string
+          sala_nome: string
+        }[]
+      }
       estornar_bens_inserviveis: {
         Args: { _sala_id: string; _solicitacoes: string[] }
         Returns: number
@@ -551,25 +657,21 @@ export type Database = {
         }
         Returns: boolean
       }
-      consultar_bens_importacao: {
-        Args: { _bens: Json }
-        Returns: { id: string; sala_id: string | null; codigo_red: string; sala_nome: string }[]
+      importar_bens_html: {
+        Args: {
+          _arquivo: string
+          _bens: Json
+          _cabecalho: Json
+          _sala_id: string
+        }
+        Returns: Json
       }
       importar_bens_html_confirmado: {
         Args: {
           _arquivo: string
           _bens: Json
           _cabecalho: Json
-          _sala_id: string
           _existentes: Json
-        }
-        Returns: Json
-      }
-      importar_bens_html: {
-        Args: {
-          _arquivo: string
-          _bens: Json
-          _cabecalho: Json
           _sala_id: string
         }
         Returns: Json
@@ -613,6 +715,10 @@ export type Database = {
           _tipo: string
         }
         Returns: undefined
+      }
+      salvar_recebimento_termo: {
+        Args: { _cpf: string; _importacao_id: string; _recebedor: string }
+        Returns: Json
       }
       transferir_bens: {
         Args: { _destino: string; _itens: Json; _pedido: string }
