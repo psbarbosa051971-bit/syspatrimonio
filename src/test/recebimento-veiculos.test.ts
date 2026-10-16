@@ -65,7 +65,7 @@ describe("recebimento de veículos", () => {
     expect(gruposChecklist.map((grupo) => grupo.titulo)).toEqual([
       "Acessórios/equipamentos", "Acessórios especiais", "Ferramentas", "Estado do veículo",
     ]);
-    expect(gruposChecklist.flatMap((grupo) => grupo.campos)).toHaveLength(34);
+    expect(gruposChecklist.flatMap((grupo) => grupo.campos)).toHaveLength(37);
     const chaves = gruposChecklist.flatMap((grupo) => grupo.campos.map((campo) => campo.chave));
     expect(new Set(chaves).size).toBe(chaves.length);
   });
