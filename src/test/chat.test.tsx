@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Chat } from "@/components/Chat";
+const renderAberto = (ui: Parameters<typeof render>[0]) => { const r = render(ui); const b = screen.queryByRole("button", { name: "Chat" }); if (b) fireEvent.click(b); return r; };
 
 const estado = vi.hoisted(() => ({
   enviar: vi.fn(),
@@ -55,7 +56,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Chat flutuante", () => {
   it.each(["admin", "operador", "visualizador"] as const)("permite que %s ative avisos fora do sistema", (role) => {
-    render(<Chat userId="usuario-1" role={role} />);
+    renderAberto(<Chat userId="usuario-1" role={role} />);
     fireEvent.click(screen.getByText("Receber avisos mesmo com o sistema fechado"));
     fireEvent.click(screen.getByRole("button", { name: "Ativar avisos neste computador" }));
     expect(estado.ativarPush).toHaveBeenCalledTimes(1);
@@ -64,7 +65,7 @@ describe("Chat flutuante", () => {
 
   it("permite desativar os avisos já autorizados", () => {
     estado.pushEstado = "ativado";
-    render(<Chat userId="admin-1" role="admin" />);
+    renderAberto(<Chat userId="admin-1" role="admin" />);
     fireEvent.click(screen.getByText("Avisos neste computador: ativados"));
     fireEvent.click(screen.getByRole("button", { name: "Desativar avisos neste computador" }));
     expect(estado.desativarPush).toHaveBeenCalledTimes(1);
@@ -72,14 +73,14 @@ describe("Chat flutuante", () => {
 
   it("explica como liberar a permissão bloqueada sem pedir novamente", () => {
     estado.pushEstado = "bloqueado";
-    render(<Chat userId="usuario-1" role="operador" />);
+    renderAberto(<Chat userId="usuario-1" role="operador" />);
     fireEvent.click(screen.getByText("Receber avisos mesmo com o sistema fechado"));
     expect(screen.getByText(/Notificações bloqueadas/)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Ativar avisos neste computador" })).not.toBeInTheDocument();
   });
 
   it.each(["operador", "visualizador"] as const)("mostra a saudação automática para %s", (role) => {
-    render(<Chat userId="usuario-1" role={role} />);
+    renderAberto(<Chat userId="usuario-1" role={role} />);
     expect(screen.getByText("Olá! Seja muito bem-vindo(a) ao Departamento de Patrimônio! ✨ É um prazer receber o seu contato. Por favor, aguarde um momento que em instantes iremos atender você.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Excluir mensagem automática" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByText(/Olá! Seja muito bem-vindo/));
@@ -89,13 +90,13 @@ describe("Chat flutuante", () => {
 
   it("não mostra a saudação automática ao administrador", () => {
     estado.selecionada = "usuario-1";
-    render(<Chat userId="admin-1" role="admin" />);
+    renderAberto(<Chat userId="admin-1" role="admin" />);
     expect(screen.queryByText(/Olá! Seja muito bem-vindo/)).not.toBeInTheDocument();
   });
 
   it("encerra a janela sem apagar o histórico e permite reabrir", () => {
     estado.mensagens = [{ id: 20, autor_id: "usuario-1", conteudo: "Histórico mantido", criado_em: "2026-01-01T12:00:00Z" }];
-    render(<Chat userId="usuario-1" role="operador" />);
+    renderAberto(<Chat userId="usuario-1" role="operador" />);
     const encerrar = screen.getByRole("button", { name: "Encerrar bate-papo" });
     expect(encerrar.nextElementSibling).toHaveTextContent("Enviar");
     fireEvent.click(encerrar);
@@ -108,7 +109,7 @@ describe("Chat flutuante", () => {
   it.each(["usuario-1", "admin-1"])("mostra o X ao clicar na mensagem de %s e exclui só a escolhida", async (autor_id) => {
     const confirmar = vi.spyOn(window, "confirm").mockReturnValue(true);
     estado.mensagens = [{ id: 21, autor_id, conteudo: "Mensagem escolhida", criado_em: "2026-01-01T12:00:00Z" }];
-    render(<Chat userId="usuario-1" role="visualizador" />);
+    renderAberto(<Chat userId="usuario-1" role="visualizador" />);
     expect(screen.queryByRole("button", { name: "Excluir mensagem 21" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("Mensagem escolhida"));
     fireEvent.click(screen.getByRole("button", { name: "Excluir mensagem 21" }));
@@ -119,7 +120,7 @@ describe("Chat flutuante", () => {
   it("não exclui a mensagem quando a confirmação é cancelada", () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     estado.mensagens = [{ id: 22, autor_id: "usuario-1", conteudo: "Não apagar", criado_em: "2026-01-01T12:00:00Z" }];
-    render(<Chat userId="usuario-1" role="operador" />);
+    renderAberto(<Chat userId="usuario-1" role="operador" />);
     fireEvent.click(screen.getByText("Não apagar"));
     fireEvent.click(screen.getByRole("button", { name: "Excluir mensagem 22" }));
     expect(estado.excluir).not.toHaveBeenCalled();
@@ -127,7 +128,7 @@ describe("Chat flutuante", () => {
   });
 
   it.each(["operador", "visualizador"] as const)("permite que %s envie sem clicar no botão Chat", async (role) => {
-    render(<Chat userId="usuario-1" role={role} />);
+    renderAberto(<Chat userId="usuario-1" role={role} />);
     expect(screen.getByRole("region", { name: "Chat com o administrador" })).toBeVisible();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Conversas")).not.toBeInTheDocument();
@@ -138,20 +139,20 @@ describe("Chat flutuante", () => {
   });
 
   it("mostra ao administrador a lista de conversas sem abrir um modal", () => {
-    render(<Chat userId="admin-1" role="admin" />);
+    renderAberto(<Chat userId="admin-1" role="admin" />);
     fireEvent.click(screen.getByRole("button", { name: /Maria/ }));
     expect(estado.setSelecionada).toHaveBeenCalledWith("usuario-1");
   });
 
   it("não mostra o chat enquanto o perfil não foi identificado", () => {
-    render(<Chat userId="usuario-1" role={null} />);
+    renderAberto(<Chat userId="usuario-1" role={null} />);
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Chat" })).not.toBeInTheDocument();
   });
 
   it("mantém o texto se o envio falhar", async () => {
     estado.enviar.mockResolvedValue(false);
-    render(<Chat userId="usuario-1" role="operador" />);
+    renderAberto(<Chat userId="usuario-1" role="operador" />);
     fireEvent.change(screen.getByLabelText("Mensagem"), { target: { value: "Minha dúvida" } });
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
     await waitFor(() => expect(estado.enviar).toHaveBeenCalled());
@@ -159,7 +160,7 @@ describe("Chat flutuante", () => {
   });
 
   it("reabre automaticamente ao receber uma nova mensagem e permite responder", async () => {
-    const { rerender } = render(<Chat userId="usuario-1" role="operador" />);
+    const { rerender } = renderAberto(<Chat userId="usuario-1" role="operador" />);
     fireEvent.click(screen.getByRole("button", { name: "Minimizar chat" }));
     expect(screen.queryByRole("region", { name: "Chat com o administrador" })).not.toBeInTheDocument();
     estado.recebida = { id: 10, conversa_id: "usuario-1" };
@@ -172,7 +173,7 @@ describe("Chat flutuante", () => {
   });
 
   it("seleciona automaticamente a conversa recebida pelo administrador", () => {
-    const { rerender } = render(<Chat userId="admin-1" role="admin" />);
+    const { rerender } = renderAberto(<Chat userId="admin-1" role="admin" />);
     fireEvent.click(screen.getByRole("button", { name: "Minimizar chat" }));
     estado.recebida = { id: 11, conversa_id: "usuario-1" };
     rerender(<Chat userId="admin-1" role="admin" />);
@@ -182,7 +183,7 @@ describe("Chat flutuante", () => {
 
   it("não troca a conversa nem apaga o rascunho durante outra resposta", () => {
     estado.selecionada = "usuario-1";
-    const { rerender } = render(<Chat userId="admin-1" role="admin" />);
+    const { rerender } = renderAberto(<Chat userId="admin-1" role="admin" />);
     fireEvent.change(screen.getByLabelText("Mensagem"), { target: { value: "Estou verificando" } });
     estado.recebida = { id: 12, conversa_id: "usuario-2" };
     rerender(<Chat userId="admin-1" role="admin" />);

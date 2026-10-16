@@ -12,7 +12,7 @@ export function Chat({ userId, role }: { userId: string; role: Papel | null }) {
 }
 
 function JanelaChat({ userId, administrador }: { userId: string; administrador: boolean }) {
-  const [aberto, setAberto] = useState(true);
+  const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState("");
   const [pendente, setPendente] = useState<string | null>(null);
   const [mensagemSelecionada, setMensagemSelecionada] = useState<number | "boas-vindas" | null>(null);
@@ -57,7 +57,7 @@ function JanelaChat({ userId, administrador }: { userId: string; administrador: 
         <MessageCircle className="h-5 w-5" aria-hidden="true" /> Chat
       </Button>}
       <section id="chat-flutuante" role="region" aria-labelledby="chat-titulo" hidden={!aberto}
-        className={`${aberto ? "flex" : "hidden"} fixed bottom-3 right-2 z-40 h-[min(70dvh,580px)] w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] ${administrador ? "sm:w-[680px]" : "sm:w-[400px]"} flex-col gap-3 rounded-xl border bg-background p-3 text-foreground shadow-2xl sm:bottom-5 sm:right-4 print:hidden`}>
+        className={`${aberto ? "flex" : "hidden"} fixed bottom-3 right-2 z-40 h-[min(70dvh,580px)] w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] ${administrador ? "sm:w-[520px]" : "sm:w-[320px]"} flex-col gap-3 rounded-xl border bg-background p-3 text-foreground shadow-2xl sm:bottom-5 sm:right-4 print:hidden`}>
         <header className="flex items-start justify-between gap-2 border-b pb-2">
           <div>
             <h2 id="chat-titulo" className="text-base font-semibold">Chat {administrador ? "— atendimento" : "com o administrador"}</h2>
