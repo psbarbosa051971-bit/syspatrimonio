@@ -213,3 +213,11 @@ input.campo-nfe-preenchido,
     color: var(--color-foreground);
   }
 }
+
+@utility barra-rolagem {
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-primary) var(--color-muted);
+  &::-webkit-scrollbar { width: 10px; }
+  &::-webkit-scrollbar-track { background: var(--color-muted); border-radius: 9999px; }
+  &::-webkit-scrollbar-thumb { background: var(--color-primary); border-radius: 9999px; }
+}

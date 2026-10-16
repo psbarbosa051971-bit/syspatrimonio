@@ -70,7 +70,7 @@ export function ChaveAcessoNfe({ dados, onChange, onPreenchido }: Props) {
           if (chave !== ultimaLeitura.current) void lerChave(chave);
         }} />
     </label>
-    <p role="status" className="text-xs text-muted-foreground">{lendo ? "Consultando fornecedor…" : "Preenchimento automático ao completar uma chave válida, inclusive pelo leitor ou câmera."}</p>
+    {lendo && <p role="status" className="text-xs text-muted-foreground">Consultando fornecedor…</p>}
     <div className="flex flex-wrap items-center gap-3">
       <Button type="button" variant="outline" disabled={lendo || !dados.chave_acesso?.trim()} onClick={() => { ultimaLeitura.current = ""; void lerChave(); }}>Ler chave e preencher</Button>
       <Button type="button" variant="outline" onClick={() => setCamera((atual) => !atual)}>{camera ? "Fechar câmera" : "Ler com a câmera"}</Button>
@@ -96,7 +96,5 @@ export function ChaveAcessoNfe({ dados, onChange, onPreenchido }: Props) {
       </label>
     </div>
     {camera && <LeitorChaveNfe onClose={() => setCamera(false)} onRead={(chave) => { setCamera(false); void lerChave(chave); }} />}
-    {dados.cnpj_fornecedor && <p className="text-xs text-muted-foreground">CNPJ do emitente: {dados.cnpj_fornecedor}</p>}
-    <p className="text-xs text-muted-foreground">A chave preenche a Nota fiscal e o mês/ano da emissão; complete o dia no campo Emissão. Os 44 dígitos não contêm o dia nem o valor. O XML preenche a data completa e o valor total. Campos preenchidos pela leitura ficam amarelos com letras azuis. O fornecedor digitado é mantido; se vazio, é consultado na BrasilAPI, sujeito à disponibilidade. Pedido e empenho são manuais.</p>
   </section>;
 }

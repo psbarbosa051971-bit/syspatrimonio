@@ -87,11 +87,13 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
         <DialogTitle>{checklist ? "Editar checklist pendente" : "Novo checklist de veículo"}</DialogTitle>
         <DialogDescription>Preencha no celular ou notebook antes da importação. O número do termo será gerado somente ao associar o código RED.</DialogDescription>
       </DialogHeader>
-      <fieldset disabled={salvando} className="min-h-0 space-y-4 overflow-y-auto pr-1 disabled:opacity-60">
+      <fieldset disabled={salvando} className="barra-rolagem min-h-0 flex-1 space-y-4 overflow-y-scroll overscroll-contain pr-2 disabled:opacity-60">
         <ChaveAcessoNfe dados={dados} onChange={alterar} onPreenchido={registrarPreenchimento} />
         <section className="rounded-xl border border-border p-3">
           <h3 className="mb-3 font-semibold text-primary">Dados do recebimento</h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{camposRecebimentoChecklist.map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}</div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{["nota_fiscal", "emissao", "valor", "data_recebimento", "pedido", "ano_empenho", "empenho", "fornecedor"]
+            .map((c) => camposRecebimentoChecklist.find((item) => item.chave === c)).filter((item) => !!item)
+            .map(({ chave, nome, tipo }) => campo(chave, nome, tipo))}</div>
         </section>
         <section className="rounded-xl border border-border p-3">
           <h3 className="mb-3 font-semibold text-primary">Identificação do veículo (opcional, antes do patrimônio)</h3>
