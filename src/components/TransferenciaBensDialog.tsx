@@ -51,7 +51,6 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   const [termo, setTermo] = useState<TermoResponsabilidade | null>(null);
   const temCodigos = !grupo && Boolean(busca.trim() || aceitos.length);
   const numeracao = useNumeroTransferencia(temCodigos);
-  const aguardandoNumero = !grupo && !numeracao.numero;
   const operacao = useRef(false);
   const destinoInicialAplicado = useRef(false);
   const pedido = useRef<{ id: string; destino: string; itens: { id: string; sala_id: string | null }[] } | null>(null);
@@ -128,12 +127,12 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   }
 
   async function salvar() {
-    if (operacao.current || termo || aguardandoNumero) return;
+    if (operacao.current || termo) return;
     if (!pedido.current) {
       const itens = aceitos.filter((b) => marcadosSalvar.includes(b.id));
       if (!destino || !itens.length || carregandoPerfil || erroPerfil) return;
       if (itens.length > 500) { setErro("Selecione no máximo 500 bens por transferência. Os demais continuarão pendentes no alerta."); return; }
-      pedido.current = { id: (!grupo ? numeracao.pedidoId.current : null) ?? crypto.randomUUID(), destino, itens: itens.map((b) => ({ id: b.id, sala_id: b.sala_id })) };
+      pedido.current = { id: crypto.randomUUID(), destino, itens: itens.map((b) => ({ id: b.id, sala_id: b.sala_id })) };
     }
     const atual = pedido.current;
     operacao.current = true; setSalvando(true); setErro("");
@@ -169,9 +168,9 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
         <DialogTitle>{grupo ? `Transferir bens — ${grupo.local}` : numeracao.numero ? `TERMO DE TRANSFERENCIA Nº ${String(numeracao.numero.numero).padStart(3, "0")}/${numeracao.numero.ano}` : "Gerar transferência"}</DialogTitle>
         <DialogDescription>{grupo ? "Escolha o local de destino no cabeçalho, marque alguns ou todos os bens e clique em Salvar transferência. Os bens não selecionados permanecem pendentes no alerta." : "Escolha o destino, filtre os códigos RED e aceite os bens. A movimentação só será realizada após a segunda seleção e o salvamento."}</DialogDescription>
       </DialogHeader>
-      {!grupo && numeracao.carregando && <p role="status" className="text-sm text-muted-foreground">Reservando número do termo...</p>}
-      {!grupo && numeracao.numero && <p className="text-sm text-muted-foreground">Número reservado. Nenhum bem foi transferido; a movimentação só acontece ao clicar em Salvar transferência. Se cancelar, o número reservado não será reutilizado.</p>}
-      {!grupo && numeracao.erro && <div role="alert" className="flex flex-wrap items-center gap-2"><p className="text-destructive">{numeracao.erro}</p><Button variant="outline" disabled={bloqueado} onClick={numeracao.tentarNovamente}>Tentar reservar novamente</Button></div>}
+      {!grupo && numeracao.carregando && <p role="status" className="text-sm text-muted-foreground">Consultando próximo número do termo...</p>}
+      {!grupo && numeracao.numero && <p className="text-sm text-muted-foreground">Número previsto, confirmado somente ao clicar em Salvar transferência. Se cancelar ou fechar sem salvar, esse número continuará disponível para a próxima transferência. Se outro usuário salvar antes, o número será atualizado no salvamento.</p>}
+      {!grupo && numeracao.erro && <div role="alert" className="flex flex-wrap items-center gap-2"><p className="text-destructive">{numeracao.erro}</p><Button variant="outline" disabled={bloqueado} onClick={numeracao.tentarNovamente}>Consultar número novamente</Button></div>}
       <>
         <section className="space-y-3 rounded-md border-2 border-primary/30 bg-accent p-4" aria-label="Destino da transferência">
           <div className="space-y-1.5"><Label htmlFor="transferencia-destino">Local / sala de destino</Label>
@@ -232,7 +231,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
           <p className="font-medium">{marcadosSalvar.length} bem(ns) selecionado(s) · {aceitos.filter((b) => marcadosSalvar.includes(b.id)).reduce((s, b) => s + Number(b.valor), 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
           <div className="flex gap-2"><Button variant="outline" disabled={bloqueado} onClick={onClose}>Cancelar</Button>
-            <Button onClick={salvar} disabled={salvando || filtrando || aguardandoNumero || (!pendente && (!destino || !marcadosSalvar.length || carregandoPerfil || !!erroPerfil))}>{salvando ? "Salvando..." : pendente ? "Verificar transferência" : "Salvar transferência"}</Button></div>
+            <Button onClick={salvar} disabled={salvando || filtrando || (!pendente && (!destino || !marcadosSalvar.length || carregandoPerfil || !!erroPerfil))}>{salvando ? "Salvando..." : pendente ? "Verificar transferência" : "Salvar transferência"}</Button></div>
         </div>
       </>
     </DialogContent>

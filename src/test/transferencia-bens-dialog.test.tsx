@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(), reservar: vi.fn(), carregar: vi.fn(), buscar: vi.fn(), responsavel: vi.fn(),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  rpc: (nome: string, args: unknown) => nome === "reservar_numero_transferencia" ? mocks.reservar(args) : mocks.rpc(nome, args),
+  rpc: (nome: string, args: unknown) => nome === "consultar_proximo_numero_transferencia" ? mocks.reservar(args) : mocks.rpc(nome, args),
 } }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => mocks.responsavel }));
 vi.mock("@/lib/usuarios.functions", () => ({ responsavelDoLocal: vi.fn() }));
@@ -52,15 +52,21 @@ async function aceitarTodos() {
 }
 
 describe("formulário de transferência", () => {
-  it("mostra 001/2026 ao abrir com códigos sem transferir e permite cancelar", async () => {
-    mocks.reservar.mockResolvedValue({ data: { numero: 1, ano: 2026 }, error: null });
+  it("mantém 046/2026 disponível ao cancelar e abrir outra transferência", async () => {
+    mocks.reservar.mockResolvedValue({ data: { numero: 46, ano: 2026 }, error: null });
     const onClose = vi.fn();
     const onSaved = vi.fn();
-    render(<TransferenciaBensDialog codigosIniciais="123,456" onClose={onClose} onSaved={onSaved} />);
-    expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 001/2026" })).toBeInTheDocument();
+    const tela = render(<TransferenciaBensDialog codigosIniciais="123,456" onClose={onClose} onSaved={onSaved} />);
+    expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 046/2026" })).toBeInTheDocument();
+    expect(screen.getByText(/Número previsto, confirmado somente/)).toHaveTextContent("Se cancelar ou fechar sem salvar, esse número continuará disponível");
     expect(screen.getByRole("button", { name: "Salvar transferência" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(onClose).toHaveBeenCalledOnce();
+    tela.unmount();
+    render(<TransferenciaBensDialog codigosIniciais="123,456" onClose={onClose} onSaved={onSaved} />);
+    expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 046/2026" })).toBeInTheDocument();
+    expect(mocks.reservar).toHaveBeenCalledTimes(2);
+    expect(mocks.reservar).toHaveBeenLastCalledWith(undefined);
     expect(onSaved).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.buscar).not.toHaveBeenCalled();
@@ -74,14 +80,14 @@ describe("formulário de transferência", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("repete a reserva com o mesmo pedido após falha sem movimentar os bens", async () => {
+  it("repete somente a consulta após falha sem reservar ou movimentar os bens", async () => {
     mocks.reservar.mockRejectedValueOnce(new Error("Sem conexão"));
     render(<TransferenciaBensDialog codigosIniciais="123,456" onClose={vi.fn()} onSaved={vi.fn()} />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível reservar o número");
-    fireEvent.click(screen.getByRole("button", { name: "Tentar reservar novamente" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível consultar o próximo número");
+    fireEvent.click(screen.getByRole("button", { name: "Consultar número novamente" }));
     expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 012/2026" })).toBeInTheDocument();
     expect(mocks.reservar).toHaveBeenCalledTimes(2);
-    expect(mocks.reservar.mock.calls[0]).toEqual(mocks.reservar.mock.calls[1]);
+    expect(mocks.reservar).toHaveBeenLastCalledWith(undefined);
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -94,7 +100,7 @@ describe("formulário de transferência", () => {
     fireEvent.submit(campo.closest("form")!);
     expect(mocks.buscar).not.toHaveBeenCalled();
     expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 012/2026" })).toBeInTheDocument();
-    expect(mocks.reservar).toHaveBeenCalledWith({ _pedido: expect.any(String) });
+    expect(mocks.reservar).toHaveBeenCalledWith(undefined);
     expect(mocks.rpc).not.toHaveBeenCalled();
     await escolherDestino();
     expect(campo).toHaveValue("60.651, 60.785, ");
@@ -123,7 +129,8 @@ describe("formulário de transferência", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
       _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
     });
-    expect(mocks.rpc.mock.calls[0][1]._pedido).toBe(mocks.reservar.mock.calls[0][0]._pedido);
+    expect(mocks.rpc.mock.calls[0][1]._pedido).toEqual(expect.any(String));
+    expect(mocks.reservar).toHaveBeenCalledWith(undefined);
     expect(onSaved).toHaveBeenCalledWith("destino", "termo-1");
   });
 

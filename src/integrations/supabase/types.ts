@@ -411,6 +411,12 @@ export type Database = {
           },
         ]
       }
+      termos_numeracao_contador: {
+        Row: { id: boolean; ultimo_numero: number }
+        Insert: { id?: boolean; ultimo_numero?: number }
+        Update: { id?: boolean; ultimo_numero?: number }
+        Relationships: []
+      }
       solicitacoes_bens: {
         Row: {
           ativa: boolean
@@ -722,6 +728,10 @@ export type Database = {
       pode_ver_sala: {
         Args: { _sala_id: string; _user_id: string }
         Returns: boolean
+      }
+      consultar_proximo_numero_transferencia: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       reservar_numero_transferencia: {
         Args: { _pedido: string }
