@@ -89,6 +89,7 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
       </DialogHeader>
       <fieldset disabled={salvando} className="barra-rolagem min-h-0 flex-1 space-y-4 overflow-y-scroll overscroll-contain touch-pan-y pr-2 disabled:opacity-60">
         <ChaveAcessoNfe dados={dados} onChange={alterar} onPreenchido={registrarPreenchimento} />
+        <Button type="button" className="w-full sm:w-auto" disabled={salvando} onClick={salvar}><Save className="mr-2 h-4 w-4" />{salvando ? "Salvando…" : "Salvar checklist sem patrimônio"}</Button>
         <section className="rounded-xl border border-border p-3">
           <h3 className="mb-3 font-semibold text-primary">Dados do recebimento</h3>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{["nota_fiscal", "emissao", "valor", "data_recebimento", "pedido", "ano_empenho", "empenho", "fornecedor"]
@@ -121,7 +122,6 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
       </fieldset>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
         <Button type="button" variant="outline" disabled={salvando} onClick={fechar}>Cancelar</Button>
-        <Button type="button" disabled={salvando} onClick={salvar}><Save className="mr-2 h-4 w-4" />{salvando ? "Salvando…" : "Salvar checklist sem patrimônio"}</Button>
       </div>
     </DialogContent>
   </Dialog>;
