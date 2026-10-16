@@ -2,9 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  rpc: vi.fn(), carregar: vi.fn(), buscar: vi.fn(), responsavel: vi.fn(),
+  rpc: vi.fn(), reservar: vi.fn(), carregar: vi.fn(), buscar: vi.fn(), responsavel: vi.fn(),
 }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mocks.rpc } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  rpc: (nome: string, args: unknown) => nome === "reservar_numero_transferencia" ? mocks.reservar(args) : mocks.rpc(nome, args),
+} }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => mocks.responsavel }));
 vi.mock("@/lib/usuarios.functions", () => ({ responsavelDoLocal: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -28,6 +30,7 @@ beforeEach(() => {
   ]);
   mocks.responsavel.mockResolvedValue({ nome: "Maria Silva", cpf: "12345678900", matricula: "98765" });
   mocks.buscar.mockResolvedValue([primeiro, segundo]);
+  mocks.reservar.mockResolvedValue({ data: { numero: 12, ano: 2026 }, error: null });
   mocks.rpc.mockResolvedValue({ data: termo, error: null });
 });
 
@@ -49,6 +52,39 @@ async function aceitarTodos() {
 }
 
 describe("formulário de transferência", () => {
+  it("mostra 001/2026 ao abrir com códigos sem transferir e permite cancelar", async () => {
+    mocks.reservar.mockResolvedValue({ data: { numero: 1, ano: 2026 }, error: null });
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    render(<TransferenciaBensDialog codigosIniciais="123,456" onClose={onClose} onSaved={onSaved} />);
+    expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 001/2026" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salvar transferência" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.buscar).not.toHaveBeenCalled();
+  });
+
+  it("não reserva número ao abrir com o campo de códigos vazio", async () => {
+    render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={vi.fn()} />);
+    await screen.findByRole("combobox");
+    expect(screen.getByRole("heading", { name: "Gerar transferência" })).toBeInTheDocument();
+    expect(mocks.reservar).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("repete a reserva com o mesmo pedido após falha sem movimentar os bens", async () => {
+    mocks.reservar.mockRejectedValueOnce(new Error("Sem conexão"));
+    render(<TransferenciaBensDialog codigosIniciais="123,456" onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível reservar o número");
+    fireEvent.click(screen.getByRole("button", { name: "Tentar reservar novamente" }));
+    expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 012/2026" })).toBeInTheDocument();
+    expect(mocks.reservar).toHaveBeenCalledTimes(2);
+    expect(mocks.reservar.mock.calls[0]).toEqual(mocks.reservar.mock.calls[1]);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("recebe códigos mascarados e só libera Filtrar após escolher o destino", async () => {
     render(<TransferenciaBensDialog codigosIniciais="60.651, 60.785, " onClose={vi.fn()} onSaved={vi.fn()} />);
     const campo = screen.getByLabelText("Códigos RED separados por vírgulas");
@@ -57,6 +93,9 @@ describe("formulário de transferência", () => {
     expect(screen.getByRole("button", { name: "Filtrar" })).toBeDisabled();
     fireEvent.submit(campo.closest("form")!);
     expect(mocks.buscar).not.toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { name: "TERMO DE TRANSFERENCIA Nº 012/2026" })).toBeInTheDocument();
+    expect(mocks.reservar).toHaveBeenCalledWith({ _pedido: expect.any(String) });
+    expect(mocks.rpc).not.toHaveBeenCalled();
     await escolherDestino();
     expect(campo).toHaveValue("60.651, 60.785, ");
     expect(screen.getByRole("button", { name: "Filtrar" })).toBeEnabled();
@@ -84,6 +123,7 @@ describe("formulário de transferência", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
       _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
     });
+    expect(mocks.rpc.mock.calls[0][1]._pedido).toBe(mocks.reservar.mock.calls[0][0]._pedido);
     expect(onSaved).toHaveBeenCalledWith("destino", "termo-1");
   });
 

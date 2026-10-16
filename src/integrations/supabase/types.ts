@@ -604,6 +604,30 @@ export type Database = {
           },
         ]
       }
+      transferencias_numeros_reservados: {
+        Row: {
+          pedido: string
+          user_id: string
+          numero: number
+          ano: number
+          criado_em: string
+        }
+        Insert: {
+          pedido: string
+          user_id: string
+          numero: number
+          ano: number
+          criado_em?: string
+        }
+        Update: {
+          pedido?: string
+          user_id?: string
+          numero?: number
+          ano?: number
+          criado_em?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -698,6 +722,10 @@ export type Database = {
       pode_ver_sala: {
         Args: { _sala_id: string; _user_id: string }
         Returns: boolean
+      }
+      reservar_numero_transferencia: {
+        Args: { _pedido: string }
+        Returns: Json
       }
       salvar_conferencia: {
         Args: { _bens_ids: string[]; _localizados: string[]; _sala_id: string }
