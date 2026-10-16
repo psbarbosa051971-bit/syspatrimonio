@@ -82,12 +82,12 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
   }
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto) fechar(); }}>
-    <DialogContent className="flex max-h-[96dvh] w-[calc(100%_-_1rem)] max-w-5xl flex-col overflow-hidden p-4 sm:p-6">
+    <DialogContent className="flex h-[96dvh] max-h-[96dvh] sm:h-auto w-[calc(100%_-_1rem)] max-w-5xl flex-col overflow-hidden p-4 sm:p-6">
       <DialogHeader className="shrink-0 pr-6">
         <DialogTitle>{checklist ? "Editar checklist pendente" : "Novo checklist de veículo"}</DialogTitle>
         <DialogDescription>Preencha no celular ou notebook antes da importação. O número do termo será gerado somente ao associar o código RED.</DialogDescription>
       </DialogHeader>
-      <fieldset disabled={salvando} className="barra-rolagem min-h-0 flex-1 space-y-4 overflow-y-scroll overscroll-contain pr-2 disabled:opacity-60">
+      <fieldset disabled={salvando} className="barra-rolagem min-h-0 flex-1 space-y-4 overflow-y-scroll overscroll-contain touch-pan-y pr-2 disabled:opacity-60">
         <ChaveAcessoNfe dados={dados} onChange={alterar} onPreenchido={registrarPreenchimento} />
         <section className="rounded-xl border border-border p-3">
           <h3 className="mb-3 font-semibold text-primary">Dados do recebimento</h3>
