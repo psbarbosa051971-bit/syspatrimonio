@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dataAtualRecebimento } from "@/lib/checklist-veiculos";
 
@@ -36,6 +36,17 @@ describe("checklist vazio antes da importação do veículo", () => {
     }
     expect(screen.getByLabelText("Ano empenho")).toHaveValue(null);
     expect(screen.getByLabelText("Triângulo")).toHaveValue("");
+  });
+
+  it("mostra a instalação dentro do cabeçalho do formulário do aplicativo", () => {
+    render(<ChecklistVeiculoDialog checklist={null} mostrarInstalacao onClose={vi.fn()} onSaved={vi.fn()} />);
+    const cabecalho = screen.getByRole("heading", { name: "Novo checklist de veículo" }).parentElement!;
+    const instalar = within(cabecalho).getByRole("button", { name: "Instalar aplicativo" });
+    expect(instalar).toHaveClass("w-full", "sm:w-auto");
+    expect(screen.getAllByRole("button", { name: "Instalar aplicativo" })).toHaveLength(1);
+    fireEvent.click(instalar);
+    expect(screen.getByRole("heading", { name: "Instalar SysPatrimônio" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Android — Chrome" })).toBeInTheDocument();
   });
 
   it("mantém dois campos por linha no celular nas quatro seções do checklist", () => {

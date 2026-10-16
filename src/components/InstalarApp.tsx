@@ -8,7 +8,7 @@ type ConviteInstalacao = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-export function InstalarApp() {
+export function InstalarApp({ compacto = false }: { compacto?: boolean }) {
   const [visivel, setVisivel] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [convite, setConvite] = useState<ConviteInstalacao | null>(null);
@@ -67,12 +67,12 @@ export function InstalarApp() {
 
   return (
     <>
-      <aside aria-label="Instalação do aplicativo" className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-accent px-4 py-2 text-accent-foreground print:hidden">
-        <div className="flex items-center gap-2 text-sm">
+      <aside aria-label="Instalação do aplicativo" className={compacto ? "flex justify-start pt-2 print:hidden" : "flex flex-wrap items-center justify-between gap-2 border-b border-border bg-accent px-4 py-2 text-accent-foreground print:hidden"}>
+        {!compacto && <div className="flex items-center gap-2 text-sm">
           <MonitorSmartphone className="h-5 w-5 shrink-0" aria-hidden="true" />
           <span><strong>SysPatrimônio no PC e no celular</strong><span className="hidden sm:inline"> — abra direto pelo ícone do aplicativo.</span></span>
-        </div>
-        <Button size="sm" onClick={() => setAberto(true)}>
+        </div>}
+        <Button type="button" size="sm" className={compacto ? "w-full sm:w-auto" : undefined} onClick={() => setAberto(true)}>
           <Download className="mr-2 h-4 w-4" aria-hidden="true" />Instalar aplicativo
         </Button>
       </aside>

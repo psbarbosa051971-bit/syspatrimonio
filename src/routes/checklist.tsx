@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { ChecklistVeiculoDialog } from "@/components/ChecklistVeiculoDialog";
 import { Button } from "@/components/ui/button";
+import { InstalarApp } from "@/components/InstalarApp";
 
 export const Route = createFileRoute("/checklist")({
   head: () => ({
@@ -36,9 +37,10 @@ function ChecklistApp() {
     <h1 className="text-xl font-bold text-primary">Checklist de veículos</h1>
     <p className="text-sm text-muted-foreground">Entre com sua conta para preencher o checklist. Depois volte a este endereço.</p>
     <Button asChild><Link to="/entrar">Entrar</Link></Button>
+    <InstalarApp compacto />
   </main>;
 
   return <main className="min-h-dvh bg-background">
-    <ChecklistVeiculoDialog key={chave} checklist={null} onSaved={() => {}} onClose={() => setChave((c) => c + 1)} />
+    <ChecklistVeiculoDialog key={chave} checklist={null} mostrarInstalacao onSaved={() => {}} onClose={() => setChave((c) => c + 1)} />
   </main>;
 }

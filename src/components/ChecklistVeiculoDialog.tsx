@@ -7,15 +7,16 @@ import { camposRecebimentoChecklist, dataAtualRecebimento } from "@/lib/checklis
 import { gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
 import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
+import { InstalarApp } from "@/components/InstalarApp";
 import { usePreenchimentoNfe } from "@/hooks/use-preenchimento-nfe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type Props = { checklist: Tables<"checklists_veiculos"> | null; onClose: () => void; onSaved: () => void };
+type Props = { checklist: Tables<"checklists_veiculos"> | null; onClose: () => void; onSaved: () => void; mostrarInstalacao?: boolean };
 
-export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
+export function ChecklistVeiculoDialog({ checklist, onClose, onSaved, mostrarInstalacao = false }: Props) {
   const [dados, setDados] = useState<Record<string, string>>(() => checklist ? lerDadosRecebimento(checklist.dados) : { data_recebimento: dataAtualRecebimento() });
   const [salvando, setSalvando] = useState(false);
   const [alterado, setAlterado] = useState(false);
@@ -86,6 +87,7 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
       <DialogHeader className="shrink-0 pr-6">
         <DialogTitle>{checklist ? "Editar checklist pendente" : "Novo checklist de veículo"}</DialogTitle>
         <DialogDescription>Preencha no celular ou notebook antes da importação. O número do termo será gerado somente ao associar o código RED.</DialogDescription>
+        {mostrarInstalacao && <InstalarApp compacto />}
       </DialogHeader>
       <fieldset disabled={salvando} className="barra-rolagem min-h-0 flex-1 space-y-4 overflow-y-scroll overscroll-contain touch-pan-y pr-2 disabled:opacity-60">
         <ChaveAcessoNfe dados={dados} onChange={alterar} onPreenchido={registrarPreenchimento} />
