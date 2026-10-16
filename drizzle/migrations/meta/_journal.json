@@ -43,6 +43,13 @@
       "when": 1791648912128,
       "tag": "0005_bens_incorporacao_tipo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792110070177,
+      "tag": "0006_fecha_leitura_contador_recebimentos",
+      "breakpoints": true
     }
   ]
 }
