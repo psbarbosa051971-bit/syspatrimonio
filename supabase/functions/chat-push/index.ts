@@ -1,6 +1,6 @@
 // Executado no servidor: as chaves privadas nunca são enviadas ao navegador.
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
-// @deno-types="npm:@types/web-push@3.6.4"
+// @ts-ignore: o pacote web-push não traz tipos próprios; a função roda normalmente no servidor.
 import webpush from "npm:web-push@3.6.7";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
