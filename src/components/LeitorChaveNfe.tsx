@@ -22,7 +22,7 @@ export function LeitorChaveNfe({ onRead, onClose }: Props) {
         if (cancelado || !elemento) return;
         const leitor = new BrowserMultiFormatReader();
         const controles = await leitor.decodeFromConstraints(
-          { audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } } },
+          { audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16 / 9 } } },
           elemento,
           (resultado, _erro, controle) => {
             if (!resultado || concluido || cancelado) return;
@@ -50,7 +50,7 @@ export function LeitorChaveNfe({ onRead, onClose }: Props) {
 
   return <div className="space-y-2 rounded-lg border border-border bg-background p-3">
     <p className="text-sm">Aponte a câmera para o código de barras da chave de acesso no DANFE. Mantenha os 44 dígitos e as barras inteiras no enquadramento, com boa iluminação.</p>
-    {erro ? <p role="alert" className="text-sm text-destructive">{erro}</p> : <video ref={video} autoPlay muted playsInline aria-label="Leitor de código de barras da NF-e" className="max-h-64 w-full rounded-md bg-muted object-contain" />}
+    {erro ? <p role="alert" className="text-sm text-destructive">{erro}</p> : <video ref={video} autoPlay muted playsInline aria-label="Leitor de código de barras da NF-e" className="aspect-[16/6] w-full rounded-md bg-muted object-cover" />}
     <Button type="button" variant="outline" onClick={onClose}>Fechar câmera</Button>
   </div>;
 }
