@@ -744,6 +744,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      dados_responsavel_sala_termo: {
+        Args: { _sala_id: string }
+        Returns: Json
+      }
       salvar_recebimento_termo: {
         Args: { _cpf: string; _importacao_id: string; _recebedor: string }
         Returns: Json

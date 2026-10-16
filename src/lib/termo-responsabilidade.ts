@@ -8,6 +8,7 @@ export type DadosTermo = {
   local: string; endereco: string; historico: string; data_origem: string;
   departamento: string; diretor: string; almoxarifado: string;
   endereco_departamento: string; responsavel: string; cpf: string; entregador?: string; data_termo?: string;
+  responsavel_recebimento?: string; cpf_recebimento?: string;
   bens: ItemTermo[];
 };
 export type TermoResponsabilidade = Pick<Tables<"importacoes">,
@@ -30,7 +31,8 @@ export function lerDadosTermo(valor: Json | null): DadosTermo {
   return { local: texto("local"), endereco: texto("endereco"), historico: texto("historico"),
     data_origem: texto("data_origem"), departamento: texto("departamento"), diretor: texto("diretor"),
     almoxarifado: texto("almoxarifado"), endereco_departamento: texto("endereco_departamento"),
-    responsavel: texto("responsavel"), cpf: texto("cpf"), entregador: texto("entregador"), data_termo: texto("data_termo"), bens };
+    responsavel: texto("responsavel"), cpf: texto("cpf"), entregador: texto("entregador"), data_termo: texto("data_termo"),
+    responsavel_recebimento: texto("responsavel_recebimento"), cpf_recebimento: texto("cpf_recebimento"), bens };
 }
 export function numeroDoTermo(termo: Pick<TermoResponsabilidade, "numero" | "termo_ano" | "created_at">) {
   const ano = termo.termo_ano ?? new Date(termo.created_at).toLocaleDateString("pt-BR", {
@@ -94,7 +96,8 @@ export function htmlDoTermo(termo: TermoResponsabilidade): string {
       <div class="linha">${escapar(d.entregador || d.diretor) || "Nome do diretor"}<p>${escapar(d.almoxarifado) || "CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA"}</p></div></div>
       <div class="assinatura"><p><strong>Local Físico:</strong> ${escapar(d.local)}</p>
       <p class="declaracao">Declaro que o(s) bem(ns) patrimonial(is) acima descrito(s) está(ão) sob minha responsabilidade, a partir da data de assinatura deste Termo de Responsabilidade. Comprometo-me a mantê-lo(s) em condições adequadas para o desenvolvimento normal dos trabalhos. As aplicações deste termo obedecem, em especial, ao disposto no artigo 70, parágrafo único, da Constituição Federal.</p>
-      <div class="linha">${escapar(d.responsavel) || "Nome do responsável pelo local"}<p>${escapar(cpf)}</p></div>
+      <div class="linha">${escapar(d.responsavel) || "Nome do responsável pelo local"}<p>${escapar(cpf)}</p><p><strong>Responsável pela Sala</strong></p></div>
+      ${d.responsavel_recebimento ? `<div class="linha">${escapar(d.responsavel_recebimento)}<p>CPF: ${escapar((d.cpf_recebimento || "").replace(/\D/g, "").replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4"))}</p><p><strong>Responsável pelo Recebimento</strong></p></div>` : ""}
       <p>DATA DE RECEBIMENTO ____/____/________</p></div></section>
     <footer class="faixa">ATENÇÃO: CONFERIR NO ATO DO RECEBIMENTO. NÃO ACEITAREMOS RECLAMAÇÕES APÓS O RECEBIMENTO E ASSINATURA DESTE TERMO.</footer>
     <p class="origem">Arquivo: ${escapar(termo.arquivo)}${d.data_origem ? ` • Data do relatório: ${escapar(d.data_origem)}` : ""}</p>

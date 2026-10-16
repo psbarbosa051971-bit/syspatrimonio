@@ -119,7 +119,7 @@ describe("formulário de transferência", () => {
     fireEvent.click(within(lista).getByRole("checkbox", { name: /Selecionar RED 123/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
     expect(await screen.findByRole("alertdialog")).toHaveAccessibleName("Deseja preencher o formulário Dados do recebimento?");
-    expect(screen.queryByRole("textbox", { name: "Nome do recebedor" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Responsável pelo Recebimento" })).not.toBeInTheDocument();
     expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
       _destino: "destino", _itens: [{ id: "bem-1", sala_id: "origem" }], _pedido: expect.any(String),
     });

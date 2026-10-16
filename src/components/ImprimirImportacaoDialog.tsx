@@ -16,6 +16,8 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
   const [dataTermo, setDataTermo] = useState("");
   const [etapa, setEtapa] = useState<"pergunta" | "formulario" | "documento">("pergunta");
   const [termo, setTermo] = useState<TermoResponsabilidade | null>(null);
+  const [responsavelSala, setResponsavelSala] = useState("");
+  const [cpfSala, setCpfSala] = useState("");
   const [recebedor, setRecebedor] = useState("");
   const [cpf, setCpf] = useState("");
   const [entregador, setEntregador] = useState("");
@@ -35,18 +37,24 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
     async function carregar() {
       const usuarioAtual = usuarioId || (await supabase.auth.getSession()).data.session?.user.id;
       if (!usuarioAtual) throw new Error("Não foi possível identificar o usuário logado. Entre novamente no sistema.");
-      const [importacao, perfil] = await Promise.all([
+      const [importacao, perfil, responsavel] = await Promise.all([
         supabase.from("importacoes").select("id,numero,termo_ano,created_at,arquivo,termo_snapshot")
           .eq("id", importacaoId).eq("sala_id", salaId).single(),
         supabase.from("profiles").select("nome,login,email").eq("id", usuarioAtual).single(),
+        supabase.rpc("dados_responsavel_sala_termo", { _sala_id: salaId }),
       ]);
       if (importacao.error || !importacao.data) throw new Error("Não foi possível carregar o termo desta movimentação.");
       if (perfil.error) throw new Error("Não foi possível identificar o usuário que está entregando os bens.");
+      if (responsavel.error || !responsavel.data || typeof responsavel.data !== "object" || Array.isArray(responsavel.data)) {
+        throw new Error("Não foi possível consultar o responsável pela sala. Tente novamente.");
+      }
       const dados = lerDadosTermo(importacao.data.termo_snapshot);
       if (!ativo) return;
       setDataTermo(new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }));
       setTermo(importacao.data);
-      setRecebedor(dados.responsavel); setCpf(formatarCpf(dados.cpf));
+      setResponsavelSala(typeof responsavel.data.responsavel === "string" ? responsavel.data.responsavel : "");
+      setCpfSala(formatarCpf(typeof responsavel.data.cpf === "string" ? responsavel.data.cpf : ""));
+      setRecebedor(dados.responsavel_recebimento || ""); setCpf(formatarCpf(dados.cpf_recebimento || ""));
       setEntregador(perfil.data?.nome?.trim() || perfil.data?.login || perfil.data?.email || nomeAlternativo);
     }
     carregar().catch((e) => { if (ativo) setErro(e instanceof Error ? e.message : "Não foi possível preparar o formulário."); })
@@ -67,8 +75,8 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
   async function salvarEImprimir(e: React.FormEvent) {
     e.preventDefault();
     if (!termo || salvando) return;
-    if (recebedor.trim().length < 2) { setErro("Informe o nome do recebedor."); return; }
-    if (!cpfValido(cpf)) { setErro("Informe um CPF válido para o recebedor."); return; }
+    if (recebedor.trim().length < 2) { setErro("Informe o nome do responsável pelo recebimento."); return; }
+    if (!cpfValido(cpf)) { setErro("Informe um CPF válido para o responsável pelo recebimento."); return; }
     setSalvando(true); setErro("");
     try {
       const { data, error } = await supabase.rpc("salvar_recebimento_termo", {
@@ -102,13 +110,20 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
       <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${etapa === "documento" ? "max-w-5xl" : "max-w-xl"}`}>
         <DialogHeader>
           <DialogTitle>{etapa === "documento" ? `Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}` : "Dados do recebimento"}</DialogTitle>
-          <DialogDescription>{etapa === "documento" ? "Os dados foram gravados neste termo. Imprima ou salve uma cópia em PDF." : "Informe o recebedor. O nome de quem entrega será o do usuário logado. A data do termo é preenchida automaticamente com a data atual; a data de recebimento permanece em branco para assinatura."}</DialogDescription>
+          <DialogDescription>{etapa === "documento" ? "Os dados foram gravados neste termo. Imprima ou salve uma cópia em PDF." : "O responsável pela sala e seu CPF são preenchidos automaticamente pelo cadastro do local físico. Informe separadamente quem receberá os bens e seu CPF. Quem entrega é o usuário logado. A data do termo é a atual; a data de recebimento fica em branco para assinatura."}</DialogDescription>
         </DialogHeader>
         {etapa === "formulario" && (carregando ? <p className="text-sm text-muted-foreground">Carregando dados {transferencia ? "da transferência" : "da importação"}...</p> : termo ? <form onSubmit={salvarEImprimir} className="space-y-4">
-          <div className="space-y-1.5"><Label htmlFor="recebimento-nome">Nome do recebedor</Label>
+          <div className="space-y-1.5"><Label htmlFor="recebimento-responsavel-sala">Responsável pela Sala</Label>
+            <Input id="recebimento-responsavel-sala" value={responsavelSala} readOnly placeholder="Sem responsável cadastrado" />
+          </div>
+          <div className="space-y-1.5"><Label htmlFor="recebimento-cpf-sala">CPF do responsável pela sala</Label>
+            <Input id="recebimento-cpf-sala" value={cpfSala} readOnly placeholder="CPF não cadastrado" />
+          </div>
+          {(!responsavelSala || !cpfSala) && <p className="text-sm text-muted-foreground">O nome e o CPF da sala vêm do cadastro do responsável vinculado ao local físico. Complete esse cadastro se algum dado estiver ausente.</p>}
+          <div className="space-y-1.5"><Label htmlFor="recebimento-nome">Responsável pelo Recebimento</Label>
             <Input id="recebimento-nome" autoFocus required maxLength={200} value={recebedor} disabled={salvando} onChange={(e) => setRecebedor(e.target.value)} />
           </div>
-          <div className="space-y-1.5"><Label htmlFor="recebimento-cpf">CPF do recebedor</Label>
+          <div className="space-y-1.5"><Label htmlFor="recebimento-cpf">CPF do responsável pelo recebimento</Label>
             <Input id="recebimento-cpf" required inputMode="numeric" autoComplete="off" maxLength={14} placeholder="000.000.000-00" value={cpf} disabled={salvando} onChange={(e) => setCpf(formatarCpf(e.target.value))} />
           </div>
           <div className="space-y-1.5"><Label htmlFor="recebimento-entregador">Entregue por (usuário logado)</Label>
