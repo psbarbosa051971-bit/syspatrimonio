@@ -106,11 +106,11 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved }: Props) {
         </section>
         {gruposChecklist.map((grupo) => <section key={grupo.titulo} className="overflow-hidden rounded-xl border border-border">
           <h3 className="bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">{grupo.titulo}</h3>
-          <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">
-            {grupo.campos.map(({ chave, nome, opcoes }) => <label key={chave} className="space-y-1 text-sm font-semibold">
-              <span className="block">{nome}</span>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-3 p-3 sm:gap-3 lg:grid-cols-3">
+            {grupo.campos.map(({ chave, nome, opcoes }) => <label key={chave} className="min-w-0 space-y-1 text-sm font-semibold">
+              <span className="block break-words">{nome}</span>
               <select value={dados[chave] ?? ""} onChange={(e) => alterar({ [chave]: e.target.value })}
-                className="h-10 w-full rounded-md border border-input bg-background px-2 text-base text-foreground">
+                className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-2 text-base text-foreground">
                 <option value="">Selecione...</option>{opcoes.map((opcao) => <option key={opcao} value={opcao}>{opcao}</option>)}
               </select>
             </label>)}

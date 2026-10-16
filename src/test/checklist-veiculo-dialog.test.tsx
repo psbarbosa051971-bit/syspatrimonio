@@ -38,6 +38,18 @@ describe("checklist vazio antes da importação do veículo", () => {
     expect(screen.getByLabelText("Triângulo")).toHaveValue("");
   });
 
+  it("mantém dois campos por linha no celular nas quatro seções do checklist", () => {
+    render(<ChecklistVeiculoDialog checklist={null} onClose={vi.fn()} onSaved={vi.fn()} />);
+    for (const titulo of ["Acessórios/equipamentos", "Acessórios especiais", "Ferramentas", "Estado do veículo"]) {
+      const grade = screen.getByRole("heading", { name: titulo }).nextElementSibling;
+      expect(grade).toHaveClass("grid", "grid-cols-2", "lg:grid-cols-3");
+      for (const campo of grade!.querySelectorAll("label")) {
+        expect(campo).toHaveClass("min-w-0");
+        expect(campo.querySelector("select")).toHaveClass("w-full", "min-w-0");
+      }
+    }
+  });
+
   it("salva o preenchimento sem bem, sem número e sem emitir um termo", async () => {
     const onSaved = vi.fn();
     const onClose = vi.fn();
