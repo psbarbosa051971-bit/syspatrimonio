@@ -12,7 +12,8 @@ const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currenc
 
 /** Gera um arquivo real, sem depender da janela de impressão do navegador. */
 export async function gerarRelatorioSalaPdf({ sala, departamento, responsavel, bens }: DadosRelatorioSala): Promise<File> {
-  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  // "jspdf" (raiz) não é resolúvel no build do servidor (workerd): usar o arquivo ESM direto.
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf/dist/jspdf.es.min.js"), import("jspdf-autotable")]);
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const emitido = new Date().toLocaleString("pt-BR");
   pdf.setProperties({ title: `Relatório de bens — ${sala.nome}`, author: "SysPatrimônio" });
