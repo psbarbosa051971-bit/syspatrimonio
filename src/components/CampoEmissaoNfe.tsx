@@ -24,13 +24,34 @@ export const CampoEmissaoNfe = forwardRef<HTMLInputElement, Props>(function Camp
   function emitir(valor: string) { ultimoEmitido.current = valor; onChange(valor); }
 
   return <Input {...props} ref={ref} type="text" inputMode="numeric" placeholder="dd/mm/aaaa"
-    maxLength={10} value={texto} aria-label="Emissão"
+    value={texto} aria-label="Emissão"
+    onFocus={(evento) => {
+      props.onFocus?.(evento);
+      if (texto.startsWith("__")) evento.currentTarget.setSelectionRange(0, 2);
+    }}
+    onClick={(evento) => {
+      props.onClick?.(evento);
+      if (texto.startsWith("__")) evento.currentTarget.setSelectionRange(0, 2);
+    }}
     onChange={(evento) => {
       const entrada = evento.target.value;
       const digitos = entrada.replace(/\D/g, "").slice(0, 8);
-      const novo = entrada.includes("/") || entrada.includes("_") ? entrada
+      let novo = entrada.split("/").length === 3 || entrada.includes("_") ? entrada
         : digitos.length > 4 ? `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`
         : digitos.length > 2 ? `${digitos.slice(0, 2)}/${digitos.slice(2)}` : digitos;
+      // No celular, o primeiro dígito pode ser inserido antes dos espaços do dia.
+      // Substitui esses espaços sem deslocar ou apagar o mês/ano lido da NF-e.
+      const partesEntrada = entrada.split("/");
+      if (partesEntrada.length === 3 && (partesEntrada[0].includes("_")
+        || (texto.split("/")[0].includes("_") && /^\d{1,2}$/.test(partesEntrada[0])))) {
+        const diaDigitado = partesEntrada[0].replace(/\D/g, "").slice(0, 2);
+        novo = `${diaDigitado.padEnd(2, "_")}/${partesEntrada[1]}/${partesEntrada[2]}`;
+        const campo = evento.currentTarget;
+        const posicao = diaDigitado.length;
+        queueMicrotask(() => {
+          if (campo.isConnected) campo.setSelectionRange(posicao, posicao);
+        });
+      }
       setTexto(novo);
       const partes = novo.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
       if (!partes) { emitir(""); return; }

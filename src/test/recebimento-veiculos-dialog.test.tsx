@@ -90,6 +90,28 @@ describe("formulário de recebimento de veículos", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  it("exibe reais, permite informar o dia e mantém a rolagem no check-list", async () => {
+    mocks.carregar.mockResolvedValue({ data: { dados: { emissao_mes: "2026-10", valor: "339000.00" } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByRole("region", { name: "Campos do recebimento e check-list" })).toHaveClass("barra-rolagem", "overflow-y-scroll", "flex-1");
+    const valor = screen.getByLabelText("Valor da nota");
+    expect(valor).toHaveValue("R$\u00a0339.000,00");
+    fireEvent.change(valor, { target: { value: "R$ 339.000,50" } });
+    const emissao = screen.getByLabelText("Emissão");
+    fireEvent.focus(emissao);
+    fireEvent.change(emissao, { target: { value: "1/10/2026" } });
+    expect(emissao).toHaveValue("1_/10/2026");
+    fireEvent.change(emissao, { target: { value: "14_/10/2026" } });
+    expect(emissao).toHaveValue("14/10/2026");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Check-list" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Triângulo")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ valor: "339000.50", emissao: "2026-10-14" }),
+    }), { onConflict: "bem_id" }));
+  });
+
   it("distribui os identificadores do anexo e deixa somente a descrição no modelo", async () => {
     const descricao = "VEÍCULO MARCA FIAT MODELO UNO MILLE ECON 4 PORTAS ANO/MOD 2010/2010 PLACA HLF-2823 MOTOR ECON. 1.0 FLEX MOTOR Nº 146E1011*9856637 COR BRANCA BANHISA RENAVAM 205414427 / CHASSI Nº 9BD18522AA6449007 SEMIN";
     render(<RecebimentoVeiculosDialog bem={{ ...bem, descricao }} onClose={vi.fn()} />);

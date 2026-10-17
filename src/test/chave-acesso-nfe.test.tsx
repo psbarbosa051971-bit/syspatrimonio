@@ -63,6 +63,37 @@ describe("leitura automática sem clicar em preencher", () => {
     expect(screen.getByLabelText("Data gravada")).toHaveTextContent("2026-10-14");
   });
 
+  it("permite digitar o dia um dígito por vez no mês e ano lidos", async () => {
+    render(<FormularioAutomatico />);
+    fireEvent.change(screen.getByPlaceholderText(/Digite, cole ou leia/), { target: { value: chaveValida() } });
+    const emissao = screen.getByLabelText("Emissão") as HTMLInputElement;
+    await waitFor(() => expect(emissao).toHaveFocus());
+    fireEvent.click(emissao);
+    expect(emissao.selectionStart).toBe(0);
+    expect(emissao.selectionEnd).toBe(2);
+    fireEvent.change(emissao, { target: { value: "1/10/2026" } });
+    expect(emissao).toHaveValue("1_/10/2026");
+    await waitFor(() => expect(emissao.selectionStart).toBe(1));
+    expect(screen.getByLabelText("Data gravada")).toBeEmptyDOMElement();
+    fireEvent.change(emissao, { target: { value: "14_/10/2026" } });
+    expect(emissao).toHaveValue("14/10/2026");
+    expect(screen.getByLabelText("Data gravada")).toHaveTextContent("2026-10-14");
+  });
+
+  it("formata a data completa ao digitar sem preencher a chave da nota", () => {
+    render(<FormularioAutomatico />);
+    const emissao = screen.getByLabelText("Emissão");
+    for (const [entrada, esperado] of [
+      ["1", "1"], ["14", "14"], ["141", "14/1"], ["14/10", "14/10"],
+      ["14/102", "14/10/2"], ["14/10/20", "14/10/20"],
+      ["14/10/202", "14/10/202"], ["14/10/2026", "14/10/2026"],
+    ]) {
+      fireEvent.change(emissao, { target: { value: entrada } });
+      expect(emissao).toHaveValue(esperado);
+    }
+    expect(screen.getByLabelText("Data gravada")).toHaveTextContent("2026-10-14");
+  });
+
   it("não perde a edição parcial da emissão nem grava um dia impossível", () => {
     render(<FormularioAutomatico />);
     fireEvent.change(screen.getByPlaceholderText(/Digite, cole ou leia/), { target: { value: chaveValida() } });

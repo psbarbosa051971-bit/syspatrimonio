@@ -10,6 +10,7 @@ import { limparDescricao } from "@/lib/pdf-parse";
 import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
 import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
+import { CampoValorReais } from "@/components/CampoValorReais";
 import { usePreenchimentoNfe } from "@/hooks/use-preenchimento-nfe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,8 +142,10 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
       <span className="block uppercase">{nome}</span>
       {chave === "emissao" ? <CampoEmissaoNfe ref={emissaoRef} value={dados.emissao ?? ""} mes={dados.emissao_mes}
         className={`h-8 min-w-0 px-2 text-xs md:text-xs ${camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : ""}`}
-        onChange={(valor) => alterar("emissao", valor)} /> : <Input type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
-        inputMode={chave === "valor" ? "decimal" : undefined} maxLength={tipo === "text" ? 200 : undefined}
+        onChange={(valor) => alterar("emissao", valor)} /> : chave === "valor" ? <CampoValorReais aria-label={nome}
+        value={dados.valor ?? ""} onChange={(valor) => alterar("valor", valor)}
+        className={`h-8 min-w-0 px-2 text-xs md:text-xs ${camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : ""}`} /> : <Input type={tipo} min={tipo === "number" ? 0 : undefined}
+        maxLength={tipo === "text" ? 200 : undefined}
         className={`h-8 min-w-0 px-2 text-xs md:text-xs ${camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : ""}`}
         value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)} />}
     </label>;
@@ -155,7 +158,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
   ];
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvando) onClose(); }}>
-    <DialogContent className="flex max-h-[96dvh] w-[calc(100%_-_1rem)] max-w-6xl flex-col gap-3 overflow-hidden p-4">
+    <DialogContent className="flex h-[96dvh] max-h-[96dvh] w-[calc(100%_-_1rem)] max-w-6xl flex-col gap-3 overflow-hidden p-4">
       <DialogHeader className="shrink-0 pr-6">
         <DialogTitle className="flex flex-wrap items-center gap-2"><Car className="h-5 w-5 text-primary" />Recebimento de Veículos
           <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{termo ? `Termo Nº ${numeroTermoVeiculo(termo)}` : "Novo termo · número gerado ao salvar"}</span>
@@ -174,7 +177,8 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
           <TabsTrigger value="checklist">Check-list</TabsTrigger>
           <TabsTrigger value="termo">Termo e assinaturas</TabsTrigger>
         </TabsList>
-        <fieldset disabled={carregando || erro || salvando} className="mt-2 min-h-0 min-w-0 overflow-y-auto pr-1 disabled:opacity-60">
+        <div role="region" aria-label="Campos do recebimento e check-list" tabIndex={0} className="barra-rolagem mt-2 min-h-0 flex-1 overflow-y-scroll overscroll-contain touch-pan-y pr-2">
+        <fieldset disabled={carregando || erro || salvando} className="min-w-0 disabled:opacity-60">
           <TabsContent value="recebimento" className="mt-0 space-y-2">
             <ChaveAcessoNfe dados={dados} onChange={(valores) => setDados((atuais) => ({ ...atuais, ...valores }))} onPreenchido={registrarPreenchimento} />
             <div className="grid items-center gap-2 rounded-md border border-border px-3 py-2 sm:grid-cols-[auto_1fr]">
@@ -282,6 +286,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
             </section>
           </TabsContent>
         </fieldset>
+        </div>
       </Tabs>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
         <p className="max-w-xl text-xs text-muted-foreground">O recebimento e o check-list são salvos para este patrimônio, sem alterar o cadastro do bem ou o Local Físico.</p>

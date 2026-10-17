@@ -77,6 +77,20 @@ describe("checklist vazio antes da importação do veículo", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("mantém a barra vertical e salva o valor em reais sem a máscara", async () => {
+    render(<ChecklistVeiculoDialog checklist={null} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.getByRole("region", { name: "Campos do checklist" })).toHaveClass("barra-rolagem", "overflow-y-scroll", "min-h-0", "flex-1");
+    const valor = screen.getByLabelText("Valor");
+    fireEvent.change(valor, { target: { value: "R$ 339.000,00" } });
+    expect(valor).toHaveValue("R$\u00a0339.000,00");
+    fireEvent.change(screen.getByLabelText("Emissão"), { target: { value: "14102026" } });
+    expect(screen.getByLabelText("Emissão")).toHaveValue("14/10/2026");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar checklist sem patrimônio" }));
+    await waitFor(() => expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ valor: "339000.00", emissao: "2026-10-14" }),
+    })));
+  });
+
   it("reutiliza o último fornecedor salvo em um novo checklist e permite alterá-lo", async () => {
     mocks.historico.mockResolvedValue({ data: [{ fornecedor: "Fornecedor salvo" }], error: null });
     render(<ChecklistVeiculoDialog checklist={null} onClose={vi.fn()} onSaved={vi.fn()} />);

@@ -7,6 +7,7 @@ import { camposRecebimentoChecklist, dataAtualRecebimento } from "@/lib/checklis
 import { gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
 import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
+import { CampoValorReais } from "@/components/CampoValorReais";
 import { InstalarApp } from "@/components/InstalarApp";
 import { usePreenchimentoNfe } from "@/hooks/use-preenchimento-nfe";
 import { Button } from "@/components/ui/button";
@@ -70,8 +71,10 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved, mostrarIns
       <span>{nome}</span>
       {chave === "emissao" ? <CampoEmissaoNfe ref={emissaoRef} value={dados.emissao ?? ""} mes={dados.emissao_mes}
         className={camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : undefined}
-        onChange={(valor) => alterar({ emissao: valor })} /> : <Input aria-label={nome} type={tipo} min={tipo === "number" ? 0 : undefined} step={chave === "valor" ? "0.01" : undefined}
-        inputMode={chave === "valor" ? "decimal" : undefined} maxLength={tipo === "text" ? 500 : undefined}
+        onChange={(valor) => alterar({ emissao: valor })} /> : chave === "valor" ? <CampoValorReais aria-label={nome}
+        value={dados.valor ?? ""} onChange={(valor) => alterar({ valor })}
+        className={camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : undefined} /> : <Input aria-label={nome} type={tipo} min={tipo === "number" ? 0 : undefined}
+        maxLength={tipo === "text" ? 500 : undefined}
         className={camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : undefined}
         list={chave === "fornecedor" ? "fornecedores-checklist" : undefined}
         value={dados[chave] ?? ""} onChange={(e) => alterar({ [chave]: e.target.value })} />}
@@ -83,13 +86,14 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved, mostrarIns
   }
 
   return <Dialog open onOpenChange={(aberto) => { if (!aberto) fechar(); }}>
-    <DialogContent className="flex h-[96dvh] max-h-[96dvh] sm:h-auto w-[calc(100%_-_1rem)] max-w-5xl flex-col overflow-hidden p-4 sm:p-6">
+    <DialogContent className="flex h-[96dvh] max-h-[96dvh] w-[calc(100%_-_1rem)] max-w-5xl flex-col overflow-hidden p-4 sm:p-6">
       <DialogHeader className="shrink-0 pr-6">
         <DialogTitle>{checklist ? "Editar checklist pendente" : "Novo checklist de veículo"}</DialogTitle>
         <DialogDescription>Preencha no celular ou notebook antes da importação. O número do termo será gerado somente ao associar o código RED.</DialogDescription>
         {mostrarInstalacao && <InstalarApp compacto />}
       </DialogHeader>
-      <fieldset disabled={salvando} className="barra-rolagem min-h-0 flex-1 space-y-4 overflow-y-scroll overscroll-contain touch-pan-y pr-2 disabled:opacity-60">
+      <div role="region" aria-label="Campos do checklist" tabIndex={0} className="barra-rolagem min-h-0 flex-1 overflow-y-scroll overscroll-contain touch-pan-y pr-2">
+      <fieldset disabled={salvando} className="min-w-0 space-y-4 disabled:opacity-60">
         <ChaveAcessoNfe dados={dados} onChange={alterar} onPreenchido={registrarPreenchimento} />
         <Button type="button" className="w-full sm:w-auto" disabled={salvando} onClick={salvar}><Save className="mr-2 h-4 w-4" />{salvando ? "Salvando…" : "Salvar checklist sem patrimônio"}</Button>
         <section className="rounded-xl border border-border p-3">
@@ -122,6 +126,7 @@ export function ChecklistVeiculoDialog({ checklist, onClose, onSaved, mostrarIns
           <Textarea rows={4} maxLength={5000} value={dados.observacoes_gerais ?? ""} onChange={(e) => alterar({ observacoes_gerais: e.target.value })} />
         </label>
       </fieldset>
+      </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
         <Button type="button" variant="outline" disabled={salvando} onClick={fechar}>Cancelar</Button>
       </div>
