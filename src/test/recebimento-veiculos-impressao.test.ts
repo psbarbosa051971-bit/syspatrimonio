@@ -40,7 +40,9 @@ describe("impressão do recebimento de veículos", () => {
       "Estado do veículo", "Câmbio", "Estepe", "Conferência concluída, sem avarias.",
       "Diretor de Patrimônio", "Almoxarifado central", "Imprimir / Salvar em PDF",
     ]) expect(html).toContain(texto);
-    expect(html.match(/class="assinatura"/g)).toHaveLength(4);
+    expect(html.match(/class="assinatura(?: assinatura-central)?"/g)).toHaveLength(5);
+    expect(html).toContain("RODRIGO JESUÍNO TRINDADE");
+    expect(html).toContain("AGENTE ADMINISTRATIVO");
   });
 
   it("preenche a conclusão padrão com o veículo do patrimônio e a nova introdução", () => {
@@ -74,26 +76,31 @@ describe("impressão do recebimento de veículos", () => {
     expect(html).toContain('class="conteudo"');
     expect(html).toContain("width: 190mm; height: 276mm;");
     expect(html).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
-    expect(html).toContain("Math.min(1, (folha.clientHeight - 2) / Math.max(1, altura))");
+    expect(html).toContain("Math.min(1, (folha.clientHeight - 2) / Math.max(1, altura * escala))");
+    expect(html).toContain("conteudo.style.width = (190 / escala) + 'mm'");
+    expect(html).toContain("conteudo.style.setProperty('--recuo-paragrafo', (20 / escala) + 'mm')");
     expect(html).toContain("window.addEventListener('beforeprint', ajustarPaginaUnica)");
     expect(html).not.toContain("text-overflow: ellipsis");
   });
 
-  it("preserva conclusões extensas e as quatro assinaturas no documento de uma página", () => {
+  it("preserva conclusões extensas e acrescenta Rodrigo abaixo das quatro assinaturas", () => {
     const conclusao = "Inspeção detalhada sem avarias. ".repeat(150);
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {
       observacoes_gerais: conclusao,
       assinante_1: "Presidente", assinante_2: "Segundo membro",
-      assinante_3: "Terceiro membro", assinante_4: "Quarto membro",
+      assinante_3: "PAULO SERGIO BARBOSA", assinante_4: "THÔMAS TRINDADE DA SILVA",
     } });
     expect(html).toContain(conclusao.trim());
-    for (const nome of ["Presidente", "Segundo membro", "Terceiro membro", "Quarto membro"]) {
+    for (const nome of ["Presidente", "Segundo membro", "PAULO SERGIO BARBOSA", "THÔMAS TRINDADE DA SILVA"]) {
       expect(html).toContain(nome);
     }
-    expect(html.match(/class="assinatura"/g)).toHaveLength(4);
+    expect(html.match(/class="assinatura(?: assinatura-central)?"/g)).toHaveLength(5);
+    expect(html).toContain('class="assinatura assinatura-central"><strong>RODRIGO JESUÍNO TRINDADE</strong><span>AGENTE ADMINISTRATIVO</span>');
+    expect(html.indexOf('class="assinatura assinatura-central"')).toBeGreaterThan(html.indexOf("THÔMAS TRINDADE DA SILVA"));
+    expect(html).toContain(".assinatura-central { grid-column: 1 / -1; justify-self: center;");
   });
 
-  it("inclui o cabeçalho anexado, margem superior de um centímetro e parágrafos maiores", () => {
+  it("mantém o cabeçalho, margens de um centímetro e recuo de dois centímetros nos parágrafos", () => {
     const html = htmlTermoVeiculo(bem, termo);
     expect(html).toContain('@page { size: A4 portrait; margin: 10mm; }');
     expect(html).toContain('src="/images/cabecalho-recebimento-veiculos.jpg"');
@@ -102,6 +109,10 @@ describe("impressão do recebimento de veículos", () => {
     expect(html.indexOf('class="cabecalho-institucional"')).toBeLessThan(html.indexOf("<header>"));
     expect(html).toContain('.introducao { margin: 6px 0; font-size: 12px; line-height: 1.4;');
     expect(html).toContain('.observacoes { padding: 6px; font-size: 12px; line-height: 1.4;');
+    expect(html).toContain('.introducao, .observacoes { text-indent: var(--recuo-paragrafo, 20mm); }');
+    expect(html).not.toContain('class="marca"');
+    expect(html).not.toContain('PREFEITURA MUNICIPAL DE ITAJUBÁ');
+    expect(html).toContain('transform-origin: top left');
   });
 
   it("destaca o veículo na conclusão já salva sem alterar o restante do texto", () => {
@@ -113,7 +124,7 @@ describe("impressão do recebimento de veículos", () => {
 
   it("escapa conteúdo digitado antes de gerar o documento de impressão", () => {
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {
-      orgao: '<script>alert("x")</script>',
+      endereco_orgao: '<script>alert("x")</script>',
       observacoes_gerais: '<img src=x onerror="alert(1)">',
       assinante_1: "Nome & Sobrenome",
     } });

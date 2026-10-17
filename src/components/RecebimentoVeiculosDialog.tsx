@@ -90,7 +90,8 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
           ...(historico.data ?? []).map((item) => typeof item.secretaria === "string" ? item.secretaria : ""),
         ].map((nome) => nome.trim()).filter(Boolean)));
         setSecretarias(nomesSecretarias);
-        setDados({ ...preenchidos, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
+        setDados({ assinante_5: "RODRIGO JESUÍNO TRINDADE", cargo_5: "AGENTE ADMINISTRATIVO",
+          ...preenchidos, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
           modelo_veiculo: salvos.modelo_veiculo?.trim() || extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
           nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
         });
@@ -280,8 +281,8 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
             <section className="overflow-hidden rounded-xl border border-border">
               <h3 className="bg-muted px-4 py-2 text-xs font-bold uppercase tracking-wide">Assinaturas da comissão</h3>
               <div className="grid gap-3 p-3 sm:grid-cols-2">
-                {[1, 2, 3, 4].map((i) => <div key={i} className="space-y-2 rounded-lg bg-muted/30 p-3">
-                  <p className="text-xs font-bold text-primary">{i === 1 ? "Presidente" : `Membro ${i - 1}`}</p>
+                {[1, 2, 3, 4, 5].map((i) => <div key={i} className="space-y-2 rounded-lg bg-muted/30 p-3">
+                  <p className="text-xs font-bold text-primary">{i === 5 ? "Assinatura adicional · Rodrigo Jesuíno Trindade" : i === 1 ? "Presidente" : `Membro ${i - 1}`}</p>
                   {campo(`assinante_${i}`, `Nome / matrícula ${i}`)}
                   {campo(`cargo_${i}`, `Cargo / função ${i}`)}
                 </div>)}

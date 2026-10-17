@@ -49,6 +49,35 @@ async function aguardarCarga() {
 }
 
 describe("formulário de recebimento de veículos", () => {
+  it("acrescenta o nome e cargo de Rodrigo e salva alterações na quinta assinatura", async () => {
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    const nome = await screen.findByLabelText("Nome / matrícula 5");
+    expect(nome).toHaveValue("RODRIGO JESUÍNO TRINDADE");
+    expect(screen.getByLabelText("Cargo / função 5")).toHaveValue("AGENTE ADMINISTRATIVO");
+    fireEvent.change(nome, { target: { value: "Rodrigo Jesuíno Trindade" } });
+    fireEvent.change(screen.getByLabelText("Cargo / função 5"), { target: { value: "Agente Administrativo / Comissão" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ assinante_5: "Rodrigo Jesuíno Trindade", cargo_5: "Agente Administrativo / Comissão" }),
+    }), { onConflict: "bem_id" }));
+  });
+
+  it("preserva as assinaturas anteriores e os dados já salvos da assinatura adicional", async () => {
+    mocks.carregar.mockResolvedValue({ data: { dados: {
+      assinante_3: "PAULO SERGIO BARBOSA", assinante_4: "THÔMAS TRINDADE DA SILVA",
+      assinante_5: "Rodrigo Jesuíno Trindade", cargo_5: "Agente Administrativo / Comissão",
+    } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Nome / matrícula 3")).toHaveValue("PAULO SERGIO BARBOSA");
+    expect(screen.getByLabelText("Nome / matrícula 4")).toHaveValue("THÔMAS TRINDADE DA SILVA");
+    expect(screen.getByLabelText("Nome / matrícula 5")).toHaveValue("Rodrigo Jesuíno Trindade");
+    expect(screen.getByLabelText("Cargo / função 5")).toHaveValue("Agente Administrativo / Comissão");
+  });
+
   it("fica oculto até clicar no carrinho e não aparece para outros bens", async () => {
     const { rerender } = render(<BotaoRecebimentoVeiculo bem={{ ...bem, descricao: "Mesa" }} />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();

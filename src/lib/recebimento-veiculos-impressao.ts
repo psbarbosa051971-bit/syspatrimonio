@@ -24,16 +24,17 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     return `<div><b>${escapar(linha.slice(0, i + 1))}</b> ${escapar(linha.slice(i + 1))}</div>`;
   }).join("");
   const grupos = gruposChecklist.map((grupo) => `<section><h2>${escapar(grupo.titulo)}</h2><div class="checklist">${grupo.campos.map((c) => `<div><span>${escapar(c.nome)}</span><b>${texto(d[c.chave])}</b></div>`).join("")}</div></section>`).join("");
-  const assinaturas = [1, 2, 3, 4].map((i) => `<div class="assinatura"><strong>${texto(d[`assinante_${i}`])}</strong><span>${texto(d[`cargo_${i}`] || (i === 1 ? "Presidente da comissão" : "Membro da comissão"))}</span></div>`).join("");
+  const assinaturas = [1, 2, 3, 4, 5].map((i) => `<div class="assinatura${i === 5 ? " assinatura-central" : ""}"><strong>${texto(d[`assinante_${i}`] ?? (i === 5 ? "RODRIGO JESUÍNO TRINDADE" : ""))}</strong><span>${texto(i === 5 ? d.cargo_5 ?? "AGENTE ADMINISTRATIVO" : d[`cargo_${i}`] || (i === 1 ? "Presidente da comissão" : "Membro da comissão"))}</span></div>`).join("");
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termo de recebimento de veículos ${escapar(numero)}</title><style>
     @page { size: A4 portrait; margin: 10mm; }
     * { box-sizing: border-box; }
     body { margin: 0; background: oklch(0.96 0.005 250); color: oklch(0.2 0.02 255); font: 9px/1.25 Arial, sans-serif; }
     .folha { width: 190mm; height: 276mm; margin: 16px auto; background: oklch(1 0 0); box-shadow: 0 3px 20px oklch(0 0 0 / 12%); }
     .folha { position: relative; overflow: hidden; }
-    .conteudo { position: absolute; top: 0; left: 0; width: 190mm; display: flow-root; overflow-wrap: anywhere; transform-origin: top center; }
+    .conteudo { position: absolute; top: 0; left: 0; width: 190mm; display: flow-root; overflow-wrap: anywhere; transform-origin: top left; }
     header { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid oklch(0.4 0.08 250); padding-bottom: 5px; margin-bottom: 5px; }
-    header > div { min-width: 0; } .marca { font-size: 12px; font-weight: 800; color: oklch(0.35 0.08 250); } .orgao { max-width: 55%; text-align: right; font-size: 8px; white-space: pre-line; }
+    header > div { min-width: 0; } .dados-orgao { max-width: 55%; text-align: right; font-size: 8px; white-space: pre-line; }
+    .introducao, .observacoes { text-indent: var(--recuo-paragrafo, 20mm); }
     h1 { margin: 0; padding: 5px 8px; border: 1px solid oklch(0.7 0.02 250); background: oklch(0.94 0.015 250); font-size: 12px; color: oklch(0.28 0.05 250); text-align: center; }
     .cabecalho-institucional { display: block; width: 100%; height: auto; margin-bottom: 6px; }
     .introducao { margin: 6px 0; font-size: 12px; line-height: 1.4; text-align: justify; } section { margin-top: 4px; border: 1px solid oklch(0.72 0.015 250); break-inside: avoid; }
@@ -47,11 +48,12 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     .checklist div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; } .checklist span { font-size: 8px; } .checklist b { min-width: 35px; max-width: 55%; padding: 1px 3px; border: 1px solid oklch(0.8 0.01 250); font-size: 8px; font-weight: 500; text-align: center; overflow-wrap: anywhere; }
     .observacoes { padding: 6px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; text-align: justify; overflow-wrap: anywhere; } .observacoes strong { font-weight: 700; } .data { margin: 6px 0 0; }
     .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 24px; padding: 24px 12px 0; break-inside: avoid; } .assinatura { min-width: 0; border-top: 1px solid oklch(0.35 0.01 250); text-align: center; padding-top: 3px; } .assinatura span { display: block; font-size: 8px; } .assinatura strong { overflow-wrap: anywhere; }
+    .assinatura-central { grid-column: 1 / -1; justify-self: center; width: calc((100% - 24px) / 2); }
     footer { margin-top: 8px; padding-top: 4px; border-top: 1px solid oklch(0.8 0.01 250); font-size: 7px; display: flex; justify-content: space-between; gap: 8px; }
     .acoes { text-align: center; padding: 12px; } button { padding: 10px 18px; cursor: pointer; } @media print { body { background: oklch(1 0 0); } .folha { margin: 0; box-shadow: none; } .acoes { display: none; } h1,h2 { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
   </style></head><body><div class="acoes"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div><main class="folha"><div class="conteudo">
     <img class="cabecalho-institucional" src="/images/cabecalho-recebimento-veiculos.jpg" alt="Cabeçalho da Prefeitura de Itajubá" onload="ajustarPaginaUnica()">
-    <header><div><div class="marca">RECEBIMENTO DE VEÍCULOS</div><div>${texto(d.via || "Via Almoxarifado")}</div></div><div class="orgao"><b>${texto(d.orgao || "PREFEITURA MUNICIPAL DE ITAJUBÁ")}</b><br>${texto(d.endereco_orgao)}<br>${d.cnpj_orgao ? `CNPJ: ${texto(d.cnpj_orgao)}` : ""}</div></header>
+    <header><div>${texto(d.via || "Via Almoxarifado")}</div><div class="dados-orgao">${[d.endereco_orgao?.trim(), d.cnpj_orgao?.trim() ? `CNPJ: ${d.cnpj_orgao.trim()}` : ""].filter(Boolean).map(escapar).join("<br>")}</div></header>
     <h1>TERMO DE RECEBIMENTO DE VEÍCULOS Nº ${escapar(numero)}</h1>
     <p class="introducao">A Comissão de Recebimento de Veículos, designada pela Portaria nº ${texto(d.portaria || "144/2025")} e pelo Decreto nº 8342/2021, reuniu-se na Central de Distribuição e Logística para proceder ao exame de conferência do veículo abaixo descrito:</p>
     <section><h2>Identificação do recebimento</h2><div class="grade">
@@ -70,8 +72,17 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
       var conteudo = document.querySelector('.conteudo');
       if (!folha || !conteudo) return;
       conteudo.style.transform = 'none';
-      var altura = Math.max(conteudo.scrollHeight, conteudo.offsetHeight);
-      var escala = Math.min(1, (folha.clientHeight - 2) / Math.max(1, altura));
+      conteudo.style.width = '190mm';
+      conteudo.style.setProperty('--recuo-paragrafo', '20mm');
+      var escala = 1;
+      for (var tentativa = 0; tentativa < 8; tentativa++) {
+        var altura = Math.max(conteudo.scrollHeight, conteudo.offsetHeight);
+        var ajuste = Math.min(1, (folha.clientHeight - 2) / Math.max(1, altura * escala));
+        if (ajuste >= 1) break;
+        escala *= ajuste;
+        conteudo.style.width = (190 / escala) + 'mm';
+        conteudo.style.setProperty('--recuo-paragrafo', (20 / escala) + 'mm');
+      }
       conteudo.style.transform = 'scale(' + escala + ')';
     }
     ajustarPaginaUnica();
