@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep an exact-match Vite alias for the jsPDF package root to its bundled ESM distribution; import-protection resolution must work under Worker conditions without externalizing dependencies.
