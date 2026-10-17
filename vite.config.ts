@@ -5,8 +5,19 @@
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  vite: {
+    resolve: {
+      // Import protection also resolves bare package names while checking the
+      // SSR graph. jsPDF has no root export for Worker conditions.
+      alias: [{
+        find: /^jspdf$/,
+        replacement: fileURLToPath(new URL("./node_modules/jspdf/dist/jspdf.es.min.js", import.meta.url)),
+      }],
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
