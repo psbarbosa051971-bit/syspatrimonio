@@ -411,12 +411,6 @@ export type Database = {
           },
         ]
       }
-      termos_numeracao_contador: {
-        Row: { id: boolean; ultimo_numero: number }
-        Insert: { id?: boolean; ultimo_numero?: number }
-        Update: { id?: boolean; ultimo_numero?: number }
-        Relationships: []
-      }
       solicitacoes_bens: {
         Row: {
           ativa: boolean
@@ -509,6 +503,21 @@ export type Database = {
           },
         ]
       }
+      termos_numeracao_contador: {
+        Row: {
+          id: boolean
+          ultimo_numero: number
+        }
+        Insert: {
+          id?: boolean
+          ultimo_numero?: number
+        }
+        Update: {
+          id?: boolean
+          ultimo_numero?: number
+        }
+        Relationships: []
+      }
       transferencias_bens_itens: {
         Row: {
           bem_id: string
@@ -569,6 +578,30 @@ export type Database = {
         }
         Relationships: []
       }
+      transferencias_numeros_reservados: {
+        Row: {
+          ano: number
+          criado_em: string
+          numero: number
+          pedido: string
+          user_id: string
+        }
+        Insert: {
+          ano: number
+          criado_em?: string
+          numero: number
+          pedido: string
+          user_id: string
+        }
+        Update: {
+          ano?: number
+          criado_em?: string
+          numero?: number
+          pedido?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -610,30 +643,6 @@ export type Database = {
           },
         ]
       }
-      transferencias_numeros_reservados: {
-        Row: {
-          pedido: string
-          user_id: string
-          numero: number
-          ano: number
-          criado_em: string
-        }
-        Insert: {
-          pedido: string
-          user_id: string
-          numero: number
-          ano: number
-          criado_em?: string
-        }
-        Update: {
-          pedido?: string
-          user_id?: string
-          numero?: number
-          ano?: number
-          criado_em?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -661,6 +670,11 @@ export type Database = {
           sala_id: string
           sala_nome: string
         }[]
+      }
+      consultar_proximo_numero_transferencia: { Args: never; Returns: Json }
+      dados_responsavel_sala_termo: {
+        Args: { _sala_id: string }
+        Returns: Json
       }
       estornar_bens_inserviveis: {
         Args: { _sala_id: string; _solicitacoes: string[] }
@@ -729,10 +743,6 @@ export type Database = {
         Args: { _sala_id: string; _user_id: string }
         Returns: boolean
       }
-      consultar_proximo_numero_transferencia: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
       reservar_numero_transferencia: {
         Args: { _pedido: string }
         Returns: Json
@@ -753,10 +763,6 @@ export type Database = {
           _tipo: string
         }
         Returns: undefined
-      }
-      dados_responsavel_sala_termo: {
-        Args: { _sala_id: string }
-        Returns: Json
       }
       salvar_recebimento_termo: {
         Args: { _cpf: string; _importacao_id: string; _recebedor: string }
