@@ -25,8 +25,9 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
   }).join("");
   const grupos = gruposChecklist.map((grupo) => `<section><h2>${escapar(grupo.titulo)}</h2><div class="checklist">${grupo.campos.map((c) => `<div><span>${escapar(c.nome)}</span><b>${texto(d[c.chave])}</b></div>`).join("")}</div></section>`).join("");
   const assinaturas = [1, 2, 3, 4, 5].map((i) => `<div class="assinatura${i === 5 ? " assinatura-central" : ""}"><strong>${texto(d[`assinante_${i}`] ?? (i === 5 ? "RODRIGO JESUÍNO TRINDADE" : ""))}</strong><span>${texto(i === 5 ? d.cargo_5 ?? "AGENTE ADMINISTRATIVO" : d[`cargo_${i}`] || (i === 1 ? "Presidente da comissão" : "Membro da comissão"))}</span></div>`).join("");
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termo de recebimento de veículos ${escapar(numero)}</title><style>
-    @page { size: A4 portrait; margin: 10mm; }
+  const dataImpressao = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title></title><style>
+    @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; }
     body { margin: 0; background: oklch(0.96 0.005 250); color: oklch(0.2 0.02 255); font: 9px/1.25 Arial, sans-serif; }
     .folha { width: 190mm; height: 276mm; margin: 16px auto; background: oklch(1 0 0); box-shadow: 0 3px 20px oklch(0 0 0 / 12%); }
@@ -49,8 +50,9 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     .observacoes { padding: 6px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; text-align: justify; overflow-wrap: anywhere; } .observacoes strong { font-weight: 700; } .data { margin: 6px 0 0; }
     .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm 24px; padding: 12mm 12px 0; break-inside: avoid; } .assinatura { min-width: 0; border-top: 1px solid oklch(0.35 0.01 250); text-align: center; padding-top: 3px; } .assinatura span { display: block; font-size: 8px; } .assinatura strong { overflow-wrap: anywhere; }
     .assinatura-central { grid-column: 1 / -1; justify-self: center; width: calc((100% - 24px) / 2); }
-    footer { margin-top: 8px; padding-top: 4px; border-top: 1px solid oklch(0.8 0.01 250); font-size: 7px; display: flex; justify-content: space-between; gap: 8px; }
-    .acoes { text-align: center; padding: 12px; } button { padding: 10px 18px; cursor: pointer; } @media print { body { background: oklch(1 0 0); } .folha { margin: 0; box-shadow: none; } .acoes { display: none; } h1,h2 { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+    footer { position: absolute; bottom: 0; left: 0; right: 0; padding-top: 4px; border-top: 1px solid oklch(0.8 0.01 250); font-size: 7px; display: flex; justify-content: space-between; gap: 8px; }
+    .data-impressao { white-space: nowrap; }
+    .acoes { text-align: center; padding: 12px; } button { padding: 10px 18px; cursor: pointer; } @media print { body { background: oklch(1 0 0); padding: 10mm 10mm 11mm; } .folha { margin: 0; box-shadow: none; } .acoes { display: none; } h1,h2 { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
   </style></head><body><div class="acoes"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div><main class="folha"><div class="conteudo">
     <img class="cabecalho-institucional" src="/images/cabecalho-recebimento-veiculos.jpg" alt="Cabeçalho da Prefeitura de Itajubá" onload="ajustarPaginaUnica()">
     <header><div>${texto(d.via || "Via Almoxarifado")}</div><div class="dados-orgao">${[d.endereco_orgao?.trim(), d.cnpj_orgao?.trim() ? `CNPJ: ${d.cnpj_orgao.trim()}` : ""].filter(Boolean).map(escapar).join("<br>")}</div></header>
@@ -65,19 +67,23 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     <section><h2>Descrição do veículo e secretaria de destino</h2><div class="veiculo"><div class="descricao">${descricao}</div><div class="destino"><b>SECRETARIA DESTINO</b><br><br>${texto(d.secretaria || local || d.local_fisico)}</div></div></section>
     <div class="grupos-checklist">${grupos}</div><section><h2>Observações gerais / conclusão da comissão</h2><div class="observacoes">${observacoes}</div></section>
     <p class="data">${texto(d.cidade || "Itajubá")}, ${texto(dataBr(d.data_termo || d.data_recebimento || termo.criado_em.slice(0, 10)))}.</p>
-    <div class="assinaturas">${assinaturas}</div><footer><span>SysPatrimônio · Recebimento de veículos</span><span>Termo ${escapar(numero)} · Patrimônio ${escapar(formatarCodigoRed(bem.codigo_red))}</span></footer>
-  </div></main><script type="text/javascript">
+    <div class="assinaturas">${assinaturas}</div>
+  </div><footer><span>SysPatrimônio · Recebimento de veículos</span><span>Termo ${escapar(numero)} · Patrimônio ${escapar(formatarCodigoRed(bem.codigo_red))}</span><span class="data-impressao">${escapar(dataImpressao)}</span></footer></main><script type="text/javascript">
     function ajustarPaginaUnica() {
       var folha = document.querySelector('.folha');
       var conteudo = document.querySelector('.conteudo');
+      var rodape = document.querySelector('footer');
+      var dataImpressao = document.querySelector('.data-impressao');
+      if (dataImpressao) dataImpressao.textContent = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
       if (!folha || !conteudo) return;
+      var alturaDisponivel = folha.clientHeight - (rodape ? rodape.offsetHeight + 8 : 0);
       conteudo.style.transform = 'none';
       conteudo.style.width = '190mm';
       conteudo.style.setProperty('--recuo-paragrafo', '20mm');
       var escala = 1;
       for (var tentativa = 0; tentativa < 8; tentativa++) {
         var altura = Math.max(conteudo.scrollHeight, conteudo.offsetHeight);
-        var ajuste = Math.min(1, (folha.clientHeight - 2) / Math.max(1, altura * escala));
+        var ajuste = Math.min(1, (alturaDisponivel - 2) / Math.max(1, altura * escala));
         if (ajuste >= 1) break;
         escala *= ajuste;
         conteudo.style.width = (190 / escala) + 'mm';

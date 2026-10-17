@@ -76,7 +76,8 @@ describe("impressão do recebimento de veículos", () => {
     expect(html).toContain('class="conteudo"');
     expect(html).toContain("width: 190mm; height: 276mm;");
     expect(html).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
-    expect(html).toContain("Math.min(1, (folha.clientHeight - 2) / Math.max(1, altura * escala))");
+    expect(html).toContain("Math.min(1, (alturaDisponivel - 2) / Math.max(1, altura * escala))");
+    expect(html).toContain("var alturaDisponivel = folha.clientHeight - (rodape ? rodape.offsetHeight + 8 : 0)");
     expect(html).toContain("conteudo.style.width = (190 / escala) + 'mm'");
     expect(html).toContain("conteudo.style.setProperty('--recuo-paragrafo', (20 / escala) + 'mm')");
     expect(html).toContain("window.addEventListener('beforeprint', ajustarPaginaUnica)");
@@ -102,7 +103,8 @@ describe("impressão do recebimento de veículos", () => {
 
   it("mantém o cabeçalho, margens de um centímetro e recuo de dois centímetros nos parágrafos", () => {
     const html = htmlTermoVeiculo(bem, termo);
-    expect(html).toContain('@page { size: A4 portrait; margin: 10mm; }');
+    expect(html).toContain('@page { size: A4 portrait; margin: 0; }');
+    expect(html).toContain('padding: 10mm 10mm 11mm;');
     expect(html).toContain('src="/images/cabecalho-recebimento-veiculos.jpg"');
     expect(html).toContain('alt="Cabeçalho da Prefeitura de Itajubá"');
     expect(html).toContain('onload="ajustarPaginaUnica()"');
@@ -134,6 +136,17 @@ describe("impressão do recebimento de veículos", () => {
       expect(html).toContain(`<strong>${nome}</strong>`);
     }
     expect(html.match(/class="assinatura(?: assinatura-central)?"/g)).toHaveLength(5);
+  });
+
+  it("retira o título extra do navegador e coloca data e hora no rodapé", () => {
+    const html = htmlTermoVeiculo(bem, termo);
+    expect(html).toContain("<title></title>");
+    expect(html).not.toContain("<title>Termo de recebimento");
+    expect(html).not.toContain("about:blank");
+    expect(html).toMatch(/<span class="data-impressao">\d{2}\/\d{2}\/\d{4},? \d{2}:\d{2}<\/span><\/footer>/);
+    expect(html).toContain("footer { position: absolute; bottom: 0;");
+    expect(html).toContain("if (dataImpressao) dataImpressao.textContent = new Date().toLocaleString('pt-BR'");
+    expect(html).toContain("TERMO DE RECEBIMENTO DE VEÍCULOS Nº 002/2026");
   });
 
   it("escapa conteúdo digitado antes de gerar o documento de impressão", () => {
