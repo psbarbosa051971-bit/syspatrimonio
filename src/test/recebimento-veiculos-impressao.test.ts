@@ -122,6 +122,20 @@ describe("impressão do recebimento de veículos", () => {
     expect(html).toContain('o veículo <strong>FORD RANGER LIMITED 4WD V6 LTDPCD3D4A</strong> encontra-se em perfeito estado de conservação.');
   });
 
+  it("amplia os campos de identificação em preto e reserva mais espaço para as assinaturas", () => {
+    const html = htmlTermoVeiculo(bem, { ...termo, dados: {
+      assinante_1: "LUCAS LEONARDO", assinante_2: "IGOR TALLES",
+      assinante_3: "PAULO SERGIO", assinante_4: "THÔMAS",
+    } });
+    expect(html).toContain('.campo span { display: block; font-size: 9px; font-weight: 700; text-transform: uppercase; color: oklch(0 0 0); }');
+    expect(html).toContain('.campo strong { display: block; overflow-wrap: anywhere; font-size: 11px; font-weight: 500; color: oklch(0 0 0);');
+    expect(html).toContain('gap: 12mm 24px; padding: 12mm 12px 0;');
+    for (const nome of ["LUCAS LEONARDO", "IGOR TALLES", "PAULO SERGIO", "THÔMAS"]) {
+      expect(html).toContain(`<strong>${nome}</strong>`);
+    }
+    expect(html.match(/class="assinatura(?: assinatura-central)?"/g)).toHaveLength(5);
+  });
+
   it("escapa conteúdo digitado antes de gerar o documento de impressão", () => {
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {
       endereco_orgao: '<script>alert("x")</script>',
