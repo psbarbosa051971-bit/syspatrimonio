@@ -138,6 +138,18 @@ describe("impressão do recebimento de veículos", () => {
     expect(html.match(/class="assinatura(?: assinatura-central)?"/g)).toHaveLength(5);
   });
 
+  it("destaca os grupos e campos do checklist em maiúsculas, negrito e com bordas pretas", () => {
+    const html = htmlTermoVeiculo(bem, termo);
+    expect(html).toContain('.grupos-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; text-transform: uppercase; color: oklch(0 0 0); }');
+    expect(html).toContain('.grupos-checklist h2 { font-weight: 700; }');
+    expect(html).toContain('.checklist span { font-size: 8px; font-weight: 700; }');
+    expect(html).toContain('.checklist b { min-width: 35px; max-width: 55%; padding: 1px 3px; border: 1.25px solid oklch(0 0 0); font-size: 8px; font-weight: 700;');
+    expect(html).toContain('section { border: 1.25px solid oklch(0 0 0); }');
+    expect(html).toContain('header, h1, h2, .campo, .destino, .assinatura, footer { border-color: oklch(0 0 0); }');
+    expect(html).toContain('<b>Manual / mecânico</b>');
+    expect(html).toContain('Conferência concluída, sem avarias.');
+  });
+
   it("retira o título extra do navegador e coloca data e hora no rodapé", () => {
     const html = htmlTermoVeiculo(bem, termo);
     expect(html).toContain("<title></title>");

@@ -43,10 +43,13 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     .grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); } .campo { min-width: 0; padding: 3px 6px; border-bottom: 1px solid oklch(0.88 0.01 250); }
     .campo span { display: block; font-size: 9px; font-weight: 700; text-transform: uppercase; color: oklch(0 0 0); } .campo strong { display: block; overflow-wrap: anywhere; font-size: 11px; font-weight: 500; color: oklch(0 0 0); margin-top: 1px; }
     .veiculo { display: grid; grid-template-columns: 2fr 1fr; } .descricao { padding: 5px 6px; overflow-wrap: anywhere; } .destino { min-width: 0; border-left: 1px solid oklch(0.72 0.015 250); padding: 5px 6px; white-space: pre-line; }
-    .grupos-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; }
+    .grupos-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 6px; text-transform: uppercase; color: oklch(0 0 0); }
     .grupos-checklist section { min-width: 0; }
+    .grupos-checklist h2 { font-weight: 700; }
     .checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; padding: 5px 6px; }
-    .checklist div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; } .checklist span { font-size: 8px; } .checklist b { min-width: 35px; max-width: 55%; padding: 1px 3px; border: 1px solid oklch(0.8 0.01 250); font-size: 8px; font-weight: 500; text-align: center; overflow-wrap: anywhere; }
+    .checklist div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; } .checklist span { font-size: 8px; font-weight: 700; } .checklist b { min-width: 35px; max-width: 55%; padding: 1px 3px; border: 1.25px solid oklch(0 0 0); font-size: 8px; font-weight: 700; text-align: center; overflow-wrap: anywhere; }
+    section { border: 1.25px solid oklch(0 0 0); }
+    header, h1, h2, .campo, .destino, .assinatura, footer { border-color: oklch(0 0 0); }
     .observacoes { padding: 6px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; text-align: justify; overflow-wrap: anywhere; } .observacoes strong { font-weight: 700; } .data { margin: 6px 0 0; }
     .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm 24px; padding: 12mm 12px 0; break-inside: avoid; } .assinatura { min-width: 0; border-top: 1px solid oklch(0.35 0.01 250); text-align: center; padding-top: 3px; } .assinatura span { display: block; font-size: 8px; } .assinatura strong { overflow-wrap: anywhere; }
     .assinatura-central { grid-column: 1 / -1; justify-self: center; width: calc((100% - 24px) / 2); }
