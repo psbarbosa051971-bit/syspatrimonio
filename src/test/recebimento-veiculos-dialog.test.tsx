@@ -300,6 +300,58 @@ describe("formulário de recebimento de veículos", () => {
     expect(await screen.findByLabelText("Observações gerais / conclusão da comissão")).toHaveValue("Inspeção com ressalvas.");
   });
 
+  it("salva os campos da retirada e abre o relatório pelo botão Retirar Veículo", async () => {
+    const janela = {
+      opener: {}, closed: false,
+      document: { body: { textContent: "" }, open: vi.fn(), write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(), close: vi.fn(),
+    };
+    const abrir = vi.spyOn(window, "open").mockReturnValue(janela as unknown as Window);
+    const dadosRetirada = {
+      secretaria: "TRANSPORTE DA SAÚDE", retirada_responsavel: "Maria da Silva",
+      retirada_documento: "12345", retirada_diretor: "João", retirada_estado: "NOVO",
+      retirada_endereco: "Rua do destino, 173", retirada_data: "2026-10-17", retirada_crv: "Sim",
+    };
+    mocks.gravar.mockResolvedValue({ data: {
+      bem_id: bem.id, numero: 2, ano: 2026, criado_em: "2026-10-17T12:00:00Z",
+      atualizado_em: "2026-10-17T12:00:00Z", atualizado_por: "usuario", dados: dadosRetirada,
+    }, error: null });
+    const onClose = vi.fn();
+    try {
+      render(<RecebimentoVeiculosDialog bem={bem} onClose={onClose} />);
+      await aguardarCarga();
+      fireEvent.change(screen.getByLabelText("Secretaria"), { target: { value: dadosRetirada.secretaria } });
+      for (const [rotulo, chave] of [
+        ["Endereço do destino", "retirada_endereco"], ["Estado na retirada", "retirada_estado"],
+        ["Data da retirada", "retirada_data"], ["Diretor de Material e Patrimônio", "retirada_diretor"],
+        ["Responsável pela retirada", "retirada_responsavel"],
+        ["Matrícula / documento do responsável", "retirada_documento"], ["CRV/recibo entregue", "retirada_crv"],
+      ] as const) fireEvent.change(screen.getByLabelText(rotulo), { target: { value: dadosRetirada[chave] } });
+      fireEvent.click(screen.getByRole("button", { name: "Retirar Veículo" }));
+      await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        dados: expect.objectContaining(dadosRetirada),
+      }), { onConflict: "bem_id" }));
+      await waitFor(() => expect(janela.document.write).toHaveBeenCalledWith(expect.stringContaining("TERMO DE RESPONSABILIDADE Nº 002/2026")));
+      expect(janela.document.write).toHaveBeenCalledWith(expect.stringContaining("Maria da Silva"));
+      expect(janela.opener).toBeNull();
+      expect(janela.focus).toHaveBeenCalledOnce();
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally { abrir.mockRestore(); }
+  });
+
+  it("mantém o formulário sem gravar quando o navegador bloqueia a janela da retirada", async () => {
+    const abrir = vi.spyOn(window, "open").mockReturnValue(null);
+    const onClose = vi.fn();
+    try {
+      render(<RecebimentoVeiculosDialog bem={bem} onClose={onClose} />);
+      await aguardarCarga();
+      fireEvent.click(screen.getByRole("button", { name: "Retirar Veículo" }));
+      expect(mocks.erro).toHaveBeenCalledWith("Permita a abertura de janelas para salvar e imprimir o termo.");
+      expect(mocks.upsert).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    } finally { abrir.mockRestore(); }
+  });
+
   it("bloqueia a gravação após falha ao carregar e permite tentar novamente", async () => {
     mocks.carregar.mockResolvedValueOnce({ data: null, error: { message: "Falha" } });
     render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);

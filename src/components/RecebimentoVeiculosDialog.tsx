@@ -2,6 +2,7 @@ import type { TablesInsert } from "@/integrations/supabase/types";
 import { useEffect, useState } from "react";
 import { Car, Printer, Save } from "lucide-react";
 import { htmlTermoVeiculo, numeroTermoVeiculo } from "@/lib/recebimento-veiculos-impressao";
+import { htmlRetiradaVeiculo } from "@/lib/retirada-veiculo-impressao";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -103,7 +104,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     return () => { cancelado = true; };
   }, [bem.id, bem.sala_id, bem.descricao, tentativa]);
 
-  async function salvar(imprimir = false) {
+  async function salvar(imprimir: boolean | "retirada" = false) {
     if (carregando || erro || salvando || !bem.sala_id) return;
     if (dados.valor && (!/^\d+(?:\.\d{1,2})?$/.test(dados.valor) || !Number.isFinite(Number(dados.valor)))) {
       toast.error("Informe um valor positivo ou zero, com até duas casas decimais."); return;
@@ -126,7 +127,9 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
       toast.success(`Termo de recebimento Nº ${numeroTermoVeiculo(salvo)} salvo.`);
       if (janela && !janela.closed) {
         janela.document.open();
-        janela.document.write(htmlTermoVeiculo(bem, salvo, localOrigem));
+        janela.document.write(imprimir === "retirada"
+          ? htmlRetiradaVeiculo(bem, salvo, localOrigem)
+          : htmlTermoVeiculo(bem, salvo, localOrigem));
         janela.document.close();
         janela.focus();
       }
@@ -239,6 +242,26 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
                 </div>
               </div>
             </div>
+            <section className="rounded-md border border-border">
+              <h3 className="bg-muted px-3 py-1 text-xs font-bold uppercase">Retirada do veículo · termo de responsabilidade</h3>
+              <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3">
+                {campo("retirada_endereco", "Endereço do destino")}
+                {campo("retirada_estado", "Estado na retirada")}
+                {campo("retirada_data", "Data da retirada", "date")}
+                {campo("retirada_diretor", "Diretor de Material e Patrimônio")}
+                {campo("retirada_responsavel", "Responsável pela retirada")}
+                {campo("retirada_documento", "Matrícula / documento do responsável")}
+                <label className="min-w-0 space-y-1 text-xs font-semibold">
+                  <span className="block uppercase">CRV/recibo entregue</span>
+                  <select aria-label="CRV/recibo entregue" value={dados.retirada_crv ?? ""}
+                    onChange={(evento) => alterar("retirada_crv", evento.target.value)}
+                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground">
+                    <option value="">Não informado</option><option value="Sim">Sim</option><option value="Não">Não</option>
+                  </select>
+                </label>
+              </div>
+              <p className="px-2 pb-2 text-xs text-muted-foreground">Retirar Veículo salva o formulário e abre o relatório para impressão, usando o número do recebimento. Confira também a Secretaria e, no Check-list, a chave reserva e o manual entregues. Esta ação não transfere o patrimônio de Local Físico.</p>
+            </section>
           </TabsContent>
           <TabsContent value="checklist" className="mt-0 space-y-2">
             {gruposChecklist.map((grupo) => <section key={grupo.titulo} className="rounded-md border border-border">
@@ -297,6 +320,9 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={() => salvar()} disabled={carregando || erro || salvando || !bem.sala_id}>
             <Save className="mr-2 h-4 w-4" />{salvando ? "Salvando..." : "Salvar recebimento e check-list"}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => salvar("retirada")} disabled={carregando || erro || salvando || !bem.sala_id}>
+            <Printer className="mr-2 h-4 w-4" />Retirar Veículo
           </Button>
           <Button type="button" onClick={() => salvar(true)} disabled={carregando || erro || salvando || !bem.sala_id}>
             <Printer className="mr-2 h-4 w-4" />Salvar e imprimir termo
