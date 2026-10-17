@@ -68,6 +68,31 @@ describe("impressão do recebimento de veículos", () => {
     expect(html).toContain(bem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
   });
 
+  it("organiza o checklist em duas colunas e ajusta o conteúdo à página A4 antes de imprimir", () => {
+    const html = htmlTermoVeiculo(bem, termo);
+    expect(html).toContain('class="grupos-checklist"');
+    expect(html).toContain('class="conteudo"');
+    expect(html).toContain("width: 190mm; height: 276mm;");
+    expect(html).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
+    expect(html).toContain("Math.min(1, (folha.clientHeight - 2) / Math.max(1, altura))");
+    expect(html).toContain("window.addEventListener('beforeprint', ajustarPaginaUnica)");
+    expect(html).not.toContain("text-overflow: ellipsis");
+  });
+
+  it("preserva conclusões extensas e as quatro assinaturas no documento de uma página", () => {
+    const conclusao = "Inspeção detalhada sem avarias. ".repeat(150);
+    const html = htmlTermoVeiculo(bem, { ...termo, dados: {
+      observacoes_gerais: conclusao,
+      assinante_1: "Presidente", assinante_2: "Segundo membro",
+      assinante_3: "Terceiro membro", assinante_4: "Quarto membro",
+    } });
+    expect(html).toContain(conclusao.trim());
+    for (const nome of ["Presidente", "Segundo membro", "Terceiro membro", "Quarto membro"]) {
+      expect(html).toContain(nome);
+    }
+    expect(html.match(/class="assinatura"/g)).toHaveLength(4);
+  });
+
   it("escapa conteúdo digitado antes de gerar o documento de impressão", () => {
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {
       orgao: '<script>alert("x")</script>',
