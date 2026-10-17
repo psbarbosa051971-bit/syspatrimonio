@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   falharSalas: false,
   falharDepartamentos: false,
   bens: [] as Record<string, unknown>[],
+  termos: [] as Record<string, unknown>[],
   salas: [] as { id: string; departamento_id: string; nome: string; endereco: string | null; unidade: string | null }[],
 }));
 vi.mock("@tanstack/react-router", () => ({
@@ -65,6 +66,7 @@ beforeEach(() => {
   mocks.falharUnidade = false;
   mocks.salas = [sala];
   mocks.bens = [bem, outroBem];
+  mocks.termos = [];
   mocks.rpc.mockImplementation((_funcao: string, { _termo }: { _termo: string }) => ({
     range: async (inicio: number, fim: number) => {
       if (mocks.falharSalas) return { data: null, error: { message: "Falha de conexão" } };
@@ -83,14 +85,14 @@ beforeEach(() => {
       || (tabela === "departamentos" && mocks.falharDepartamentos);
     const resultado = falha
       ? { data: null, error: { message: "Falha de conexão" } }
-      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : mocks.bens, error: null };
+      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : tabela === "importacoes" ? mocks.termos : mocks.bens, error: null };
     const consulta: Record<string, unknown> = {};
     let alteracao: { unidade: string } | null = null;
     let salaId = "";
     let filtroSala: string | null = null;
     let filtroDepartamento: string | null = null;
     let intervalo: [number, number] = [0, 499];
-    for (const metodo of ["select", "order", "in"]) consulta[metodo] = () => consulta;
+    for (const metodo of ["select", "order", "in", "not"]) consulta[metodo] = () => consulta;
     consulta["range"] = (inicio: number, fim: number) => { intervalo = [inicio, fim]; return consulta; };
     consulta["update"] = (dados: { unidade: string }) => { alteracao = dados; return consulta; };
     consulta["eq"] = (coluna: string, valor: string) => {
@@ -139,6 +141,23 @@ async function importarParaLiberarUnidade() {
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("mostra os bens do termo clicado e permite voltar à sala inteira", async () => {
+    mocks.termos = [{
+      id: "termo-1", numero: 29, termo_ano: 2026, created_at: "2026-10-17T12:00:00Z", arquivo: "termo.html",
+      termo_snapshot: { local: "Sala existente", bens: [{ codigo_red: "123", descricao: "Mesa cadastrada", valor: 10 }] },
+    }];
+    mocks.bens = [{ ...bem, importacao_id: "termo-1" }, { ...outroBem, importacao_id: null }];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    expect(screen.getByRole("button", { name: "Compartilhar Relatório" })).toBeEnabled();
+    fireEvent.click(await screen.findByRole("button", { name: "Mostrar bens do termo 29/2026" }));
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.queryByText("Cadeira azul")).not.toBeInTheDocument();
+    expect(screen.getByText("Termo 29/2026 — 1 bem(ns) ainda nesta sala.")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Mostrar todos os bens da sala" })[0]!);
+    expect(screen.getByText("Cadeira azul")).toBeInTheDocument();
+  });
+
   it("direciona o ícone da sala para gerenciar seus usuários em vez de abrir os registros", async () => {
     render(<Page />);
     fireEvent.click(await screen.findByRole("button", { name: "Gerenciar usuários de Sala existente" }));

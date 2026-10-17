@@ -25,6 +25,10 @@ import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/l
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
+import { TermosDaSala } from "@/components/TermosDaSala";
+import { CompartilharRelatorioSala } from "@/components/CompartilharRelatorioSala";
+import { numeroDoTermo } from "@/lib/termo-responsabilidade";
+import type { TermoDaSala } from "@/lib/termos-da-sala";
 import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog";
 import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
@@ -158,13 +162,27 @@ function DepartamentosPage() {
   const [pesquisaDinamica, setPesquisaDinamica] = useState("");
   const [resultadoPesquisa, setResultadoPesquisa] = useState<ResultadoPesquisaDinamica | null>(null);
   const [localizando, setLocalizando] = useState(false);
-  const bensExibidos = resultadoPesquisa?.bens ?? bens;
+  const [termoSelecionado, setTermoSelecionado] = useState<TermoDaSala | null>(null);
+  const bensDoTermo = useMemo(() => termoSelecionado
+    ? bens.filter((bem) => bem.importacao_id === termoSelecionado.id) : bens, [bens, termoSelecionado]);
+  const bensExibidos = resultadoPesquisa?.bens ?? bensDoTermo;
+  const dadosRelatorioSala = useMemo(() => salaSel ? {
+    sala: salaSel, departamento: departamentoSel?.departamento ?? "",
+    responsavel: perfilResponsavel?.salaId === salaSel.id ? perfilResponsavel.nome ?? "" : salaSel.responsavel ?? "",
+    bens,
+  } : null, [salaSel, departamentoSel?.departamento, perfilResponsavel, bens]);
+  function selecionarTermoDaSala(termo: TermoDaSala) {
+    setTermoSelecionado(termo); setResultadoPesquisa(null); setBuscaBens(""); setSelecionados([]);
+    document.getElementById("bens-da-sala")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
+  useEffect(() => { setTermoSelecionado(null); }, [salaSel?.id]);
 
   async function localizarOuAtualizar(e: React.FormEvent) {
     e.preventDefault();
     if (localizando) return;
     if (resultadoPesquisa) {
       setResultadoPesquisa(null);
+      setTermoSelecionado(null);
       setPesquisaDinamica("");
       setBuscaBens("");
       setSelecionados([]);
@@ -294,6 +312,8 @@ function DepartamentosPage() {
     if (salaSel?.id === salaExcluir.id) {
       setBens(atualizados);
       setSelecionados([]);
+      setTermoSelecionado(null);
+      setTentativaBens((valor) => valor + 1);
     }
     if (dialogSala?.id === salaExcluir.id) setBensDialogSala(atualizados);
     setSalas((p) => [...p]);
@@ -927,9 +947,13 @@ function DepartamentosPage() {
           )}
 
           {/* Subformulário de bens */}
-          <Card className="min-w-0">
+          <Card id="bens-da-sala" className="min-w-0 scroll-mt-4">
             <CardHeader>
-              <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+                <CompartilharRelatorioSala dados={dadosRelatorioSala}
+                  disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
+              </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="flex flex-wrap gap-2">
                   <Button variant="destructive" size="sm"
@@ -1133,8 +1157,12 @@ function DepartamentosPage() {
                 <Input id="codigos-selecionados-transferencia" readOnly value={textoCodigosTransferencia} />
                 <p className="text-sm text-muted-foreground">Clique em Gerar transferência no cabeçalho. Os códigos serão preenchidos automaticamente; selecione o local de destino para liberar Filtrar. Esta seleção é independente da exclusão.</p>
               </div>}
-              <div className="max-h-[480px] overflow-y-auto rounded-md border border-border">
-              <Table className="text-xs [&_td]:text-xs [&_td_button]:text-xs [&_td_span]:text-xs">
+              {termoSelecionado && !resultadoPesquisa && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-accent px-3 py-2 text-sm" role="status">
+                <span>Termo {numeroDoTermo(termoSelecionado)} — {bensDoTermo.length} bem(ns) ainda nesta sala.</span>
+                <Button variant="outline" size="sm" onClick={() => { setTermoSelecionado(null); setBuscaBens(""); setSelecionados([]); }}>Mostrar todos os bens da sala</Button>
+              </div>}
+              <div className="h-[354px] overflow-hidden rounded-md border border-border [&>div]:h-full">
+              <Table className="table-fixed min-w-[1100px] text-xs [&_tbody_tr]:h-10 [&_tbody_td]:h-10 [&_tbody_td]:max-h-10 [&_tbody_td]:overflow-hidden [&_tbody_td]:whitespace-nowrap [&_td]:text-xs [&_td_button]:text-xs [&_td_span]:text-xs">
                 <TableHeader className="sticky top-0 z-10 bg-room-assets-header [&_th]:border-y-2 [&_th]:border-room-assets-header-border [&_th]:font-bold [&_th]:text-[10px] [&_th]:text-room-assets-header-foreground [&_th]:whitespace-nowrap [&_th:first-child]:border-l-2 [&_th:last-child]:border-r-2">
                   <TableRow className="h-8 hover:bg-room-assets-header">
                     <TableHead className="h-8 w-12 py-1 text-center">EXC.</TableHead>
@@ -1164,7 +1192,9 @@ function DepartamentosPage() {
                                 Tentar novamente
                               </Button>
                             </div>
-                          ) : salaSel
+                          ) : termoSelecionado
+                            ? "Nenhum bem deste termo permanece nesta sala. Consulte o documento original em Termo de Responsabilidade."
+                            : salaSel
                             ? "Nenhum bem cadastrado nesta sala."
                             : "Selecione uma sala na caixa de listagem ao lado."}
                       </TableCell>
@@ -1209,11 +1239,13 @@ function DepartamentosPage() {
                           {formatarCodigoRed(b.codigo_red)}
                         </button>
                       </TableCell>
-                      <TableCell className="py-1">
-                        {limparDescricao(b.descricao)}
-                        <EditarDescricaoBem bem={b} onSaved={atualizarDescricaoBem} />
-                        <BotaoRecebimentoVeiculo bem={b} />
-                        {resultadoPesquisa && <span className="block text-sm text-muted-foreground">
+                      <TableCell className="py-1" title={limparDescricao(b.descricao)}>
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="min-w-0 flex-1 truncate">{limparDescricao(b.descricao)}</span>
+                          <EditarDescricaoBem bem={b} onSaved={atualizarDescricaoBem} />
+                          <BotaoRecebimentoVeiculo bem={b} />
+                        </div>
+                        {resultadoPesquisa && <span className="block truncate text-sm text-muted-foreground" title={b.sala_id ? resultadoPesquisa.locais[b.sala_id] : "—"}>
                           Local Físico: {b.sala_id ? resultadoPesquisa.locais[b.sala_id] : "—"}
                         </span>}
                       </TableCell>
@@ -1370,6 +1402,11 @@ function DepartamentosPage() {
             </CardContent>
           </Card>
         </div>
+        <TermosDaSala salaId={salaSel?.id ?? null} atualizar={tentativaBens}
+          selecionado={termoSelecionado?.id ?? null}
+          quantidadeBens={bens.length} valorSala={bens.reduce((total, bem) => total + Number(bem.valor), 0)}
+          onSelecionar={selecionarTermoDaSala}
+          onLimpar={() => { setTermoSelecionado(null); setBuscaBens(""); setSelecionados([]); }} />
       </main>
 
       {/* Dialog: registros (bens) da sala clicada */}
