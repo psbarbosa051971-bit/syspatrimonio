@@ -43,11 +43,22 @@ describe("impressão do recebimento de veículos", () => {
     expect(html.match(/class="assinatura"/g)).toHaveLength(4);
   });
 
-  it("não inventa a conclusão da inspeção quando ela não foi preenchida", () => {
+  it("preenche a conclusão padrão com o veículo do patrimônio e a nova introdução", () => {
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {} });
-    expect(html).not.toContain("sem avarias");
-    expect(html).toContain("Observações gerais / conclusão da comissão");
-    expect(html).toContain("VEÍCULO CHEVROLET ONIX");
+    expect(html).toContain("Após inspeção realizada pela Comissão de Recebimento, constatou-se que o veículo CHEVROLET ONIX encontra-se em perfeito estado de conservação. O bem não apresenta avarias no motor, na lataria, no estofamento e no sistema elétrico, sendo declarado em total conformidade com o pedido de compra.");
+    expect(html).toContain("A Comissão de Recebimento de Veículos, designada pela Portaria nº 144/2025 e pelo Decreto nº 8342/2021, reuniu-se na Central de Distribuição e Logística para proceder ao exame de conferência do veículo abaixo descrito:");
+    expect(html).not.toContain("Ford Ranger");
+  });
+
+  it("usa o modelo informado no recebimento sem substituir conclusões personalizadas", () => {
+    const html = htmlTermoVeiculo(bem, { ...termo, dados: {
+      modelo_veiculo: "Ford Ranger Limited 2.5 4WD, 5 passageiros, cor preta, motor diesel,",
+      observacoes_gerais: " ",
+    } });
+    expect(html).toContain("o veículo Ford Ranger Limited 2.5 4WD, 5 passageiros, cor preta, motor diesel encontra-se em perfeito estado");
+    const personalizado = htmlTermoVeiculo(bem, termo);
+    expect(personalizado).toContain("Conferência concluída, sem avarias.");
+    expect(personalizado).not.toContain("Após inspeção realizada");
   });
 
   it("inclui o valor total da nota sem substituir o valor unitário do patrimônio", () => {

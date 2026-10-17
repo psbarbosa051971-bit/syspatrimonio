@@ -85,6 +85,7 @@ describe("formulário de recebimento de veículos", () => {
     await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
       bem_id: bem.id, atualizado_por: "usuario", dados: expect.objectContaining({
         secretaria: "Secretaria da Saúde", ano_modelo: "2025/2026", placa: "ABC1234", triangulo: "Sim",
+        observacoes_gerais: "Após inspeção realizada pela Comissão de Recebimento, constatou-se que o veículo MARCA FIAT encontra-se em perfeito estado de conservação. O bem não apresenta avarias no motor, na lataria, no estofamento e no sistema elétrico, sendo declarado em total conformidade com o pedido de compra.",
       }),
     }), { onConflict: "bem_id" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -245,6 +246,29 @@ describe("formulário de recebimento de veículos", () => {
     }), { onConflict: "bem_id" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
     expect(mocks.sucesso).toHaveBeenCalledWith("Termo de recebimento Nº 002/2026 salvo.");
+  });
+
+  it("preenche a conclusão padrão com o modelo atual e permite revisar o texto", async () => {
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    fireEvent.change(screen.getByLabelText("Modelo do veículo"), { target: { value: "Ford Ranger Limited 2.5 4WD, 5 passageiros, cor preta, motor diesel" } });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Portaria da comissão (nº/ano)")).toHaveValue("144/2025");
+    const conclusao = screen.getByLabelText("Observações gerais / conclusão da comissão");
+    expect(conclusao).toHaveValue("Após inspeção realizada pela Comissão de Recebimento, constatou-se que o veículo Ford Ranger Limited 2.5 4WD, 5 passageiros, cor preta, motor diesel encontra-se em perfeito estado de conservação. O bem não apresenta avarias no motor, na lataria, no estofamento e no sistema elétrico, sendo declarado em total conformidade com o pedido de compra.");
+    fireEvent.change(conclusao, { target: { value: "Veículo recebido com ressalvas na pintura." } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ observacoes_gerais: "Veículo recebido com ressalvas na pintura." }),
+    }), { onConflict: "bem_id" }));
+  });
+
+  it("mantém a conclusão já salva mesmo com outro modelo no cadastro", async () => {
+    mocks.carregar.mockResolvedValue({ data: { dados: { observacoes_gerais: "Inspeção com ressalvas." } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Observações gerais / conclusão da comissão")).toHaveValue("Inspeção com ressalvas.");
   });
 
   it("bloqueia a gravação após falha ao carregar e permite tentar novamente", async () => {

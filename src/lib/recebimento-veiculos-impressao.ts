@@ -1,5 +1,5 @@
 import type { Tables } from "@/integrations/supabase/types";
-import { descricaoDetalhada, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
+import { conclusaoPadraoRecebimento, descricaoDetalhada, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
 
@@ -45,7 +45,7 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
   </style></head><body><div class="acoes"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div><main class="folha">
     <header><div><div class="marca">RECEBIMENTO DE VEÍCULOS</div><div>${texto(d.via || "Via Almoxarifado")}</div></div><div class="orgao"><b>${texto(d.orgao || "PREFEITURA MUNICIPAL DE ITAJUBÁ")}</b><br>${texto(d.endereco_orgao)}<br>${d.cnpj_orgao ? `CNPJ: ${texto(d.cnpj_orgao)}` : ""}</div></header>
     <h1>TERMO DE RECEBIMENTO DE VEÍCULOS Nº ${escapar(numero)}</h1>
-    <p class="introducao">A comissão de recebimento de veículos${d.portaria ? `, designada pela Portaria nº ${texto(d.portaria)},` : ""} reúne-se para proceder à conferência e à inspeção do veículo abaixo descrito, verificando sua conformidade com as especificações técnicas e demais exigências${d.pedido ? ` da Ordem de Compra nº ${texto(d.pedido)}` : " da aquisição"}.</p>
+    <p class="introducao">A Comissão de Recebimento de Veículos, designada pela Portaria nº ${texto(d.portaria || "144/2025")} e pelo Decreto nº 8342/2021, reuniu-se na Central de Distribuição e Logística para proceder ao exame de conferência do veículo abaixo descrito:</p>
     <section><h2>Identificação do recebimento</h2><div class="grade">
       ${campo("Nota fiscal", d.nota_fiscal || d.material)}${campo("Emissão", dataBr(d.emissao || ""))}${campo("Fornecedor", d.fornecedor)}${campo("Pedido", d.pedido)}
       ${campo("Data de recebimento", dataBr(d.data_recebimento || ""))}${campo("Data de cadastro", bem.incorporacao || "")}${campo("Patrimônio / RED", formatarCodigoRed(bem.codigo_red))}${campo("Valor da nota / unitário", moeda(Number(bem.valor)))}
@@ -53,7 +53,7 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
       ${campo("Tipo de compra / incorporação", bem.tipo || "")}${campo("Quilometragem", d.km ? `${d.km} km` : "")}${campo("Empenho / ano", [d.empenho, d.ano_empenho].filter(Boolean).join(" / "))}${campo("Local físico", local || d.local_fisico)}
     </div></section>
     <section><h2>Descrição do veículo e secretaria de destino</h2><div class="veiculo"><div class="descricao">${descricao}</div><div class="destino"><b>SECRETARIA DESTINO</b><br><br>${texto(d.secretaria || local || d.local_fisico)}</div></div></section>
-    ${grupos}<section><h2>Observações gerais / conclusão da comissão</h2><div class="observacoes">${texto(d.observacoes_gerais)}</div></section>
+    ${grupos}<section><h2>Observações gerais / conclusão da comissão</h2><div class="observacoes">${texto(d.observacoes_gerais?.trim() || conclusaoPadraoRecebimento(modelo))}</div></section>
     <p class="data">${texto(d.cidade || "Itajubá")}, ${texto(dataBr(d.data_termo || d.data_recebimento || termo.criado_em.slice(0, 10)))}.</p>
     <div class="assinaturas">${assinaturas}</div><footer><span>SysPatrimônio · Recebimento de veículos</span><span>Termo ${escapar(numero)} · Patrimônio ${escapar(formatarCodigoRed(bem.codigo_red))}</span></footer>
   </main></body></html>`;

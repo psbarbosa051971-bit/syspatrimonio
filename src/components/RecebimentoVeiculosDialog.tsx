@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
-import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
+import { conclusaoPadraoRecebimento, descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
 import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
 import { CampoValorReais } from "@/components/CampoValorReais";
@@ -78,11 +78,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         setTermo(recebimento.data ?? null);
         const salvos = lerDadosRecebimento(recebimento.data?.dados);
         const hoje = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
-        const preenchidos: Record<string, string> = { data_termo: hoje, orgao: "PREFEITURA MUNICIPAL DE ITAJUBÁ", cidade: "Itajubá",
+        const preenchidos: Record<string, string> = { data_termo: hoje, orgao: "PREFEITURA MUNICIPAL DE ITAJUBÁ", cidade: "Itajubá", portaria: "144/2025",
           ...extrairDadosVeiculo(limparDescricao(bem.descricao)).dados };
         for (const [chave, valor] of Object.entries(salvos)) {
           if (valor.trim() || !(chave in preenchidos)) preenchidos[chave] = valor;
         }
+        if (!preenchidos.observacoes_gerais?.trim()) delete preenchidos.observacoes_gerais;
         setLocalOrigem(local.data?.nome ?? "");
         const nomesSecretarias = Array.from(new Set([
           salvos.secretaria ?? "",
@@ -117,7 +118,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
       const { data: { user }, error: erroUsuario } = await supabase.auth.getUser();
       if (erroUsuario || !user) throw new Error("Sessão indisponível");
       const { data: salvo, error } = await supabase.from("recebimentos_veiculos").upsert({
-        bem_id: bem.id, dados: { ...dados, local_fisico: localOrigem }, atualizado_por: user.id, atualizado_em: new Date().toISOString(),
+        bem_id: bem.id, dados: { ...dados, observacoes_gerais: conclusao, local_fisico: localOrigem }, atualizado_por: user.id, atualizado_em: new Date().toISOString(),
       } as unknown as TablesInsert<"recebimentos_veiculos">, { onConflict: "bem_id" }).select("*").single();
       if (error || !salvo) throw error ?? new Error("Termo não retornado");
       setTermo(salvo);
@@ -152,6 +153,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
   }
 
   const modeloVeiculo = dados.modelo_veiculo ?? extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo;
+  const conclusao = dados.observacoes_gerais ?? conclusaoPadraoRecebimento(modeloVeiculo);
   const automaticos = [
     ["Data cadastro", bem.incorporacao ?? ""], ["Patrimônio", formatarCodigoRed(bem.codigo_red)],
     ["Valor unitário", moeda(Number(bem.valor))], ["Incorporação", bem.tipo ?? ""],
@@ -270,8 +272,9 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
               <div className="p-3"><label className="space-y-1 text-xs font-semibold">
                 <span>Registre o resultado da conferência e eventuais ressalvas</span>
                 <Textarea aria-label="Observações gerais / conclusão da comissão" rows={4} maxLength={5000}
-                  placeholder="Após a conferência e inspeção, a comissão conclui que…"
-                  value={dados.observacoes_gerais ?? ""} onChange={(e) => alterar("observacoes_gerais", e.target.value)} />
+                  placeholder="Registre a conclusão da comissão"
+                  value={conclusao} onChange={(e) => alterar("observacoes_gerais", e.target.value)} />
+                <span className="block font-normal text-muted-foreground">Texto padrão preenchido com o modelo deste veículo. Revise a conclusão e ajuste eventuais ressalvas antes de salvar.</span>
               </label></div>
             </section>
             <section className="overflow-hidden rounded-xl border border-border">

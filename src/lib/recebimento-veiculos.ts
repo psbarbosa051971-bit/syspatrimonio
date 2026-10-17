@@ -91,6 +91,11 @@ export function extrairDadosVeiculo(descricao: string): { modelo: string; dados:
   return { modelo, dados };
 }
 
+export function conclusaoPadraoRecebimento(modelo: string): string {
+  const veiculo = modelo.trim().replace(/^ve[ií]culos?\s*[:/\-]?\s+/i, "").replace(/[.,;\s]+$/, "");
+  return `Após inspeção realizada pela Comissão de Recebimento, constatou-se que o veículo${veiculo ? ` ${veiculo}` : ""} encontra-se em perfeito estado de conservação. O bem não apresenta avarias no motor, na lataria, no estofamento e no sistema elétrico, sendo declarado em total conformidade com o pedido de compra.`;
+}
+
 export function descricaoDetalhada(dados: Record<string, string>, modelo = ""): string {
   return [
     `VEÍCULO/MODELO: ${modelo.trim()}`,
