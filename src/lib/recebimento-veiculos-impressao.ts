@@ -17,6 +17,8 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
   const texto = (valor?: string) => escapar(valor?.trim() || "—");
   const campo = (rotulo: string, valor?: string) => `<div class="campo"><span>${escapar(rotulo)}</span><strong>${texto(valor)}</strong></div>`;
   const modelo = d.modelo_veiculo || extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo;
+  const conclusao = texto(d.observacoes_gerais?.trim() || conclusaoPadraoRecebimento(modelo));
+  const observacoes = conclusao.replace(/(\bve[ií]culo\s+)([\s\S]+?)(?=\s+encontra-se\b)/gi, "$1<strong>$2</strong>");
   const descricao = descricaoDetalhada(d, modelo).split("\n").map((linha) => {
     const i = linha.indexOf(":");
     return `<div><b>${escapar(linha.slice(0, i + 1))}</b> ${escapar(linha.slice(i + 1))}</div>`;
@@ -33,7 +35,8 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     header { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid oklch(0.4 0.08 250); padding-bottom: 5px; margin-bottom: 5px; }
     header > div { min-width: 0; } .marca { font-size: 12px; font-weight: 800; color: oklch(0.35 0.08 250); } .orgao { max-width: 55%; text-align: right; font-size: 8px; white-space: pre-line; }
     h1 { margin: 0; padding: 5px 8px; border: 1px solid oklch(0.7 0.02 250); background: oklch(0.94 0.015 250); font-size: 12px; color: oklch(0.28 0.05 250); text-align: center; }
-    .introducao { margin: 5px 0; text-align: justify; } section { margin-top: 4px; border: 1px solid oklch(0.72 0.015 250); break-inside: avoid; }
+    .cabecalho-institucional { display: block; width: 100%; height: auto; margin-bottom: 6px; }
+    .introducao { margin: 6px 0; font-size: 12px; line-height: 1.4; text-align: justify; } section { margin-top: 4px; border: 1px solid oklch(0.72 0.015 250); break-inside: avoid; }
     h2 { margin: 0; padding: 3px 6px; font-size: 8px; text-transform: uppercase; letter-spacing: .2px; background: oklch(0.92 0.015 250); border-bottom: 1px solid oklch(0.72 0.015 250); }
     .grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); } .campo { min-width: 0; padding: 3px 6px; border-bottom: 1px solid oklch(0.88 0.01 250); }
     .campo span { display: block; font-size: 7px; font-weight: bold; text-transform: uppercase; color: oklch(0.43 0.02 250); } .campo strong { display: block; overflow-wrap: anywhere; font-weight: 500; margin-top: 1px; }
@@ -42,11 +45,12 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
     .grupos-checklist section { min-width: 0; }
     .checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; padding: 5px 6px; }
     .checklist div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; } .checklist span { font-size: 8px; } .checklist b { min-width: 35px; max-width: 55%; padding: 1px 3px; border: 1px solid oklch(0.8 0.01 250); font-size: 8px; font-weight: 500; text-align: center; overflow-wrap: anywhere; }
-    .observacoes { padding: 5px 6px; white-space: pre-wrap; text-align: justify; overflow-wrap: anywhere; } .data { margin: 6px 0 0; }
+    .observacoes { padding: 6px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; text-align: justify; overflow-wrap: anywhere; } .observacoes strong { font-weight: 700; } .data { margin: 6px 0 0; }
     .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 24px; padding: 24px 12px 0; break-inside: avoid; } .assinatura { min-width: 0; border-top: 1px solid oklch(0.35 0.01 250); text-align: center; padding-top: 3px; } .assinatura span { display: block; font-size: 8px; } .assinatura strong { overflow-wrap: anywhere; }
     footer { margin-top: 8px; padding-top: 4px; border-top: 1px solid oklch(0.8 0.01 250); font-size: 7px; display: flex; justify-content: space-between; gap: 8px; }
     .acoes { text-align: center; padding: 12px; } button { padding: 10px 18px; cursor: pointer; } @media print { body { background: oklch(1 0 0); } .folha { margin: 0; box-shadow: none; } .acoes { display: none; } h1,h2 { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
   </style></head><body><div class="acoes"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div><main class="folha"><div class="conteudo">
+    <img class="cabecalho-institucional" src="/images/cabecalho-recebimento-veiculos.jpg" alt="Cabeçalho da Prefeitura de Itajubá" onload="ajustarPaginaUnica()">
     <header><div><div class="marca">RECEBIMENTO DE VEÍCULOS</div><div>${texto(d.via || "Via Almoxarifado")}</div></div><div class="orgao"><b>${texto(d.orgao || "PREFEITURA MUNICIPAL DE ITAJUBÁ")}</b><br>${texto(d.endereco_orgao)}<br>${d.cnpj_orgao ? `CNPJ: ${texto(d.cnpj_orgao)}` : ""}</div></header>
     <h1>TERMO DE RECEBIMENTO DE VEÍCULOS Nº ${escapar(numero)}</h1>
     <p class="introducao">A Comissão de Recebimento de Veículos, designada pela Portaria nº ${texto(d.portaria || "144/2025")} e pelo Decreto nº 8342/2021, reuniu-se na Central de Distribuição e Logística para proceder ao exame de conferência do veículo abaixo descrito:</p>
@@ -57,7 +61,7 @@ export function htmlTermoVeiculo(bem: Tables<"bens">, termo: Tables<"recebimento
       ${campo("Tipo de compra / incorporação", bem.tipo || "")}${campo("Quilometragem", d.km ? `${d.km} km` : "")}${campo("Empenho / ano", [d.empenho, d.ano_empenho].filter(Boolean).join(" / "))}${campo("Local físico", local || d.local_fisico)}
     </div></section>
     <section><h2>Descrição do veículo e secretaria de destino</h2><div class="veiculo"><div class="descricao">${descricao}</div><div class="destino"><b>SECRETARIA DESTINO</b><br><br>${texto(d.secretaria || local || d.local_fisico)}</div></div></section>
-    <div class="grupos-checklist">${grupos}</div><section><h2>Observações gerais / conclusão da comissão</h2><div class="observacoes">${texto(d.observacoes_gerais?.trim() || conclusaoPadraoRecebimento(modelo))}</div></section>
+    <div class="grupos-checklist">${grupos}</div><section><h2>Observações gerais / conclusão da comissão</h2><div class="observacoes">${observacoes}</div></section>
     <p class="data">${texto(d.cidade || "Itajubá")}, ${texto(dataBr(d.data_termo || d.data_recebimento || termo.criado_em.slice(0, 10)))}.</p>
     <div class="assinaturas">${assinaturas}</div><footer><span>SysPatrimônio · Recebimento de veículos</span><span>Termo ${escapar(numero)} · Patrimônio ${escapar(formatarCodigoRed(bem.codigo_red))}</span></footer>
   </div></main><script type="text/javascript">

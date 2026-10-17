@@ -45,7 +45,7 @@ describe("impressão do recebimento de veículos", () => {
 
   it("preenche a conclusão padrão com o veículo do patrimônio e a nova introdução", () => {
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {} });
-    expect(html).toContain("Após inspeção realizada pela Comissão de Recebimento, constatou-se que o veículo CHEVROLET ONIX encontra-se em perfeito estado de conservação. O bem não apresenta avarias no motor, na lataria, no estofamento e no sistema elétrico, sendo declarado em total conformidade com o pedido de compra.");
+    expect(html).toContain("Após inspeção realizada pela Comissão de Recebimento, constatou-se que o veículo <strong>CHEVROLET ONIX</strong> encontra-se em perfeito estado de conservação. O bem não apresenta avarias no motor, na lataria, no estofamento e no sistema elétrico, sendo declarado em total conformidade com o pedido de compra.");
     expect(html).toContain("A Comissão de Recebimento de Veículos, designada pela Portaria nº 144/2025 e pelo Decreto nº 8342/2021, reuniu-se na Central de Distribuição e Logística para proceder ao exame de conferência do veículo abaixo descrito:");
     expect(html).not.toContain("Ford Ranger");
   });
@@ -55,7 +55,7 @@ describe("impressão do recebimento de veículos", () => {
       modelo_veiculo: "Ford Ranger Limited 2.5 4WD, 5 passageiros, cor preta, motor diesel,",
       observacoes_gerais: " ",
     } });
-    expect(html).toContain("o veículo Ford Ranger Limited 2.5 4WD, 5 passageiros, cor preta, motor diesel encontra-se em perfeito estado");
+    expect(html).toContain("o veículo <strong>Ford Ranger Limited 2.5 4WD, 5 passageiros, cor preta, motor diesel</strong> encontra-se em perfeito estado");
     const personalizado = htmlTermoVeiculo(bem, termo);
     expect(personalizado).toContain("Conferência concluída, sem avarias.");
     expect(personalizado).not.toContain("Após inspeção realizada");
@@ -93,6 +93,24 @@ describe("impressão do recebimento de veículos", () => {
     expect(html.match(/class="assinatura"/g)).toHaveLength(4);
   });
 
+  it("inclui o cabeçalho anexado, margem superior de um centímetro e parágrafos maiores", () => {
+    const html = htmlTermoVeiculo(bem, termo);
+    expect(html).toContain('@page { size: A4 portrait; margin: 10mm; }');
+    expect(html).toContain('src="/images/cabecalho-recebimento-veiculos.jpg"');
+    expect(html).toContain('alt="Cabeçalho da Prefeitura de Itajubá"');
+    expect(html).toContain('onload="ajustarPaginaUnica()"');
+    expect(html.indexOf('class="cabecalho-institucional"')).toBeLessThan(html.indexOf("<header>"));
+    expect(html).toContain('.introducao { margin: 6px 0; font-size: 12px; line-height: 1.4;');
+    expect(html).toContain('.observacoes { padding: 6px; font-size: 12px; line-height: 1.4;');
+  });
+
+  it("destaca o veículo na conclusão já salva sem alterar o restante do texto", () => {
+    const html = htmlTermoVeiculo(bem, { ...termo, dados: {
+      observacoes_gerais: "Após inspeção realizada pela Comissão de Recebimento, constatou-se que o veículo FORD RANGER LIMITED 4WD V6 LTDPCD3D4A encontra-se em perfeito estado de conservação.",
+    } });
+    expect(html).toContain('o veículo <strong>FORD RANGER LIMITED 4WD V6 LTDPCD3D4A</strong> encontra-se em perfeito estado de conservação.');
+  });
+
   it("escapa conteúdo digitado antes de gerar o documento de impressão", () => {
     const html = htmlTermoVeiculo(bem, { ...termo, dados: {
       orgao: '<script>alert("x")</script>',
@@ -100,7 +118,8 @@ describe("impressão do recebimento de veículos", () => {
       assinante_1: "Nome & Sobrenome",
     } });
     expect(html).not.toContain("<script>");
-    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
     expect(html).toContain("&lt;script&gt;");
     expect(html).toContain("Nome &amp; Sobrenome");
   });
