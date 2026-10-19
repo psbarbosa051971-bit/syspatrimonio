@@ -132,6 +132,8 @@ async function importarParaLiberarUnidade() {
   });
   const dialogo = await screen.findByRole("alertdialog");
   fireEvent.click(within(dialogo).getByRole("button", { name: "Sim" }));
+  const numeracao = await screen.findByRole("alertdialog", { name: "Deseja gerar um número de termo?" });
+  fireEvent.click(within(numeracao).getByRole("button", { name: "Sim" }));
   const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
   fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
   const unidade = screen.getByRole("combobox", { name: "Unidade" });
@@ -241,6 +243,9 @@ describe("Carregamento dos registros em Departamentos", () => {
     }
     fireEvent.click(within(dialogo).getByRole("button", { name: resposta }));
     if (resposta === "Sim") {
+      const numeracao = await screen.findByRole("alertdialog", { name: "Deseja gerar um número de termo?" });
+      expect(mocks.atualizarSala).not.toHaveBeenCalled();
+      fireEvent.click(within(numeracao).getByRole("button", { name: "Sim" }));
       const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
       fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
       expect(screen.queryByRole("dialog", { name: "Dados do recebimento" })).not.toBeInTheDocument();
@@ -248,8 +253,8 @@ describe("Carregamento dos registros em Departamentos", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
     if (resposta === "Sim") {
-      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_confirmado", expect.objectContaining({
-        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos, _existentes: [],
+      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
+        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos, _existentes: [], _gerar_termo: true,
       }));
       const unidade = screen.getByRole("combobox", { name: "Unidade" });
       expect(unidade).toBeEnabled();
@@ -294,18 +299,57 @@ describe("Carregamento dos registros em Departamentos", () => {
     }
     fireEvent.click(within(dialogo).getByRole("button", { name: resposta }));
     if (resposta === "OK") {
+      const numeracao = await screen.findByRole("alertdialog", { name: "Deseja gerar um número de termo?" });
+      fireEvent.click(within(numeracao).getByRole("button", { name: "Sim" }));
       const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
       fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
     }
     await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
     if (resposta === "OK") {
-      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_confirmado", expect.objectContaining({
-        _sala_id: "sala", _bens: extraidos, _existentes: existentes,
+      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
+        _sala_id: "sala", _bens: extraidos, _existentes: existentes, _gerar_termo: true,
       }));
     } else {
       expect(mocks.atualizarSala).not.toHaveBeenCalled();
       expect(mocks.rpc).not.toHaveBeenCalled();
     }
+  });
+
+  it.each(["Não", "Cancelar"])("respeita %s na escolha de gerar número de termo", async (resposta) => {
+    const extraidos = [{ codigo_red: "123", descricao: "Mesa cadastrada", valor: 10 }];
+    mocks.extrairHtml.mockResolvedValue({
+      cabecalho: { local: sala.nome, endereco: "", data: "", historico: "" }, bens: extraidos,
+    });
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+    });
+    const confirmacao = await screen.findByRole("alertdialog");
+    fireEvent.click(within(confirmacao).getByRole("button", { name: "Sim" }));
+    const numeracao = await screen.findByRole("alertdialog", { name: "Deseja gerar um número de termo?" });
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    if (resposta === "Não") {
+      mocks.rpc.mockResolvedValueOnce({
+        data: { importacao_id: null, numero: null, termo_numero: null, novos: 0, repetidos: 1, transferidos: 0 }, error: null,
+      });
+    }
+    fireEvent.click(within(numeracao).getByRole("button", { name: resposta }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Dados do recebimento" })).not.toBeInTheDocument();
+    if (resposta === "Não") {
+      expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
+        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos, _existentes: [], _gerar_termo: false,
+      }));
+      expect(mocks.atualizarSala).toHaveBeenCalled();
+      expect(screen.getByRole("combobox", { name: "Unidade" })).toBeEnabled();
+    } else {
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(mocks.atualizarSala).not.toHaveBeenCalled();
+    }
+    expect(mocks.erroToast).not.toHaveBeenCalled();
   });
 
   it("interrompe a importação se não conseguir consultar códigos existentes", async () => {

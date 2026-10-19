@@ -266,10 +266,28 @@ function DepartamentosPage() {
     conflitos: { id: string; sala_id: string | null; codigo_red: string; sala_nome: string }[];
   } | null>(null);
   const resolverConfirmacaoImportacao = useRef<((confirmado: boolean) => void) | null>(null);
+  const [perguntarNumeroTermo, setPerguntarNumeroTermo] = useState(false);
+  const resolverNumeroTermo = useRef<((gerar: boolean | null) => void) | null>(null);
   useEffect(() => () => {
     resolverConfirmacaoImportacao.current?.(false);
     resolverConfirmacaoImportacao.current = null;
+    resolverNumeroTermo.current?.(null);
+    resolverNumeroTermo.current = null;
   }, []);
+
+  function escolherGeracaoTermo(): Promise<boolean | null> {
+    return new Promise((resolve) => {
+      resolverNumeroTermo.current = resolve;
+      setPerguntarNumeroTermo(true);
+    });
+  }
+
+  function responderNumeroTermo(gerar: boolean | null) {
+    const resolver = resolverNumeroTermo.current;
+    resolverNumeroTermo.current = null;
+    setPerguntarNumeroTermo(false);
+    resolver?.(gerar);
+  }
 
   function confirmarImportacao(
     local: string,
@@ -672,6 +690,8 @@ function DepartamentosPage() {
       if (erroConsulta) throw erroConsulta;
       const conflitos = (existentes ?? []).filter((bem) => bem.sala_id !== sala?.id && bem.sala_id !== null);
       if (!await confirmarImportacao(nomeLocal, extraidos.length, conflitos)) return;
+      const gerarTermo = await escolherGeracaoTermo();
+      if (gerarTermo === null) return;
       if (!sala) {
         const { data: nova, error } = await supabase.from("salas").insert({
           user_id: user.id, departamento_id: departamentoSel.id, nome: nomeLocal,
@@ -691,10 +711,11 @@ function DepartamentosPage() {
         setSalas((prev) => prev.map((s) => s.id === atualizada.id ? atualizada : s));
       }
       const salaAlvo = sala;
-      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_html_confirmado", {
+      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_html_com_opcao", {
         _sala_id: salaAlvo.id, _arquivo: file.name, _bens: extraidos.map((b) => ({ ...b })),
         _cabecalho: { ...termo.cabecalho },
         _existentes: (existentes ?? []).map((bem) => ({ ...bem })),
+        _gerar_termo: gerarTermo,
       });
       if (erroImportacao) throw erroImportacao;
       if (!resultado || typeof resultado !== "object" || Array.isArray(resultado)) {
@@ -707,16 +728,18 @@ function DepartamentosPage() {
       };
       setSalaSel(salaAlvo);
       setUnidadeLiberadaSalaId(salaAlvo.id);
-      setUltimaImportacao(String(resultado["importacao_id"] ?? resultado["numero"]));
-      if (typeof resultado["importacao_id"] === "string") {
+      setUltimaImportacao(gerarTermo && typeof resultado["importacao_id"] === "string" ? resultado["importacao_id"] : "");
+      if (gerarTermo && typeof resultado["importacao_id"] === "string") {
         setImpressaoImportacao({ id: resultado["importacao_id"], salaId: salaAlvo.id });
       }
       setTentativaBens((valor) => valor + 1);
       setBensParaTransferir([]);
-      toast.success(`Termo de responsabilidade nº ${String(resultado["termo_numero"])} criado. ` +
+      toast.success((gerarTermo
+        ? `Termo de responsabilidade nº ${String(resultado["termo_numero"])} criado. `
+        : "Importação concluída sem gerar número de termo. ") +
         `${Number(resultado["novos"])} bem(ns) adicionados; ${Number(resultado["transferidos"] ?? 0)} movidos de outros locais; ` +
         `${Math.max(0, Number(resultado["repetidos"]) - Number(resultado["transferidos"] ?? 0))} já estavam no destino. ` +
-        `Confirme a impressão para preencher os dados do recebimento dos ${extraidos.length} bens do HTML.`);
+        (gerarTermo ? `Confirme a impressão para preencher os dados do recebimento dos ${extraidos.length} bens do HTML.` : ""));
     } catch (erro) {
       toast.error(erro && typeof erro === "object" && "message" in erro
         ? String(erro.message) : "Não foi possível concluir a importação do HTML");
@@ -834,6 +857,24 @@ function DepartamentosPage() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => responderConfirmacaoImportacao(false)}>{confirmacaoImportacao?.conflitos.length ? "Cancelar" : "Não"}</AlertDialogCancel>
             <AlertDialogAction onClick={() => responderConfirmacaoImportacao(true)}>{confirmacaoImportacao?.conflitos.length ? "OK" : "Sim"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={perguntarNumeroTermo} onOpenChange={(aberto) => {
+        if (!aberto) responderNumeroTermo(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja gerar um número de termo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sim: importa os bens e cria um termo numerado. Não: importa os bens sem criar termo e sem consumir um número da sequência.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => responderNumeroTermo(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => responderNumeroTermo(false)}>Não</AlertDialogAction>
+            <AlertDialogAction onClick={() => responderNumeroTermo(true)}>Sim</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -756,6 +756,17 @@ export type Database = {
         }
         Returns: Json
       }
+      importar_bens_html_com_opcao: {
+        Args: {
+          _arquivo: string
+          _bens: Json
+          _cabecalho: Json
+          _existentes: Json
+          _gerar_termo: boolean
+          _sala_id: string
+        }
+        Returns: Json
+      }
       importar_bens_html_confirmado: {
         Args: {
           _arquivo: string
