@@ -992,7 +992,19 @@ function DepartamentosPage() {
           <Card id="bens-da-sala" className="min-w-0 scroll-mt-4">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+                <div className="flex flex-wrap items-center gap-3">
+                  <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+                  <a
+                    href="https://sistemassonner.itajuba.mg.gov.br/GRP?goto=/GRP/home"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Abrir sistema Sonner em nova aba"
+                    title="Abrir sistema Sonner (nova aba)"
+                    className="inline-flex shrink-0 rounded-md border border-border p-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    <img src="/images/sonner.jpg" alt="Sonner" width={48} height={44} className="h-11 w-12 rounded-sm object-contain" />
+                  </a>
+                </div>
                 <CompartilharRelatorioSala dados={dadosRelatorioSala}
                   disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
               </div>
