@@ -53,7 +53,22 @@ describe("Interface de usuários", () => {
     mocks.salaId = "local-1";
     render(<Page />);
     expect(screen.getByTestId("local-para-edicao")).toHaveTextContent("local-1");
+    fireEvent.click(screen.getByRole("button", { name: "Visualizar usuários e permissões" }));
     expect(await screen.findByText(nomeLocal)).toHaveClass("break-words", "whitespace-normal");
     expect(screen.getByRole("table")).toHaveClass("min-w-[960px]", "table-fixed");
+  });
+
+  it("inicia com usuários e permissões ocultos e permite visualizar e ocultar novamente", () => {
+    render(<Page />);
+    const botao = screen.getByRole("button", { name: "Visualizar usuários e permissões" });
+    expect(botao).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Nome completo do usuário")).toBeVisible();
+    fireEvent.click(botao);
+    expect(screen.getByRole("table")).toBeVisible();
+    expect(botao).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar usuários e permissões" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(botao).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -50,6 +50,7 @@ const SeletorSalas = SeletorLocalFisico;
 function UsuariosPage() {
   const { salaId } = Route.useSearch();
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [mostrarUsuarios, setMostrarUsuarios] = useState(false);
   const { user } = useAuth();
   const { role, loading } = useRole();
   const criar = useServerFn(criarUsuario);
@@ -225,8 +226,14 @@ function UsuariosPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Usuários e permissões</CardTitle>
+            <Button type="button" variant="outline" className="self-start"
+              aria-expanded={mostrarUsuarios} aria-controls="usuarios-permissoes"
+              onClick={() => setMostrarUsuarios((valor) => !valor)}>
+              {mostrarUsuarios ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+              {mostrarUsuarios ? "Ocultar usuários e permissões" : "Visualizar usuários e permissões"}
+            </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent id="usuarios-permissoes" hidden={!mostrarUsuarios}>
             <Table className="min-w-[960px] table-fixed">
               <TableHeader>
                 <TableRow>
