@@ -5,6 +5,7 @@ import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
 import { Button } from "@/components/ui/button";
 import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
 import { EntregaTermoDialog } from "@/components/EntregaTermoDialog";
+import { ExcluirTermoDialog } from "@/components/ExcluirTermoDialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { Printer } from "lucide-react";
@@ -90,7 +91,13 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
                   <td className="whitespace-nowrap">{entrega?.data_entrega ? entrega.data_entrega.split("-").reverse().join("/") : "Não registrado"}</td>
                   <td className="whitespace-nowrap text-right">{resumo.dados ? moeda(resumo.total) : "—"}</td>
                   <td>{numeroDoTermo(termo).split("/")[1]}</td><td>{resumo.tipos}</td>
-                  <td className="text-right"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button><Button type="button" size="sm" variant="outline" aria-label={`Status do termo ${numeroDoTermo(termo)}`} onClick={() => setTermoEntrega(termo)}>Status</Button></div></td>
+                  <td className="text-right"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button><Button type="button" size="sm" variant="outline" aria-label={`Status do termo ${numeroDoTermo(termo)}`} onClick={() => setTermoEntrega(termo)}>Status</Button>{salaId && <ExcluirTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onExcluir={() => {
+                    setTermos((atuais) => atuais.filter((item) => item.id !== termo.id));
+                    if (selecionado === termo.id) onLimpar();
+                    if (termoImpressao === termo.id) setTermoImpressao("");
+                    if (termoEntrega?.id === termo.id) setTermoEntrega(null);
+                    onAtualizar();
+                  }} />}</div></td>
                 </tr>;
               })}
           </tbody>

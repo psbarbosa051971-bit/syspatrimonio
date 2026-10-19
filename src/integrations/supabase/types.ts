@@ -686,6 +686,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      excluir_termo_sala: {
+        Args: { _termo: string; _sala: string }
+        Returns: Json
+      }
       incluir_bens_no_termo: {
         Args: { _termo: string; _sala: string; _itens: string[] }
         Returns: Json
