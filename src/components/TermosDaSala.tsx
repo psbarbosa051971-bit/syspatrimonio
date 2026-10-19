@@ -3,15 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { numeroDoTermo } from "@/lib/termo-responsabilidade";
 import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
 import { Button } from "@/components/ui/button";
+import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Props = {
   salaId: string | null; atualizar: number; selecionado: string | null;
   quantidadeBens: number; valorSala: number;
   onSelecionar: (termo: TermoDaSala) => void; onLimpar: () => void;
+  onAtualizar: () => void;
 };
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, valorSala, onSelecionar, onLimpar }: Props) {
+export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, valorSala, onSelecionar, onLimpar, onAtualizar }: Props) {
   const [termos, setTermos] = useState<TermoDaSala[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(false);
@@ -42,9 +44,13 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
     <CardHeader className="pb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>Termos criados da sala</CardTitle>
-        {selecionado && <Button size="sm" variant="outline" onClick={onLimpar}>Mostrar todos os bens da sala</Button>}
+        {selecionado && <div className="flex flex-wrap gap-2">
+          {salaId && termos.filter((termo) => termo.id === selecionado).map((termo) =>
+            <IncluirBensTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onAtualizar={onAtualizar} />)}
+          <Button size="sm" variant="outline" onClick={onLimpar}>Mostrar todos os bens da sala</Button>
+        </div>}
       </div>
-      <CardDescription>Clique no número do termo para mostrar, em Bens da sala, os bens atuais vinculados a ele. Quantidade e valor de cada termo correspondem ao documento original; bens transferidos ou excluídos não aparecem na sala atual.</CardDescription>
+      <CardDescription>Clique no número do termo para mostrar seus bens atuais em Bens da sala e liberar Incluir bens ao termo. Quantidade e valor correspondem ao documento salvo, incluindo os bens anexados; bens transferidos, excluídos ou vinculados a outro termo não aparecem no filtro atual.</CardDescription>
     </CardHeader>
     <CardContent className="space-y-3">
       <div className="max-h-64 overflow-auto rounded-md border border-border">

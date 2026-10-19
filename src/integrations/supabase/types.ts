@@ -648,6 +648,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      incluir_bens_no_termo: {
+        Args: { _termo: string; _sala: string; _itens: string[] }
+        Returns: Json
+      }
       associar_checklist_veiculo: {
         Args: { _bem_id: string; _checklist_id: string }
         Returns: Json

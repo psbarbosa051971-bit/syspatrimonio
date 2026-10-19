@@ -26,6 +26,7 @@ import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { TermosDaSala } from "@/components/TermosDaSala";
+import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
 import { CompartilharRelatorioSala } from "@/components/CompartilharRelatorioSala";
 import { numeroDoTermo } from "@/lib/termo-responsabilidade";
 import type { TermoDaSala } from "@/lib/termos-da-sala";
@@ -1159,7 +1160,11 @@ function DepartamentosPage() {
               </div>}
               {termoSelecionado && !resultadoPesquisa && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-accent px-3 py-2 text-sm" role="status">
                 <span>Termo {numeroDoTermo(termoSelecionado)} — {bensDoTermo.length} bem(ns) ainda nesta sala.</span>
-                <Button variant="outline" size="sm" onClick={() => { setTermoSelecionado(null); setBuscaBens(""); setSelecionados([]); }}>Mostrar todos os bens da sala</Button>
+                <div className="flex flex-wrap gap-2">
+                  {salaSel && <IncluirBensTermoDialog key={`${salaSel.id}:${termoSelecionado.id}`} salaId={salaSel.id} termo={termoSelecionado}
+                    onAtualizar={() => { setSelecionados([]); setTentativaBens((valor) => valor + 1); }} />}
+                  <Button variant="outline" size="sm" onClick={() => { setTermoSelecionado(null); setBuscaBens(""); setSelecionados([]); }}>Mostrar todos os bens da sala</Button>
+                </div>
               </div>}
               <div className="h-[354px] overflow-hidden rounded-md border border-border [&>div]:h-full">
               <Table className="table-fixed min-w-[1100px] text-xs [&_tbody_tr]:h-10 [&_tbody_td]:h-10 [&_tbody_td]:max-h-10 [&_tbody_td]:overflow-hidden [&_tbody_td]:whitespace-nowrap [&_td]:text-xs [&_td_button]:text-xs [&_td_span]:text-xs">
@@ -1406,6 +1411,7 @@ function DepartamentosPage() {
           selecionado={termoSelecionado?.id ?? null}
           quantidadeBens={bens.length} valorSala={bens.reduce((total, bem) => total + Number(bem.valor), 0)}
           onSelecionar={selecionarTermoDaSala}
+          onAtualizar={() => { setSelecionados([]); setTentativaBens((valor) => valor + 1); }}
           onLimpar={() => { setTermoSelecionado(null); setBuscaBens(""); setSelecionados([]); }} />
       </main>
 
