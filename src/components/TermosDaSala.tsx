@@ -4,6 +4,8 @@ import { numeroDoTermo } from "@/lib/termo-responsabilidade";
 import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
 import { Button } from "@/components/ui/button";
 import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
+import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
+import { Printer } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Props = {
@@ -18,9 +20,10 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(false);
   const [tentativa, setTentativa] = useState(0);
+  const [termoImpressao, setTermoImpressao] = useState("");
   useEffect(() => {
     let ativo = true;
-    setTermos([]); setErro(false);
+    setTermos([]); setErro(false); setTermoImpressao("");
     if (!salaId) { setCarregando(false); return; }
     setCarregando(true);
     async function carregar() {
@@ -57,13 +60,13 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10 bg-muted text-foreground">
             <tr className="text-left [&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-2">
-              <th>Termo</th><th>Bens</th><th>Status</th><th>Recebido por</th><th>Recebimento</th><th className="text-right">Valor do termo</th><th>Ano</th><th>Tipo de bem</th>
+              <th>Termo</th><th>Bens</th><th>Status</th><th>Recebido por</th><th>Recebimento</th><th className="text-right">Valor do termo</th><th>Ano</th><th>Tipo de bem</th><th className="text-right">Impressão</th>
             </tr>
           </thead>
           <tbody>
-            {carregando ? <tr><td colSpan={8} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
-              : erro ? <tr><td colSpan={8} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button></td></tr>
-              : termos.length === 0 ? <tr><td colSpan={8} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo numerado com documento salvo nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
+            {carregando ? <tr><td colSpan={9} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
+              : erro ? <tr><td colSpan={9} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button></td></tr>
+              : termos.length === 0 ? <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo numerado com documento salvo nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
               : termos.map((termo) => {
                 const resumo = resumoTermoDaSala(termo);
                 return <tr key={termo.id} aria-selected={selecionado === termo.id} className={`border-b last:border-0 [&_td]:px-3 [&_td]:py-1.5 ${selecionado === termo.id ? "bg-accent" : "hover:bg-muted/50"}`}>
@@ -74,6 +77,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
                   <td>Não registrado</td>
                   <td className="whitespace-nowrap text-right">{resumo.dados ? moeda(resumo.total) : "—"}</td>
                   <td>{numeroDoTermo(termo).split("/")[1]}</td><td>{resumo.tipos}</td>
+                  <td className="text-right"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button></td>
                 </tr>;
               })}
           </tbody>
@@ -86,5 +90,8 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         <div><p className="text-xs font-bold uppercase">Valor total na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{moeda(valorSala)}</p></div>
       </div>
     </CardContent>
+    {termoImpressao && salaId && <TermosResponsabilidadeDialog
+      key={`${salaId}:${termoImpressao}`} open onOpenChange={(aberto) => { if (!aberto) setTermoImpressao(""); }}
+      salaId={salaId} ultimaImportacao={termoImpressao} />}
   </Card>;
 }
