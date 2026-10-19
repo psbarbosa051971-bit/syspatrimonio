@@ -4,6 +4,8 @@ import { numeroDoTermo } from "@/lib/termo-responsabilidade";
 import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
 import { Button } from "@/components/ui/button";
 import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
+import { EntregaTermoDialog } from "@/components/EntregaTermoDialog";
+import type { Tables } from "@/integrations/supabase/types";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { Printer } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,9 +23,11 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   const [erro, setErro] = useState(false);
   const [tentativa, setTentativa] = useState(0);
   const [termoImpressao, setTermoImpressao] = useState("");
+  const [termoEntrega, setTermoEntrega] = useState<TermoDaSala | null>(null);
+  const [entregas, setEntregas] = useState<Record<string, Tables<"entregas_termos">>>({});
   useEffect(() => {
     let ativo = true;
-    setTermos([]); setErro(false); setTermoImpressao("");
+    setTermos([]); setErro(false); setTermoImpressao(""); setTermoEntrega(null); setEntregas({});
     if (!salaId) { setCarregando(false); return; }
     setCarregando(true);
     async function carregar() {
@@ -37,7 +41,14 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         todos.push(...(data ?? []));
         if (!data || data.length < 100) break;
       }
-      if (ativo) setTermos(todos);
+      const registros: Record<string, Tables<"entregas_termos">> = {};
+      for (let inicio = 0; inicio < todos.length; inicio += 100) {
+        const { data, error } = await supabase.from("entregas_termos")
+          .select("*").in("importacao_id", todos.slice(inicio, inicio + 100).map((termo) => termo.id));
+        if (error) throw error;
+        for (const entrega of data ?? []) registros[entrega.importacao_id] = entrega;
+      }
+      if (ativo) { setTermos(todos); setEntregas(registros); }
     }
     carregar().catch(() => { if (ativo) setErro(true); })
       .finally(() => { if (ativo) setCarregando(false); });
@@ -69,27 +80,33 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
               : termos.length === 0 ? <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo numerado com documento salvo nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
               : termos.map((termo) => {
                 const resumo = resumoTermoDaSala(termo);
-                return <tr key={termo.id} aria-selected={selecionado === termo.id} className={`border-b last:border-0 [&_td]:px-3 [&_td]:py-1.5 ${selecionado === termo.id ? "bg-accent" : "hover:bg-muted/50"}`}>
-                  <td><button type="button" className="font-bold text-primary underline" aria-label={`Mostrar bens do termo ${numeroDoTermo(termo)}`} onClick={() => onSelecionar(termo)}>{String(termo.numero).padStart(5, "0")}</button></td>
+                const entrega = entregas[termo.id];
+                const status = entrega?.status ?? "Aguardando Entrega";
+                return <tr key={termo.id} aria-selected={selecionado === termo.id} className={`border-b last:border-0 [&_td]:px-3 [&_td]:py-1.5 ${status === "Entregue" ? "termo-entregue" : "termo-aguardando"} ${selecionado === termo.id ? "bg-accent" : "hover:bg-muted/50"}`}>
+                  <td><button type="button" className="font-bold text-inherit underline" aria-label={`Mostrar bens do termo ${numeroDoTermo(termo)}`} onClick={() => onSelecionar(termo)}>{String(termo.numero).padStart(5, "0")}</button></td>
                   <td>{resumo.dados ? String(resumo.quantidade).padStart(3, "0") : "—"}</td>
-                  <td>{resumo.dados ? "GERADO" : "DADOS INDISPONÍVEIS"}</td>
-                  <td>{resumo.dados?.responsavel_recebimento || "Não informado"}</td>
-                  <td>Não registrado</td>
+                  <td className="whitespace-nowrap font-semibold">{status}</td>
+                  <td>{entrega?.recebido_por || resumo.dados?.responsavel_recebimento || "Não informado"}</td>
+                  <td className="whitespace-nowrap">{entrega?.data_entrega ? entrega.data_entrega.split("-").reverse().join("/") : "Não registrado"}</td>
                   <td className="whitespace-nowrap text-right">{resumo.dados ? moeda(resumo.total) : "—"}</td>
                   <td>{numeroDoTermo(termo).split("/")[1]}</td><td>{resumo.tipos}</td>
-                  <td className="text-right"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button></td>
+                  <td className="text-right"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button><Button type="button" size="sm" variant="outline" aria-label={`Status do termo ${numeroDoTermo(termo)}`} onClick={() => setTermoEntrega(termo)}>Status</Button></div></td>
                 </tr>;
               })}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">“Gerado” indica a criação do documento, não a entrega. Recebedor aparece apenas quando registrado no termo; a data de recebimento não é registrada nesses documentos.</p>
+      <p className="text-xs text-muted-foreground">Vermelho: Aguardando Entrega. Azul: Entregue. Use o botão Status ao lado da impressora para registrar ou atualizar a entrega. Termos sem registro de entrega ficam como Aguardando Entrega.</p>
       <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 text-center sm:grid-cols-3">
         <div><p className="text-xs font-bold uppercase">Quantidade de termos</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{carregando || erro ? "—" : termos.length}</p></div>
         <div><p className="text-xs font-bold uppercase">Quantidade de bens na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{quantidadeBens}</p></div>
         <div><p className="text-xs font-bold uppercase">Valor total na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{moeda(valorSala)}</p></div>
       </div>
     </CardContent>
+    {termoEntrega && salaId && <EntregaTermoDialog
+      key={`${salaId}:${termoEntrega.id}`} termo={termoEntrega} entrega={entregas[termoEntrega.id] ?? null}
+      onFechar={() => setTermoEntrega(null)}
+      onSalvar={(entrega) => setEntregas((atuais) => ({ ...atuais, [entrega.importacao_id]: entrega }))} />}
     {termoImpressao && salaId && <TermosResponsabilidadeDialog
       key={`${salaId}:${termoImpressao}`} open onOpenChange={(aberto) => { if (!aberto) setTermoImpressao(""); }}
       salaId={salaId} ultimaImportacao={termoImpressao} />}

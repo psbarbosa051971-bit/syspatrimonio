@@ -85,7 +85,7 @@ beforeEach(() => {
       || (tabela === "departamentos" && mocks.falharDepartamentos);
     const resultado = falha
       ? { data: null, error: { message: "Falha de conexão" } }
-      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : tabela === "importacoes" ? mocks.termos : mocks.bens, error: null };
+      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : tabela === "importacoes" ? mocks.termos : tabela === "entregas_termos" ? [] : mocks.bens, error: null };
     const consulta: Record<string, unknown> = {};
     let alteracao: { unidade: string } | null = null;
     let salaId = "";

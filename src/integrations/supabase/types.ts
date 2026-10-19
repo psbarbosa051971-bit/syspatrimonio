@@ -77,6 +77,44 @@ export type Database = {
           },
         ]
       }
+      entregas_termos: {
+        Row: {
+          importacao_id: string
+          entregue_por: string
+          recebido_por: string
+          cpf: string
+          data_entrega: string | null
+          status: string
+          atualizado_em: string
+        }
+        Insert: {
+          importacao_id: string
+          entregue_por?: string
+          recebido_por?: string
+          cpf?: string
+          data_entrega?: string | null
+          status?: string
+          atualizado_em?: string
+        }
+        Update: {
+          importacao_id?: string
+          entregue_por?: string
+          recebido_por?: string
+          cpf?: string
+          data_entrega?: string | null
+          status?: string
+          atualizado_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entregas_termos_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: true
+            referencedRelation: "importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_conversas: {
         Row: {
           criado_em: string

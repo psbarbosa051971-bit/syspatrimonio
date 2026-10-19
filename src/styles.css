@@ -47,6 +47,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-entrega-pendente: var(--entrega-pendente);
+  --color-entrega-concluida: var(--entrega-concluida);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -89,6 +91,8 @@
   --accent-foreground: oklch(0.208 0.042 265.755);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
+  --entrega-pendente: oklch(0.48 0.2 27);
+  --entrega-concluida: oklch(0.46 0.2 260);
   --border: oklch(0.78 0.05 255);
   --input: oklch(0.6 0.08 255);
   --ring: oklch(0.6 0.17 258);
@@ -129,6 +133,8 @@
   --accent-foreground: oklch(0.984 0.003 247.858);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
+  --entrega-pendente: oklch(0.76 0.16 25);
+  --entrega-concluida: oklch(0.76 0.13 255);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
@@ -146,6 +152,10 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
+
+/* Situação da entrega dos termos, com contraste nos dois temas. */
+.termo-aguardando { color: var(--entrega-pendente); }
+.termo-entregue { color: var(--entrega-concluida); }
 
 /* Cores fixas do modelo de cadastro e do resumo do Local Físico. */
 .cadastro-usuario {

@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn() }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), salvar: vi.fn(), entregas: [] as Record<string, unknown>[] }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
 vi.mock("@/components/IncluirBensTermoDialog", () => ({ IncluirBensTermoDialog: () => null }));
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({
@@ -32,10 +33,20 @@ const props = {
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.from.mockImplementation(() => {
+  mocks.entregas = [];
+  mocks.salvar.mockImplementation(async (dados: Record<string, unknown>) => {
+    const registro = { ...dados };
+    mocks.entregas = [registro];
+    return { data: registro, error: null };
+  });
+  mocks.from.mockImplementation((tabela: string) => {
     const query: Record<string, unknown> = {};
+    let dadosSalvar: Record<string, unknown> = {};
     for (const method of ["select", "eq", "not", "order"]) query[method] = () => query;
     query.range = () => Promise.resolve({ data: termos, error: null });
+    query.in = () => Promise.resolve({ data: tabela === "entregas_termos" ? mocks.entregas : [], error: null });
+    query.upsert = (dados: Record<string, unknown>) => { dadosSalvar = dados; return query; };
+    query.single = () => mocks.salvar(dadosSalvar);
     return query;
   });
 });
@@ -67,5 +78,62 @@ describe("impressão em Termos criados da sala", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     rerender(<TermosDaSala {...props} salaId="outra-sala" />);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("abre Status ao lado da impressora e salva a entrega com a linha azul", async () => {
+    render(<TermosDaSala {...props} />);
+    const botao = await screen.findByRole("button", { name: "Status do termo 20/2026" });
+    const linha = botao.closest("tr")!;
+    expect(linha).toHaveClass("termo-aguardando");
+    expect(within(linha).getByText("Aguardando Entrega")).toBeInTheDocument();
+    expect(botao.previousElementSibling).toHaveAccessibleName("Imprimir termo 20/2026");
+    fireEvent.click(botao);
+    const dialogo = screen.getByRole("dialog", { name: "Entrega do termo 20/2026" });
+    fireEvent.change(within(dialogo).getByLabelText("Entregue por"), { target: { value: "Maria" } });
+    fireEvent.change(within(dialogo).getByLabelText("Recebido Por"), { target: { value: "João" } });
+    fireEvent.change(within(dialogo).getByLabelText("CPF"), { target: { value: "52998224725" } });
+    fireEvent.change(within(dialogo).getByLabelText("Data Entrega"), { target: { value: "2026-10-20" } });
+    fireEvent.change(within(dialogo).getByLabelText("Status"), { target: { value: "Entregue" } });
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Salvar entrega" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mocks.salvar).toHaveBeenCalledWith(expect.objectContaining({
+      importacao_id: "novo", entregue_por: "Maria", recebido_por: "João", cpf: "52998224725",
+      data_entrega: "2026-10-20", status: "Entregue",
+    }));
+    expect(linha).toHaveClass("termo-entregue");
+    expect(within(linha).getByText("Entregue")).toBeInTheDocument();
+    expect(within(linha).getByText("João")).toBeInTheDocument();
+    expect(within(linha).getByText("20/10/2026")).toBeInTheDocument();
+    fireEvent.click(botao);
+    expect(screen.getByLabelText("Recebido Por")).toHaveValue("João");
+    expect(screen.getByLabelText("CPF")).toHaveValue("529.982.247-25");
+  });
+
+  it("carrega a entrega já salva e permite voltar para aguardando", async () => {
+    mocks.entregas = [{ importacao_id: "novo", entregue_por: "Maria", recebido_por: "João",
+      cpf: "52998224725", data_entrega: "2026-10-20", status: "Entregue" }];
+    render(<TermosDaSala {...props} />);
+    const botao = await screen.findByRole("button", { name: "Status do termo 20/2026" });
+    expect(botao.closest("tr")).toHaveClass("termo-entregue");
+    fireEvent.click(botao);
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Aguardando Entrega" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar entrega" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(botao.closest("tr")).toHaveClass("termo-aguardando");
+  });
+
+  it("não salva CPF inválido e mantém o formulário quando ocorre uma falha", async () => {
+    render(<TermosDaSala {...props} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Status do termo 20/2026" }));
+    fireEvent.change(screen.getByLabelText("CPF"), { target: { value: "11111111111" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar entrega" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("CPF válido");
+    expect(mocks.salvar).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("CPF"), { target: { value: "52998224725" } });
+    mocks.salvar.mockResolvedValueOnce({ data: null, error: { message: "Falha" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar entrega" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível salvar"));
+    expect(screen.getByLabelText("CPF")).toHaveValue("529.982.247-25");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
