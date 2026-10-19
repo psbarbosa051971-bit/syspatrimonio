@@ -786,6 +786,17 @@ function DepartamentosPage() {
             </form>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-start gap-1 xl:justify-end [&_button]:text-base [&_a]:text-base">
+            <a
+              href="https://sistemassonner.itajuba.mg.gov.br/GRP?goto=/GRP/home"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Abrir sistema Sonner em nova aba"
+              title="Abrir sistema Sonner (nova aba)"
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 font-medium text-primary-foreground transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <img src="/images/sonner.jpg" alt="" width={32} height={28} className="h-7 w-8 rounded-sm object-contain" />
+              <span>Sonner</span>
+            </a>
             <RecebimentosVeiculos />
             <Button
               variant="ghost"
@@ -992,19 +1003,7 @@ function DepartamentosPage() {
           <Card id="bens-da-sala" className="min-w-0 scroll-mt-4">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
-                  <a
-                    href="https://sistemassonner.itajuba.mg.gov.br/GRP?goto=/GRP/home"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Abrir sistema Sonner em nova aba"
-                    title="Abrir sistema Sonner (nova aba)"
-                    className="inline-flex shrink-0 rounded-md border border-border p-1 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                  >
-                    <img src="/images/sonner.jpg" alt="Sonner" width={48} height={44} className="h-11 w-12 rounded-sm object-contain" />
-                  </a>
-                </div>
+                <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
                 <CompartilharRelatorioSala dados={dadosRelatorioSala}
                   disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
               </div>
