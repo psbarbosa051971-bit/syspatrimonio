@@ -77,44 +77,6 @@ export type Database = {
           },
         ]
       }
-      entregas_termos: {
-        Row: {
-          importacao_id: string
-          entregue_por: string
-          recebido_por: string
-          cpf: string
-          data_entrega: string | null
-          status: string
-          atualizado_em: string
-        }
-        Insert: {
-          importacao_id: string
-          entregue_por?: string
-          recebido_por?: string
-          cpf?: string
-          data_entrega?: string | null
-          status?: string
-          atualizado_em?: string
-        }
-        Update: {
-          importacao_id?: string
-          entregue_por?: string
-          recebido_por?: string
-          cpf?: string
-          data_entrega?: string | null
-          status?: string
-          atualizado_em?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "entregas_termos_importacao_id_fkey"
-            columns: ["importacao_id"]
-            isOneToOne: true
-            referencedRelation: "importacoes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       chat_conversas: {
         Row: {
           criado_em: string
@@ -280,6 +242,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      entregas_termos: {
+        Row: {
+          atualizado_em: string
+          cpf: string
+          data_entrega: string | null
+          entregue_por: string
+          importacao_id: string
+          recebido_por: string
+          status: string
+        }
+        Insert: {
+          atualizado_em?: string
+          cpf?: string
+          data_entrega?: string | null
+          entregue_por?: string
+          importacao_id: string
+          recebido_por?: string
+          status?: string
+        }
+        Update: {
+          atualizado_em?: string
+          cpf?: string
+          data_entrega?: string | null
+          entregue_por?: string
+          importacao_id?: string
+          recebido_por?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entregas_termos_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: true
+            referencedRelation: "importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       importacoes: {
         Row: {
@@ -686,14 +686,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      excluir_termo_sala: {
-        Args: { _termo: string; _sala: string }
-        Returns: Json
-      }
-      incluir_bens_no_termo: {
-        Args: { _termo: string; _sala: string; _itens: string[] }
-        Returns: Json
-      }
       associar_checklist_veiculo: {
         Args: { _bem_id: string; _checklist_id: string }
         Returns: Json
@@ -739,6 +731,10 @@ export type Database = {
         Returns: undefined
       }
       excluir_sala_vazia: { Args: { _sala_id: string }; Returns: undefined }
+      excluir_termo_sala: {
+        Args: { _sala: string; _termo: string }
+        Returns: Json
+      }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -779,6 +775,10 @@ export type Database = {
       }
       importar_bens_pdf: {
         Args: { _arquivo: string; _bens: Json; _sala_id: string }
+        Returns: Json
+      }
+      incluir_bens_no_termo: {
+        Args: { _itens: string[]; _sala: string; _termo: string }
         Returns: Json
       }
       marcar_conferido: {
