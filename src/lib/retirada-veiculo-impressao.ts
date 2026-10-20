@@ -46,10 +46,14 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
     .quadro h3 { margin: 0 0 3mm; font-size: 11px; text-decoration: underline; }
     .diretor { justify-content: space-between; }
     .assinatura { margin: 12mm 4mm 0; border-top: 1px solid oklch(0 0 0); padding-top: 1mm; text-align: center; font-size: 10px; }
-    .declaracao { margin: 0; text-align: justify; text-indent: 4mm; font-size: 11px; line-height: 1.4; }
-    .responsavel { margin: 0 0 2mm; font-size: 11px; }
+    .declaracao { margin: 0; text-align: justify; text-indent: 4mm; font-size: 10px; line-height: 1.35; }
+    .responsavel { margin: 0 0 2mm; font-size: 10px; }
     .data { margin: auto 0 0; padding-top: 6mm; text-align: center; font-weight: bold; font-size: 10px; }
     .atencao { margin-top: 1.5mm; padding: 1.5mm; text-align: center; font-size: 11px; font-weight: bold; }
+    .conferencia-recebimento { width: 72%; margin: 12mm auto 0; min-height: 30mm; border-top: 1px solid oklch(0 0 0); padding-top: 1mm; text-align: center; font-size: 10px; line-height: 1.5; font-weight: bold; break-inside: avoid; }
+    .conferencia-recebimento p { margin: 0; }
+    .conferencia-recebimento .data-conferencia { margin-top: 2mm; }
+    .conferencia-recebimento .cpf-conferencia { margin-top: 4mm; word-spacing: 2mm; }
     footer { position: absolute; bottom: 0; left: 1mm; right: 1mm; display: flex; justify-content: space-between; font-size: 8px; }
     @media print { body { background: oklch(1 0 0); } .folha { margin: 0; } .acoes { display: none; } h2, th, .historico, .totais, .atencao { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
   </style></head><body><div class="acoes"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div>
@@ -69,6 +73,12 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
     <div class="assinatura"><strong>${d.retirada_responsavel?.trim() ? texto(d.retirada_responsavel) : "ASSINATURA DO RESPONSÁVEL PELA RETIRADA"}</strong>${d.retirada_documento?.trim() ? `<br>Matrícula / documento: ${texto(d.retirada_documento)}` : ""}</div>
     <p class="data">DATA DE RECEBIMENTO ${d.retirada_data?.trim() ? texto(dataBr(d.retirada_data)) : "____ / ____ / ________"}</p></section></div>
     <div class="atencao">ATENÇÃO: CONFERIR NO ATO DO RECEBIMENTO. NÃO ACEITAREMOS RECLAMAÇÕES APÓS O RECEBIMENTO E ASSINATURA DESTE TERMO.</div>
+    <section class="conferencia-recebimento" aria-label="Assinatura de recebimento e conferência">
+      <p>DECLARO QUE RECEBI E CONFERI O(S) BEM(NS) ACIMA DESCRITO(S) NO QUADRO:</p>
+      <p>ASSINATURA POR EXTENSO</p>
+      <p class="data-conferencia">ITAJUBÁ ___/____/____</p>
+      <p class="cpf-conferencia">CPF: _____ _____ _____ ____</p>
+    </section>
   </div><footer><span>SysPatrimônio · Retirada de veículo · Termo ${escapar(numero)}</span><span>${escapar(dataImpressao)}</span></footer></main>
   <script>function ajustarPagina() {
     var folha = document.querySelector('.folha'), conteudo = document.querySelector('.conteudo'), rodape = document.querySelector('footer');

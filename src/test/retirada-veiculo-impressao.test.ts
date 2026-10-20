@@ -49,6 +49,23 @@ describe("relatório de retirada do veículo", () => {
     expect(html).toContain("<title></title>");
   });
 
+  it("inclui a conferência de recebimento abaixo do aviso e no conteúdo ajustado à página", () => {
+    const html = htmlRetiradaVeiculo(bem, termo);
+    const pagina = new DOMParser().parseFromString(html, "text/html");
+    const conteudo = pagina.querySelector(".conteudo");
+    const conferencia = conteudo?.querySelector(".conferencia-recebimento");
+    expect(conferencia).not.toBeNull();
+    expect(conferencia?.previousElementSibling?.className).toBe("atencao");
+    expect(conferencia?.querySelectorAll("p")).toHaveLength(4);
+    expect(conferencia?.textContent).toContain("DECLARO QUE RECEBI E CONFERI O(S) BEM(NS) ACIMA DESCRITO(S) NO QUADRO:");
+    expect(conferencia?.textContent).toContain("ASSINATURA POR EXTENSO");
+    expect(conferencia?.textContent).toContain("ITAJUBÁ ___/____/____");
+    expect(conferencia?.textContent).toContain("CPF: _____ _____ _____ ____");
+    expect(html).toContain(".conferencia-recebimento { width: 72%; margin: 12mm auto 0;");
+    expect(html).toContain(".responsavel { margin: 0 0 2mm; font-size: 10px; }");
+    expect(html).toContain("text-indent: 4mm; font-size: 10px; line-height: 1.35;");
+  });
+
   it("usa o Local Físico como destino quando a secretaria não foi informada", () => {
     const html = htmlRetiradaVeiculo(bem, { ...termo, dados: {} }, "Almoxarifado central");
     expect(html).toContain("<h1>Almoxarifado central</h1>");
