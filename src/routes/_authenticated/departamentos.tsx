@@ -37,6 +37,7 @@ import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDia
 import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
 import { RecebimentosVeiculos } from "@/components/RecebimentosVeiculos";
 import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
+import { BensIncorporadosDialog } from "@/components/BensIncorporadosDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -928,7 +929,6 @@ function DepartamentosPage() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <BensIncorporadosDialog />
                   <Button variant="outline" size="sm" onClick={novoDepartamento}
                     disabled={carregandoDepartamentos || !!erroDepartamentos}>
                     <Plus className="mr-1 h-4 w-4" /> Novo
@@ -1011,6 +1011,7 @@ function DepartamentosPage() {
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="flex flex-wrap gap-2">
+                  <BensIncorporadosDialog />
                   <Button variant="destructive" size="sm"
                     disabled={!!resultadoPesquisa || localizando || !salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
                     onClick={excluirSalaVazia}>
