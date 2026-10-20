@@ -139,7 +139,7 @@ async function importarParaLiberarUnidade() {
   const unidade = screen.getByRole("combobox", { name: "Unidade" });
   await waitFor(() => expect(unidade).toBeEnabled());
   await waitFor(() => expect(unidade).toHaveFocus());
-  expect(unidade).toHaveAccessibleDescription("Selecione a Unidade");
+  expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).toBeNull();
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
