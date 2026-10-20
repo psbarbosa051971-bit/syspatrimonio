@@ -714,6 +714,15 @@ export type Database = {
         Args: { _sala_id: string }
         Returns: Json
       }
+      demonstrativo_bens_incorporados: {
+        Args: { _fim: string; _inicio: string }
+        Returns: {
+          quantidade: number
+          sem_codigo: number
+          tipo: string
+          total: number
+        }[]
+      }
       estornar_bens_inserviveis: {
         Args: { _sala_id: string; _solicitacoes: string[] }
         Returns: number
