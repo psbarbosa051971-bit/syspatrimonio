@@ -50,6 +50,13 @@
       "when": 1792110070177,
       "tag": "0006_fecha_leitura_contador_recebimentos",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792513377246,
+      "tag": "0007_pesquisa_codigo_red_rapida",
+      "breakpoints": true
     }
   ]
 }
