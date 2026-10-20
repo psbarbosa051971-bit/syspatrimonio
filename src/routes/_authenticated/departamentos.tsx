@@ -9,6 +9,7 @@ import {
   CheckSquare,
   FileText,
   LogOut,
+  Pencil,
   Plus,
   Printer,
   Search,
@@ -1111,15 +1112,10 @@ function DepartamentosPage() {
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabUnidade">Unidade</Label>
-                  {unidadeLiberada && (
-                    <p id="avisoUnidade" role="status" className="text-sm font-semibold text-inherit">
-                      Selecione a Unidade
-                    </p>
-                  )}
+                  <div className="flex items-center gap-2">
                   <select
                     ref={unidadeRef}
                     id="cabUnidade"
-                    aria-describedby={unidadeLiberada ? "avisoUnidade" : undefined}
                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!unidadeLiberada || salvandoUnidade || carregandoSalas || !!erroSalas || importando}
                     value={salaSel?.unidade ?? ""}
@@ -1130,6 +1126,13 @@ function DepartamentosPage() {
                     <option value="SAÚDE">SAÚDE</option>
                     <option value="EDUCAÇÃO">EDUCAÇÃO</option>
                   </select>
+                  <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0"
+                    aria-label="Desbloquear campo Unidade" title="Desbloquear campo Unidade"
+                    disabled={!salaSel || unidadeLiberada || importando}
+                    onClick={() => { if (salaSel) { setUnidadeLiberadaSalaId(salaSel.id); setTimeout(() => unidadeRef.current?.focus(), 0); } }}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  </div>
                   {salvandoUnidade && <span className="sr-only" role="status">Salvando unidade...</span>}
                 </div>
                 <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.9fr)]">

@@ -139,7 +139,7 @@ async function importarParaLiberarUnidade() {
   const unidade = screen.getByRole("combobox", { name: "Unidade" });
   await waitFor(() => expect(unidade).toBeEnabled());
   await waitFor(() => expect(unidade).toHaveFocus());
-  expect(unidade).toHaveAccessibleDescription("Selecione a Unidade");
+  expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).toBeNull();
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
@@ -259,7 +259,7 @@ describe("Carregamento dos registros em Departamentos", () => {
       const unidade = screen.getByRole("combobox", { name: "Unidade" });
       expect(unidade).toBeEnabled();
       await waitFor(() => expect(unidade).toHaveFocus());
-      expect(unidade).toHaveAccessibleDescription("Selecione a Unidade");
+      expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).toBeNull();
     } else {
       expect(mocks.atualizarSala).not.toHaveBeenCalled();
       expect(mocks.rpc).not.toHaveBeenCalled();
@@ -514,7 +514,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     const unidade = screen.getByRole("combobox", { name: "Unidade" });
-    expect(unidade.parentElement?.previousElementSibling).toContainElement(screen.getByLabelText("Local Físico"));
+    expect(unidade.parentElement?.parentElement?.previousElementSibling).toContainElement(screen.getByLabelText("Local Físico"));
     expect(unidade).toHaveValue("");
     expect(unidade).toBeDisabled();
     expect(screen.queryByText("Selecione a Unidade", { selector: "p" })).not.toBeInTheDocument();

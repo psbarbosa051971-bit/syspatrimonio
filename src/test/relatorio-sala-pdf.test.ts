@@ -46,7 +46,7 @@ describe("Arquivo PDF do relatório da sala", () => {
     expect(retangulo).toHaveBeenCalledExactlyOnceWith(12.25, 23.25, 3.5, 3.5, "S");
     tabela.didDrawCell?.({ ...dados, section: "head" });
     tabela.didDrawCell?.({ ...dados, section: "foot" });
-    tabela.didDrawCell?.({ ...dados, column: { ...dados.column, index: 1 } });
+    tabela.didDrawCell?.({ ...dados, column: { ...dados.column, index: 1 } as CellHookData["column"] });
     expect(retangulo).toHaveBeenCalledTimes(1);
     retangulo.mockRestore();
   });
