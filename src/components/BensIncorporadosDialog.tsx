@@ -29,13 +29,13 @@ export function BensIncorporadosDialog() {
   const [gerando, setGerando] = useState(false);
   const [res, setRes] = useState<{ inicio: string; fim: string; linhas: Linha[] } | null>(null);
 
-  const gerar = async () => {
-    if (!inicio || !fim) return toast.error("Informe a data inicial e a data final.");
-    if (inicio > fim) return toast.error("A data inicial deve ser anterior à final.");
+  const gerar = async (): Promise<void> => {
+    if (!inicio || !fim) { toast.error("Informe a data inicial e a data final."); return; }
+    if (inicio > fim) { toast.error("A data inicial deve ser anterior à final."); return; }
     setGerando(true);
     const { data, error } = await supabase.rpc("demonstrativo_bens_incorporados", { _inicio: inicio, _fim: fim });
     setGerando(false);
-    if (error) return toast.error("Não foi possível gerar o relatório.");
+    if (error) { toast.error("Não foi possível gerar o relatório."); return; }
     setRes({ inicio, fim, linhas: (data ?? []).map((l) => ({ ...l, quantidade: Number(l.quantidade), sem_codigo: Number(l.sem_codigo), total: Number(l.total) })) });
   };
 
