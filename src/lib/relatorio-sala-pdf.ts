@@ -33,7 +33,10 @@ export async function gerarRelatorioSalaPdf({ sala, departamento, responsavel, b
   autoTable(pdf, {
     startY: inicio + 4, margin: { top: 12, left: 12, right: 12, bottom: 16 },
     head: [["PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO / SITUAÇÃO", "VALOR"]],
-    body: [...bens].sort((a, b) => a.codigo_red.localeCompare(b.codigo_red, "pt-BR", { numeric: true })).map((bem) => [
+    body: [...bens].sort((a, b) =>
+      limparDescricao(a.descricao).localeCompare(limparDescricao(b.descricao), "pt-BR", { sensitivity: "base", numeric: true })
+      || a.codigo_red.localeCompare(b.codigo_red, "pt-BR", { numeric: true })
+    ).map((bem) => [
       formatarCodigoRed(bem.codigo_red), limparDescricao(bem.descricao), bem.incorporacao || "—",
       bem.conferencia_finalizada && !bem.conferido ? "Não localizado" : bem.tipo || "—", moeda(Number(bem.valor)),
     ]),
