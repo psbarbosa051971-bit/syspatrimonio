@@ -18,8 +18,6 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
     const i = linha.indexOf(":");
     return `<div><strong>${escapar(linha.slice(0, i + 1))}</strong> ${escapar(linha.slice(i + 1).trim())}</div>`;
   }).join("");
-  const itensRecebidos = [["retirada_crv", "CRV/RECIBO"], ["chave_reserva", "CHAVE RESERVA"], ["manual", "MANUAL DO PROPRIETÁRIO"]]
-    .filter(([chave]) => d[chave] === "Sim").map(([, nome]) => nome).join(", ");
   const dataImpressao = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
   const numero = numeroTermoVeiculo(termo);
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title></title><style>
@@ -67,7 +65,7 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
     <div class="total-geral"><span>LISTADO(S) GERAL: &nbsp; 001</span><span>VALOR TOTAL: &nbsp; ${escapar(moeda(Number(bem.valor)))}</span></div>
     <div class="assinaturas"><section class="quadro diretor"><h3>DIRETOR DE MATERIAL E PATRIMÔNIO</h3><div class="assinatura"><strong>${d.retirada_diretor?.trim() ? `${texto(d.retirada_diretor)}<br>` : ""}CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA</strong></div></section>
     <section class="quadro"><p class="responsavel"><strong><u>RESPONSÁVEL:</u> &nbsp; ${texto(destino)}</strong></p>
-    <p class="declaracao">Declaro que recebi o veículo acima especificado${itensRecebidos ? ` juntamente com: ${escapar(itensRecebidos)}` : ""}, depois de analisado pela comissão de recebimento designada pela Portaria nº ${texto(d.portaria || "144/2025")} e Decreto nº 8342/2021, e por estar em conformidade com o pedido, tudo ficará sob minha responsabilidade, a partir da data da assinatura deste Termo de Responsabilidade. Comprometo-me a mantê-lo em condições adequadas para o desenvolvimento normal dos trabalhos. As aplicações deste termo obedecem, em especial, ao disposto no artigo 70, parágrafo único, da Constituição Federal.</p>
+    <p class="declaracao">DECLARO QUE RETIREI DA CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA O VEÍCULO ÔNIBUS RURAL ESCOLAR MOTOR DIESEL 275 L 59 PASSAGEIRO + CONDUTOR DISPOSITIVO POLTRONA MÓVEL MODELO 25811: IVECO 15-210 - ORE 3 JUNTAMENTE COM A CHAVE RESERVA, CRV/RECIBO, MANUAL DO PROPRIETÁRIO. O VEÍCULO FICARÁ SOB MINHA RESPONSABILIDADE. COMPROMETO-ME A ZELAR PELO VEÍCULO, MANTENDO-O EM CONDIÇÕES ADEQUADAS DE USO E CONSERVAÇÃO, UTILIZANDO-O EXCLUSIVAMENTE PARA O DESEMPENHO DAS ATIVIDADES INSTITUCIONAIS, BEM COMO A DEVOLVÊ-LO NAS MESMAS CONDIÇÕES EM QUE FOI RECEBIDO, RESSALVADO O DESGASTE NATURAL DECORRENTE DO USO NORMAL. AS APLICAÇÕES DESTE TERMO OBEDECEM, EM ESPECIAL, AO DISPOSTO NO ARTIGO 70, PARÁGRAFO ÚNICO, DA CONSTITUIÇÃO FEDERAL, SEGUNDO O QUAL: PRESTARÁ CONTAS QUALQUER PESSOA FÍSICA OU JURÍDICA, PÚBLICA OU PRIVADA, QUE UTILIZE, ARRECADE, GUARDE, GERENCIE OU ADMINISTRE DINHEIROS, BENS E VALORES PÚBLICOS OU PELOS QUAIS A UNIÃO RESPONDA, OU QUE, EM NOME DESTA, ASSUMA OBRIGAÇÕES DE NATUREZA PECUNIÁRIA.</p>
     <div class="assinatura"><strong>${d.retirada_responsavel?.trim() ? texto(d.retirada_responsavel) : "ASSINATURA DO RESPONSÁVEL PELA RETIRADA"}</strong>${d.retirada_documento?.trim() ? `<br>Matrícula / documento: ${texto(d.retirada_documento)}` : ""}</div>
     <p class="data">DATA DE RECEBIMENTO ${d.retirada_data?.trim() ? texto(dataBr(d.retirada_data)) : "____ / ____ / ________"}</p></section></div>
     <div class="atencao">ATENÇÃO: CONFERIR NO ATO DO RECEBIMENTO. NÃO ACEITAREMOS RECLAMAÇÕES APÓS O RECEBIMENTO E ASSINATURA DESTE TERMO.</div>

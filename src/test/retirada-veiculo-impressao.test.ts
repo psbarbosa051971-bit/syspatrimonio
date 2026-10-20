@@ -31,8 +31,10 @@ describe("relatório de retirada do veículo", () => {
       "2013", "Aquisição", "02/10/2024", "NOVO", "LISTADO(S) POR GRUPO:",
       "VALOR POR GRUPO:", "VALOR TOTAL:", "DIRETOR DE MATERIAL E PATRIMÔNIO",
       "Diretor de Patrimônio", "Responsável da Saúde", "Matrícula / documento: 12345",
-      "DATA DE RECEBIMENTO 17/10/2026", "CRV/RECIBO, CHAVE RESERVA, MANUAL DO PROPRIETÁRIO",
-      "Portaria nº 144/2025", "Decreto nº 8342/2021", "artigo 70, parágrafo único",
+      "DATA DE RECEBIMENTO 17/10/2026", "CHAVE RESERVA, CRV/RECIBO, MANUAL DO PROPRIETÁRIO",
+      "DECLARO QUE RETIREI DA CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA",
+      "ÔNIBUS RURAL ESCOLAR MOTOR DIESEL 275 L 59 PASSAGEIRO + CONDUTOR DISPOSITIVO POLTRONA MÓVEL MODELO 25811: IVECO 15-210 - ORE 3",
+      "ARTIGO 70, PARÁGRAFO ÚNICO", "ASSUMA OBRIGAÇÕES DE NATUREZA PECUNIÁRIA.",
       "ATENÇÃO: CONFERIR NO ATO DO RECEBIMENTO.", "Imprimir / Salvar em PDF",
     ]) expect(html).toContain(texto);
     expect(html).toContain(bem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
@@ -46,18 +48,19 @@ describe("relatório de retirada do veículo", () => {
     expect(html).toContain("<h1>Almoxarifado central</h1>");
     expect(html).toContain("ASSINATURA DO RESPONSÁVEL PELA RETIRADA");
     expect(html).toContain("DATA DE RECEBIMENTO ____ / ____ / ________");
-    expect(html).not.toContain("juntamente com:");
-    expect(html).not.toContain("CRV/RECIBO");
+    expect(html).toContain("DECLARO QUE RETIREI DA CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA");
     expect(html).not.toContain("undefined");
   });
 
-  it("não declara como entregues documentos ou acessórios sem confirmação", () => {
-    const html = htmlRetiradaVeiculo(bem, { ...termo, dados: {
-      retirada_crv: "Não", manual: "Não", chave_reserva: "Sim",
-    } });
-    expect(html).toContain("juntamente com: CHAVE RESERVA,");
-    expect(html).not.toContain("CRV/RECIBO");
-    expect(html).not.toContain("MANUAL DO PROPRIETÁRIO");
+  it("usa a nova declaração integral no lugar do texto anterior", () => {
+    const html = htmlRetiradaVeiculo(bem, termo);
+    expect(html).toContain("JUNTAMENTE COM A CHAVE RESERVA, CRV/RECIBO, MANUAL DO PROPRIETÁRIO.");
+    expect(html).toContain("O VEÍCULO FICARÁ SOB MINHA RESPONSABILIDADE.");
+    expect(html).toContain("RESSALVADO O DESGASTE NATURAL DECORRENTE DO USO NORMAL.");
+    expect(html).toContain("PRESTARÁ CONTAS QUALQUER PESSOA FÍSICA OU JURÍDICA, PÚBLICA OU PRIVADA");
+    expect(html).not.toContain("Declaro que recebi o veículo acima especificado");
+    expect(html).not.toContain("Portaria nº");
+    expect(html).not.toContain("Decreto nº 8342/2021");
   });
 
   it("escapa o conteúdo dos campos e usa os detalhes revisados no formulário", () => {
