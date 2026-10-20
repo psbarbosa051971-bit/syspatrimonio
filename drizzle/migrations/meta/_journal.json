@@ -71,6 +71,13 @@
       "when": 1792515050703,
       "tag": "0009_pesquisa_bens_permissao_unica",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792515085631,
+      "tag": "0010_pesquisa_palavras_indexada",
+      "breakpoints": true
     }
   ]
 }
