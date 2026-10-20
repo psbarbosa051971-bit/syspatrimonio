@@ -714,6 +714,7 @@ export type Database = {
         Args: { _sala_id: string }
         Returns: Json
       }
+      data_br_segura: { Args: { _t: string }; Returns: string }
       demonstrativo_bens_incorporados: {
         Args: { _fim: string; _inicio: string }
         Returns: {

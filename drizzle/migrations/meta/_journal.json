@@ -85,6 +85,13 @@
       "when": 1792536971763,
       "tag": "0011_demonstrativo_bens_incorporados",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792537288962,
+      "tag": "0012_relatorio_incorporados_rapido",
+      "breakpoints": true
     }
   ]
 }
