@@ -21,12 +21,12 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
   const dataImpressao = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
   const numero = numeroTermoVeiculo(termo);
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title></title><style>
-    @page { size: A4 landscape; margin: 8mm; }
+    @page { size: A4 portrait; margin: 8mm; }
     * { box-sizing: border-box; }
     body { margin: 0; background: oklch(0.95 0 0); color: oklch(0 0 0); font: 11px/1.3 Arial, sans-serif; }
     .acoes { padding: 12px; text-align: center; } button { padding: 10px 18px; cursor: pointer; }
-    .folha { position: relative; width: 281mm; height: 193mm; margin: 12px auto; padding: 0 1mm; background: oklch(1 0 0); }
-    .conteudo { width: 279mm; transform-origin: top left; overflow-wrap: anywhere; }
+    .folha { position: relative; width: 194mm; height: 281mm; margin: 12px auto; padding: 0 1mm; background: oklch(1 0 0); }
+    .conteudo { width: 192mm; transform-origin: top left; overflow-wrap: anywhere; }
     .cabecalho { display: block; width: 100%; height: 31mm; object-fit: contain; margin-bottom: 2mm; }
     .destino { border: 1px solid oklch(0.6 0 0); padding: 3mm; text-align: center; text-transform: uppercase; }
     .destino h1 { margin: 0 0 2mm; font: bold 19px 'Arial Narrow', Arial, sans-serif; }
@@ -74,7 +74,7 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
     var folha = document.querySelector('.folha'), conteudo = document.querySelector('.conteudo'), rodape = document.querySelector('footer');
     if (!folha || !conteudo) return;
     conteudo.style.transform = 'none';
-    conteudo.style.width = '279mm';
+    conteudo.style.width = '192mm';
     var disponivel = folha.clientHeight - (rodape ? rodape.offsetHeight + 8 : 0);
     var escala = 1;
     for (var tentativa = 0; tentativa < 8; tentativa++) {
@@ -82,7 +82,7 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
       var ajuste = Math.min(1, (disponivel - 2) / Math.max(1, altura * escala));
       if (ajuste >= 1) break;
       escala *= ajuste;
-      conteudo.style.width = (279 / escala) + 'mm';
+      conteudo.style.width = (192 / escala) + 'mm';
     }
     conteudo.style.transform = 'scale(' + escala + ')';
   }

@@ -22,10 +22,16 @@ const termo: Tables<"recebimentos_veiculos"> = {
 };
 
 describe("relatório de retirada do veículo", () => {
-  it("monta o modelo em A4 paisagem com dados patrimoniais, totais e assinaturas", () => {
+  it("monta o modelo em A4 retrato com dados patrimoniais, totais e assinaturas", () => {
     const html = htmlRetiradaVeiculo(bem, termo, "Almoxarifado");
+    expect(html).toContain("width: 194mm; height: 281mm");
+    expect(html).toContain(".conteudo { width: 192mm;");
+    expect(html).toContain("conteudo.style.width = '192mm'");
+    expect(html).toContain("conteudo.style.width = (192 / escala) + 'mm'");
+    expect(html).not.toContain("landscape");
+    expect(html).not.toContain("279mm");
     for (const texto of [
-      "size: A4 landscape", 'src="/images/cabecalho-recebimento-veiculos.jpg"',
+      "size: A4 portrait", 'src="/images/cabecalho-recebimento-veiculos.jpg"',
       "TERMO DE RESPONSABILIDADE Nº 003/2026", "142 - TRANSPORTE DA SAÚDE",
       "RUA CONSELHEIRO JOAQUIM DELFINO, 173", "VEÍCULO TOYOTA HILUX", "2024/2024", "TCS3H06",
       "2013", "Aquisição", "02/10/2024", "NOVO", "LISTADO(S) POR GRUPO:",
