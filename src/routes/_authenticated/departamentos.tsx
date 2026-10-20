@@ -928,6 +928,7 @@ function DepartamentosPage() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <BensIncorporadosDialog />
                   <Button variant="outline" size="sm" onClick={novoDepartamento}
                     disabled={carregandoDepartamentos || !!erroDepartamentos}>
                     <Plus className="mr-1 h-4 w-4" /> Novo
