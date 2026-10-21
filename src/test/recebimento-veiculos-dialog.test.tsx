@@ -34,7 +34,7 @@ const bem: Tables<"bens"> = {
   id: "bem-1", user_id: "usuario", sala_id: "sala-1", codigo_red: "123",
   descricao: "VEÍCULO MARCA FIAT", valor: 10000, created_at: "2026-10-13T12:00:00Z",
   conferido: true, observacao: null, incorporacao: "13/10/2026", tipo: "Aquisição",
-  importacao_id: null, conferencia_finalizada: false, ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
+  importacao_id: null, conferencia_finalizada: false, status: "nao_localizado", ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
 };
 
 afterEach(cleanup);

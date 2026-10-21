@@ -7,7 +7,7 @@ const bem: Tables<"bens"> = {
   descricao: "VEÍCULO CHEVROLET ONIX", valor: 91983,
   created_at: "2026-09-01T12:00:00Z", conferido: true,
   observacao: null, incorporacao: "01/09/2026", tipo: "Aquisição",
-  importacao_id: null, conferencia_finalizada: false, ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
+  importacao_id: null, conferencia_finalizada: false, status: "nao_localizado", ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
 };
 const termo: Tables<"recebimentos_veiculos"> = {
   bem_id: bem.id, numero: 2, ano: 2026, criado_em: "2026-09-01T12:00:00Z",

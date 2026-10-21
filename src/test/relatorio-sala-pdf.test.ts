@@ -13,7 +13,7 @@ beforeEach(() => vi.clearAllMocks());
 const sala = { nome: "Sala da Saúde / 01", endereco: "Rua Central", unidade: "SAÚDE", responsavel: "Maria" };
 const bem: Tables<"bens"> = {
   id: "bem", user_id: "usuario", sala_id: "sala", codigo_red: "60651", descricao: "Mesa de escritório",
-  valor: 120.5, created_at: "2026-10-17T12:00:00Z", conferido: true, conferencia_finalizada: true, ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
+  valor: 120.5, created_at: "2026-10-17T12:00:00Z", conferido: true, conferencia_finalizada: true, status: "nao_localizado", ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
   observacao: null, incorporacao: "2026", tipo: "Mobiliário", importacao_id: null,
 };
 

@@ -5,7 +5,7 @@ import { aceitarBens, codigosDaBusca, lerTermoTransferencia, type BemTransferenc
 const bem = (id: string, sala_id: string | null = "origem"): BemTransferencia => ({
   id, sala_id, codigo_red: id, descricao: "Mesa", valor: 100, user_id: "usuario",
   created_at: "2026-10-10T12:00:00Z", importacao_id: "html-original",
-  incorporacao: null, tipo: "Aquisição", observacao: null, conferido: true, conferencia_finalizada: true, ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
+  incorporacao: null, tipo: "Aquisição", observacao: null, conferido: true, conferencia_finalizada: true, status: "nao_localizado", ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
 });
 
 describe("preparação de transferência de bens", () => {
