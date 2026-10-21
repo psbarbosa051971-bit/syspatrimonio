@@ -963,7 +963,7 @@ function DepartamentosPage() {
         onClose={() => setImpressaoImportacao(null)}
       />}
 
-      <main className="mx-auto grid max-w-[1800px] items-stretch gap-3 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:grid-cols-2">
+      <main className="mx-auto grid max-w-[1800px] items-stretch gap-3 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6 lg:contents">
           {carregandoDepartamentos && (
             <p role="status" className="text-sm text-muted-foreground lg:col-span-2">Carregando departamentos salvos...</p>
