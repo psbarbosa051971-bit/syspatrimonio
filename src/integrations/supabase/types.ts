@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      retiradas_veiculos: {
+        Row: {
+          bem_id: string
+          numero: number
+          ano: number
+          criado_em: string
+          criado_por: string
+        }
+        Insert: {
+          bem_id: string
+          numero: number
+          ano: number
+          criado_em?: string
+          criado_por: string
+        }
+        Update: {
+          bem_id?: string
+          numero?: number
+          ano?: number
+          criado_em?: string
+          criado_por?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retiradas_veiculos_bem_id_fkey"
+            columns: ["bem_id"]
+            isOneToOne: true
+            referencedRelation: "recebimentos_veiculos"
+            referencedColumns: ["bem_id"]
+          },
+        ]
+      }
       bens: {
         Row: {
           ano_empenho: string | null
@@ -728,6 +760,7 @@ export type Database = {
         }[]
       }
       consultar_proximo_numero_transferencia: { Args: never; Returns: Json }
+      emitir_retirada_veiculo: { Args: { _bem_id: string }; Returns: Json }
       dados_responsavel_sala_termo: {
         Args: { _sala_id: string }
         Returns: Json

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Tables } from "@/integrations/supabase/types";
-import { htmlRetiradaVeiculo } from "@/lib/retirada-veiculo-impressao";
+import { htmlRetiradaVeiculo as gerarHtmlRetirada } from "@/lib/retirada-veiculo-impressao";
+
+const retirada = { numero: 50, ano: 2026 };
+const htmlRetiradaVeiculo = (bem: Tables<"bens">, termo: Tables<"recebimentos_veiculos">, local = "") =>
+  gerarHtmlRetirada(bem, termo, local, retirada);
 
 const bem: Tables<"bens"> = {
   id: "veiculo", user_id: "usuario", sala_id: "sala", codigo_red: "74652",
@@ -22,6 +26,21 @@ const termo: Tables<"recebimentos_veiculos"> = {
 };
 
 describe("relatório de retirada do veículo", () => {
+  it("usa o número próprio da retirada e o mantém nas reimpressões", () => {
+    const primeira = gerarHtmlRetirada(bem, termo, "", retirada);
+    const segunda = gerarHtmlRetirada(bem, termo, "", retirada);
+    for (const html of [primeira, segunda]) {
+      expect(html).toContain("TERMO DE RETIRADA DE VEÍCULO Nº 050/2026");
+      expect(html).not.toContain("TERMO DE RESPONSABILIDADE Nº");
+      expect(html).not.toContain("003/2026");
+    }
+  });
+
+  it("recusa a numeração do recebimento ou uma numeração inválida", () => {
+    expect(() => gerarHtmlRetirada(bem, termo, "", { numero: termo.numero, ano: termo.ano })).toThrow("número próprio");
+    expect(() => gerarHtmlRetirada(bem, termo, "", { numero: 0, ano: 2026 })).toThrow("número próprio");
+  });
+
   it("monta o modelo em A4 retrato com dados patrimoniais, totais e assinaturas", () => {
     const html = htmlRetiradaVeiculo(bem, termo, "Almoxarifado");
     expect(html).toContain("width: 194mm; height: 281mm");
@@ -32,7 +51,7 @@ describe("relatório de retirada do veículo", () => {
     expect(html).not.toContain("279mm");
     for (const texto of [
       "size: A4 portrait", 'src="/images/cabecalho-recebimento-veiculos.jpg"',
-      "TERMO DE RESPONSABILIDADE Nº 003/2026", "142 - TRANSPORTE DA SAÚDE",
+      "TERMO DE RETIRADA DE VEÍCULO Nº 050/2026", "142 - TRANSPORTE DA SAÚDE",
       "RUA CONSELHEIRO JOAQUIM DELFINO, 173", "VEÍCULO TOYOTA HILUX", "2024/2024", "TCS3H06",
       "2013", "Aquisição", "02/10/2024", "NOVO", "LISTADO(S) POR GRUPO:",
       "VALOR POR GRUPO:", "VALOR TOTAL:", "DIRETOR DE MATERIAL E PATRIMÔNIO",

@@ -8,7 +8,12 @@ const escapar = (valor: unknown) => String(valor ?? "").replace(/[&<>"']/g, (c) 
 const dataBr = (valor: string) => /^(\d{4})-(\d{2})-(\d{2})$/.test(valor) ? valor.split("-").reverse().join("/") : valor;
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebimentos_veiculos">, local = ""): string {
+export function htmlRetiradaVeiculo(
+  bem: Tables<"bens">,
+  termo: Tables<"recebimentos_veiculos">,
+  local: string,
+  retirada: Pick<Tables<"retiradas_veiculos">, "numero" | "ano">,
+): string {
   const d = lerDadosRecebimento(termo.dados);
   const texto = (valor?: string) => escapar(valor?.trim() || "—");
   const destino = d.secretaria?.trim() || local || d.local_fisico || "";
@@ -19,7 +24,11 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
     return `<div><strong>${escapar(linha.slice(0, i + 1))}</strong> ${escapar(linha.slice(i + 1).trim())}</div>`;
   }).join("");
   const dataImpressao = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-  const numero = numeroTermoVeiculo(termo);
+  if (!Number.isSafeInteger(retirada.numero) || retirada.numero <= 0 || !Number.isInteger(retirada.ano)
+    || retirada.numero === termo.numero) {
+    throw new Error("A retirada precisa de um número próprio, diferente do recebimento.");
+  }
+  const numero = numeroTermoVeiculo(retirada);
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title></title><style>
     @page { size: A4 portrait; margin: 8mm; }
     * { box-sizing: border-box; }
@@ -60,7 +69,7 @@ export function htmlRetiradaVeiculo(bem: Tables<"bens">, termo: Tables<"recebime
   <main class="folha"><div class="conteudo">
     <img class="cabecalho" src="/images/cabecalho-recebimento-veiculos.jpg" alt="Prefeitura Municipal de Itajubá — Central de Distribuição e Logística / Material e Patrimônio" onload="ajustarPagina()">
     <div class="destino"><h1>${texto(destino)}</h1><p>${texto(d.retirada_endereco)}</p></div>
-    <h2>TERMO DE RESPONSABILIDADE Nº ${escapar(numero)}</h2>
+    <h2>TERMO DE RETIRADA DE VEÍCULO Nº ${escapar(numero)}</h2>
     <div class="historico"><span>HISTÓRICO:</span>BENS DISTRIBUÍDOS CONFORME PLANILHA ENVIADA AO CENTRO DE DISTRIBUIÇÃO E LOGÍSTICA E INCORPORADO(S) A (AO) ${texto(destino)}</div>
     <table aria-label="Veículo retirado"><colgroup><col style="width:9%"><col style="width:49%"><col style="width:7%"><col style="width:10%"><col style="width:9%"><col style="width:6%"><col style="width:10%"></colgroup>
     <thead><tr><th>Cód. reduz.</th><th>Descrição do(s)</th><th>Pedido</th><th>Incorporação</th><th>Aquisição</th><th>Estado</th><th>Valor unit.</th></tr></thead>

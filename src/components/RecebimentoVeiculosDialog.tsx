@@ -124,20 +124,35 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
       } as unknown as TablesInsert<"recebimentos_veiculos">, { onConflict: "bem_id" }).select("*").single();
       if (error || !salvo) throw error ?? new Error("Termo não retornado");
       setTermo(salvo);
-      toast.success(`Termo de recebimento Nº ${numeroTermoVeiculo(salvo)} salvo.`);
+      let retirada: Pick<Tables<"retiradas_veiculos">, "numero" | "ano"> | null = null;
+      if (imprimir === "retirada") {
+        const { data: emitida, error: erroRetirada } = await supabase.rpc("emitir_retirada_veiculo", { _bem_id: bem.id });
+        if (erroRetirada) throw erroRetirada;
+        if (!emitida || typeof emitida !== "object" || Array.isArray(emitida)
+          || typeof emitida.numero !== "number" || typeof emitida.ano !== "number") {
+          throw new Error("Número da retirada não retornado");
+        }
+        retirada = { numero: emitida.numero, ano: emitida.ano };
+      }
+      const relatorio = retirada
+        ? htmlRetiradaVeiculo(bem, salvo, localOrigem, retirada)
+        : htmlTermoVeiculo(bem, salvo, localOrigem);
       if (janela && !janela.closed) {
         janela.document.open();
-        janela.document.write(imprimir === "retirada"
-          ? htmlRetiradaVeiculo(bem, salvo, localOrigem)
-          : htmlTermoVeiculo(bem, salvo, localOrigem));
+        janela.document.write(relatorio);
         janela.document.close();
         janela.focus();
       }
+      toast.success(retirada
+        ? `Termo de retirada de veículo Nº ${numeroTermoVeiculo(retirada)} emitido.`
+        : `Termo de recebimento Nº ${numeroTermoVeiculo(salvo)} salvo.`);
       onSaved?.();
       onClose();
     } catch {
       janela?.close();
-      toast.error("Não foi possível salvar o recebimento. Seus dados foram mantidos para tentar novamente.");
+      toast.error(imprimir === "retirada"
+        ? "Não foi possível emitir o termo de retirada. Seus dados foram mantidos; tente novamente. Se o número já foi gerado, ele será reutilizado."
+        : "Não foi possível salvar o recebimento. Seus dados foram mantidos para tentar novamente.");
     } finally { setSalvando(false); }
   }
 
@@ -243,7 +258,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
               </div>
             </div>
             <section className="rounded-md border border-border">
-              <h3 className="bg-muted px-3 py-1 text-xs font-bold uppercase">Retirada do veículo · termo de responsabilidade</h3>
+              <h3 className="bg-muted px-3 py-1 text-xs font-bold uppercase">Termo de retirada de veículo</h3>
               <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3">
                 {campo("retirada_endereco", "Endereço do destino")}
                 {campo("retirada_estado", "Estado na retirada")}
@@ -260,7 +275,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
                   </select>
                 </label>
               </div>
-              <p className="px-2 pb-2 text-xs text-muted-foreground">Retirar Veículo salva o formulário e abre o relatório para impressão, usando o número do recebimento. Confira também a Secretaria e, no Check-list, a chave reserva e o manual entregues. Esta ação não transfere o patrimônio de Local Físico.</p>
+              <p className="px-2 pb-2 text-xs text-muted-foreground">Retirar Veículo salva o formulário e emite o Termo de Retirada de Veículo com número próprio, diferente dos termos de responsabilidade e de recebimento. Reimprimir a mesma retirada mantém seu número. Confira também a Secretaria e, no Check-list, a chave reserva e o manual entregues. Esta ação não transfere o patrimônio de Local Físico.</p>
             </section>
           </TabsContent>
           <TabsContent value="checklist" className="mt-0 space-y-2">

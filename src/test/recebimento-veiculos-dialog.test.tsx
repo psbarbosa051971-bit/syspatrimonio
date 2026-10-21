@@ -2,10 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tables } from "@/integrations/supabase/types";
 
-const mocks = vi.hoisted(() => ({ carregar: vi.fn(), historico: vi.fn(), gravar: vi.fn(), upsert: vi.fn(), erro: vi.fn(), sucesso: vi.fn() }));
+const mocks = vi.hoisted(() => ({ carregar: vi.fn(), historico: vi.fn(), gravar: vi.fn(), upsert: vi.fn(), rpc: vi.fn(), erro: vi.fn(), sucesso: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: "usuario" } }, error: null }) },
+    rpc: mocks.rpc,
     from: (tabela: string) => tabela === "recebimentos_veiculos" ? {
       select: () => ({
         eq: () => ({ maybeSingle: mocks.carregar }),
@@ -38,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.carregar.mockResolvedValue({ data: null, error: null });
   mocks.historico.mockResolvedValue({ data: [], error: null });
+  mocks.rpc.mockResolvedValue({ data: { numero: 50, ano: 2026 }, error: null });
   mocks.gravar.mockResolvedValue({ data: {
     bem_id: bem.id, numero: 2, ano: 2026, criado_em: "2026-10-14T12:00:00Z",
     dados: {}, atualizado_por: "usuario", atualizado_em: "2026-10-14T12:00:00Z",
@@ -331,11 +333,35 @@ describe("formulário de recebimento de veículos", () => {
       await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
         dados: expect.objectContaining(dadosRetirada),
       }), { onConflict: "bem_id" }));
-      await waitFor(() => expect(janela.document.write).toHaveBeenCalledWith(expect.stringContaining("TERMO DE RESPONSABILIDADE Nº 002/2026")));
+      await waitFor(() => expect(janela.document.write).toHaveBeenCalledWith(expect.stringContaining("TERMO DE RETIRADA DE VEÍCULO Nº 050/2026")));
+      expect(mocks.rpc).toHaveBeenCalledWith("emitir_retirada_veiculo", { _bem_id: bem.id });
+      expect(janela.document.write).not.toHaveBeenCalledWith(expect.stringContaining("Nº 002/2026"));
+      expect(mocks.sucesso).toHaveBeenCalledWith("Termo de retirada de veículo Nº 050/2026 emitido.");
       expect(janela.document.write).toHaveBeenCalledWith(expect.stringContaining("Maria da Silva"));
       expect(janela.opener).toBeNull();
       expect(janela.focus).toHaveBeenCalledOnce();
       expect(onClose).toHaveBeenCalledOnce();
+    } finally { abrir.mockRestore(); }
+  });
+
+  it("não imprime com o número do recebimento se a emissão da retirada falhar", async () => {
+    const janela = {
+      opener: {}, closed: false,
+      document: { body: { textContent: "" }, open: vi.fn(), write: vi.fn(), close: vi.fn() },
+      focus: vi.fn(), close: vi.fn(),
+    };
+    const abrir = vi.spyOn(window, "open").mockReturnValue(janela as unknown as Window);
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "Falha ao emitir" } });
+    const onClose = vi.fn();
+    try {
+      render(<RecebimentoVeiculosDialog bem={bem} onClose={onClose} />);
+      await aguardarCarga();
+      fireEvent.click(screen.getByRole("button", { name: "Retirar Veículo" }));
+      await waitFor(() => expect(mocks.erro).toHaveBeenCalledWith(expect.stringContaining("Não foi possível emitir o termo de retirada")));
+      expect(janela.document.write).not.toHaveBeenCalled();
+      expect(janela.close).toHaveBeenCalledOnce();
+      expect(mocks.sucesso).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
     } finally { abrir.mockRestore(); }
   });
 
