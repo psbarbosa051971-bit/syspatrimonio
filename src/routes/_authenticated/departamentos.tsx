@@ -102,6 +102,7 @@ const formataMoeda = (v: number) =>
 
 const bemNaoLocalizado = (bem: Bem) => bem.conferencia_finalizada && !bem.conferido;
 const tipoExibido = (bem: Bem) => bemNaoLocalizado(bem) ? "Não localizado" : bem.tipo ?? "";
+const anoIncorporacao = (bem: Bem) => bem.incorporacao?.match(/(?:^|\D)(\d{4})(?=\D|$)/)?.[1] ?? "";
 
 async function carregarBensDaSala(salaId: string): Promise<Bem[]> {
   const todos: Bem[] = [];
@@ -163,6 +164,7 @@ function DepartamentosPage() {
     setUnidadeLiberadaSalaId((atual) => atual === salaSel?.id ? atual : null);
   }, [salaSel?.id]);
   const [buscaBens, setBuscaBens] = useState("");
+  const [filtroAnoIncorporacao, setFiltroAnoIncorporacao] = useState("");
   const [pesquisaDinamica, setPesquisaDinamica] = useState("");
   const [resultadoPesquisa, setResultadoPesquisa] = useState<ResultadoPesquisaDinamica | null>(null);
   const [localizando, setLocalizando] = useState(false);
@@ -170,6 +172,9 @@ function DepartamentosPage() {
   const bensDoTermo = useMemo(() => termoSelecionado
     ? bens.filter((bem) => bem.importacao_id === termoSelecionado.id) : bens, [bens, termoSelecionado]);
   const bensExibidos = resultadoPesquisa?.bens ?? bensDoTermo;
+  const anosIncorporacao = useMemo(() => [...new Set(bensExibidos.map(anoIncorporacao).filter(Boolean))]
+    .sort((a, b) => Number(b) - Number(a)), [bensExibidos]);
+  useEffect(() => { setFiltroAnoIncorporacao(""); }, [salaSel?.id, !!resultadoPesquisa, termoSelecionado?.id]);
   const dadosRelatorioSala = useMemo(() => salaSel ? {
     sala: salaSel, departamento: departamentoSel?.departamento ?? "",
     responsavel: perfilResponsavel?.salaId === salaSel.id ? perfilResponsavel.nome ?? "" : salaSel.responsavel ?? "",
@@ -217,8 +222,9 @@ function DepartamentosPage() {
   const bensFiltrados = useMemo(() => {
     const normalizar = (texto: string) => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const termos = normalizar(buscaBens).trim().split(/\s+/).filter(Boolean);
-    if (!termos.length) return bensExibidos;
     return bensExibidos.filter((bem) => {
+      if (filtroAnoIncorporacao && anoIncorporacao(bem) !== filtroAnoIncorporacao) return false;
+      if (!termos.length) return true;
       const campos = normalizar([
         bem.codigo_red, formatarCodigoRed(bem.codigo_red), limparDescricao(bem.descricao), bem.incorporacao, tipoExibido(bem),
         bem.valor, formataMoeda(Number(bem.valor)), Number(bem.valor).toFixed(2).replace(".", ","),
@@ -226,7 +232,7 @@ function DepartamentosPage() {
       ].filter((campo) => campo != null).join(" "));
       return termos.every((termo) => campos.includes(termo));
     });
-  }, [bensExibidos, buscaBens]);
+  }, [bensExibidos, buscaBens, filtroAnoIncorporacao]);
   const idsBensFiltrados = bensFiltrados.map((bem) => bem.id);
   const todosFiltradosSelecionados = idsBensFiltrados.length > 0 && idsBensFiltrados.every((id) => selecionados.includes(id));
 
@@ -1057,9 +1063,27 @@ function DepartamentosPage() {
                   <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
                     Gerar transferência
                   </Button>
-                  <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogEstorno(true)}>
-                    Estornar transferência
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogEstorno(true)}>
+                      Estornar transferência
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="ano-incorporacao-sala" className="whitespace-nowrap">Ano de incorporação</Label>
+                      <select
+                        id="ano-incorporacao-sala"
+                        className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        value={filtroAnoIncorporacao}
+                        disabled={(!salaSel && !resultadoPesquisa) || carregandoBens || importando || localizando}
+                        onChange={(e) => {
+                          setFiltroAnoIncorporacao(e.target.value);
+                          setSelecionados([]);
+                        }}
+                      >
+                        <option value="">Todos os anos</option>
+                        {anosIncorporacao.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+                      </select>
+                    </div>
+                  </div>
                   {dialogEstorno && <EstornoTransferenciaDialog
                     onClose={() => setDialogEstorno(false)}
                     onSaved={() => {
@@ -1335,9 +1359,9 @@ function DepartamentosPage() {
               </Table>
               </div>
               <div className="flex items-center justify-between rounded-md border-2 border-primary/30 bg-accent px-3 py-2 text-sm font-medium text-foreground">
-                <span>Quantidade de bens: {bensFiltrados.length}{buscaBens.trim() ? ` de ${bensExibidos.length}` : ""}</span>
+                <span>Quantidade de bens: {bensFiltrados.length}{buscaBens.trim() || filtroAnoIncorporacao ? ` de ${bensExibidos.length}` : ""}</span>
                 <span>
-                  {buscaBens.trim() ? "Total filtrado" : "Total"}: {formataMoeda(bensFiltrados.reduce((acc, b) => acc + Number(b.valor), 0))}
+                  {buscaBens.trim() || filtroAnoIncorporacao ? "Total filtrado" : "Total"}: {formataMoeda(bensFiltrados.reduce((acc, b) => acc + Number(b.valor), 0))}
                 </span>
               </div>
             </CardContent>

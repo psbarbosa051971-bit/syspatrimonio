@@ -472,6 +472,51 @@ describe("Carregamento dos registros em Departamentos", () => {
     },
   );
 
+  it("filtra pelo ano de incorporação, combina com a pesquisa e restaura todos os anos", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const ano = screen.getByRole("combobox", { name: "Ano de incorporação" });
+    expect(within(ano).getAllByRole("option").map((opcao) => opcao.textContent))
+      .toEqual(["Todos os anos", "2025", "2024"]);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    fireEvent.change(ano, { target: { value: "2025" } });
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.queryByText("Cadeira azul")).not.toBeInTheDocument();
+    expect(screen.getByText("Quantidade de bens: 1 de 2")).toBeInTheDocument();
+    expect(screen.getByText("Total filtrado: R$ 10,00")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
+    const pesquisa = screen.getByRole("searchbox", { name: "Pesquisar bens da sala" });
+    fireEvent.change(pesquisa, { target: { value: "cadeira" } });
+    expect(screen.getByText("Nenhum bem encontrado para esta pesquisa.")).toBeInTheDocument();
+    fireEvent.change(pesquisa, { target: { value: "" } });
+    fireEvent.change(ano, { target: { value: "2024" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
+    expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
+    fireEvent.change(ano, { target: { value: "" } });
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.getByText("Cadeira azul")).toBeInTheDocument();
+    expect(screen.getByText("Quantidade de bens: 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
+  });
+
+  it("reconhece o ano em datas brasileiras e ISO sem incluir bens sem data no filtro", async () => {
+    mocks.bens = [
+      { ...bem, incorporacao: "15/03/2025" },
+      { ...outroBem, incorporacao: "2025-09-20" },
+      { ...bem, id: "sem-data", codigo_red: "789", descricao: "Armário sem data", incorporacao: null },
+    ];
+    render(<Page />);
+    await screen.findByText("Armário sem data");
+    const ano = screen.getByRole("combobox", { name: "Ano de incorporação" });
+    expect(within(ano).getAllByRole("option")).toHaveLength(2);
+    fireEvent.change(ano, { target: { value: "2025" } });
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.getByText("Cadeira azul")).toBeInTheDocument();
+    expect(screen.queryByText("Armário sem data")).not.toBeInTheDocument();
+    expect(screen.getByText("Quantidade de bens: 2 de 3")).toBeInTheDocument();
+  });
+
   it("seleciona apenas os resultados visíveis e limpa a seleção ao mudar a pesquisa", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
