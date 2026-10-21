@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { numeroDoTermo } from "@/lib/termo-responsabilidade";
-import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
+import { resumoTermoDaSala, termoSemMovimentacao, type TermoDaSala } from "@/lib/termos-da-sala";
 import { Button } from "@/components/ui/button";
 import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
 import { EntregaTermoDialog } from "@/components/EntregaTermoDialog";
@@ -60,7 +60,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>Termos criados da sala</CardTitle>
         {selecionado && <div className="flex flex-wrap gap-2">
-          {salaId && termos.filter((termo) => termo.id === selecionado).map((termo) =>
+          {salaId && termos.filter((termo) => termo.id === selecionado && !termoSemMovimentacao(termo)).map((termo) =>
             <IncluirBensTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onAtualizar={onAtualizar} />)}
           <Button size="sm" variant="outline" onClick={onLimpar}>Mostrar todos os bens da sala</Button>
         </div>}

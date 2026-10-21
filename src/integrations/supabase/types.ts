@@ -784,6 +784,10 @@ export type Database = {
         }[]
       }
       consultar_proximo_numero_transferencia: { Args: never; Returns: Json }
+      criar_termo_bens_sala: {
+        Args: { _sala: string; _itens: string[]; _pedido: string }
+        Returns: Json
+      }
       emitir_retirada_veiculo: { Args: { _bem_id: string }; Returns: Json }
       dados_responsavel_sala_termo: {
         Args: { _sala_id: string }

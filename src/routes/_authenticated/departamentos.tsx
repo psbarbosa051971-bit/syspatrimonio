@@ -31,11 +31,12 @@ import { htmlPesquisaDinamica } from "@/lib/pesquisa-dinamica-impressao";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
+import { NovoTermoDialog } from "@/components/NovoTermoDialog";
 import { TermosDaSala } from "@/components/TermosDaSala";
 import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
 import { CompartilharRelatorioSala } from "@/components/CompartilharRelatorioSala";
 import { numeroDoTermo } from "@/lib/termo-responsabilidade";
-import type { TermoDaSala } from "@/lib/termos-da-sala";
+import { bensAtuaisDoTermo, termoSemMovimentacao, type TermoDaSala } from "@/lib/termos-da-sala";
 import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog";
 import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
@@ -186,7 +187,7 @@ function DepartamentosPage() {
   const [localizando, setLocalizando] = useState(false);
   const [termoSelecionado, setTermoSelecionado] = useState<TermoDaSala | null>(null);
   const bensDoTermo = useMemo(() => termoSelecionado
-    ? bens.filter((bem) => bem.importacao_id === termoSelecionado.id) : bens, [bens, termoSelecionado]);
+    ? bensAtuaisDoTermo(bens, termoSelecionado) : bens, [bens, termoSelecionado]);
   const bensExibidos = resultadoPesquisa?.bens ?? bensDoTermo;
   const anosIncorporacao = useMemo(() => [...new Set(bensExibidos.map(anoIncorporacao).filter(Boolean))]
     .sort((a, b) => Number(b) - Number(a)), [bensExibidos]);
@@ -366,6 +367,7 @@ function DepartamentosPage() {
   }
 
   const [dialogTermos, setDialogTermos] = useState(false);
+  const [novoTermo, setNovoTermo] = useState<{ sala: Sala; bens: Bem[] } | null>(null);
   const [consultarTermoPorNumero, setConsultarTermoPorNumero] = useState(false);
   const [dialogTransferencia, setDialogTransferencia] = useState(false);
   const [dialogEstorno, setDialogEstorno] = useState(false);
@@ -1108,6 +1110,12 @@ function DepartamentosPage() {
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termos e relatórios</h3>
                     <div className="bens-sala-acoes flex flex-wrap items-center gap-1">
                       <Button variant="outline" size="sm"
+                        title="Marque os bens na coluna SEL. para criar um termo sem movimentá-los"
+                        disabled={!salaSel || !selecionados.length || carregandoBens || !!erroBens || importando || localizando || !!resultadoPesquisa}
+                        onClick={() => { if (salaSel) setNovoTermo({ sala: salaSel, bens: bens.filter((bem) => selecionados.includes(bem.id)) }); }}>
+                        <Plus className="mr-1 h-4 w-4" /> Novo termo
+                      </Button>
+                      <Button variant="outline" size="sm"
                         disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
                         onClick={() => { setConsultarTermoPorNumero(true); setDialogTermos(true); }}>
                         <Printer className="mr-1 h-4 w-4" /> Termo de Responsabilidade
@@ -1150,6 +1158,16 @@ function DepartamentosPage() {
                       setBensParaTransferir([]);
                       if (salaSel?.id === destinoId) setUltimaImportacao(termoId);
                       setSalas((atuais) => [...atuais]);
+                    }}
+                  />}
+                  {novoTermo && <NovoTermoDialog
+                    sala={novoTermo.sala}
+                    bens={novoTermo.bens}
+                    onClose={() => setNovoTermo(null)}
+                    onSaved={(termoId) => {
+                      setUltimaImportacao(termoId);
+                      setSelecionados([]);
+                      setTentativaBens((valor) => valor + 1);
                     }}
                   />}
                   <TermosResponsabilidadeDialog
@@ -1243,7 +1261,7 @@ function DepartamentosPage() {
                       checked={todosFiltradosSelecionados}
                       onChange={(e) => setSelecionados(e.target.checked ? idsBensFiltrados : [])}
                     />
-                    Todos para exclusão
+                    Todos para novo termo / exclusão
                   </label>
                   <label className="flex items-center gap-1.5 text-sm">
                     <input
@@ -1293,7 +1311,7 @@ function DepartamentosPage() {
               {termoSelecionado && !resultadoPesquisa && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-accent px-3 py-2 text-sm" role="status">
                 <span>Termo {numeroDoTermo(termoSelecionado)} — {bensDoTermo.length} bem(ns) ainda nesta sala.</span>
                 <div className="flex flex-wrap gap-2">
-                  {salaSel && <IncluirBensTermoDialog key={`${salaSel.id}:${termoSelecionado.id}`} salaId={salaSel.id} termo={termoSelecionado}
+                  {salaSel && !termoSemMovimentacao(termoSelecionado) && <IncluirBensTermoDialog key={`${salaSel.id}:${termoSelecionado.id}`} salaId={salaSel.id} termo={termoSelecionado}
                     onAtualizar={() => { setSelecionados([]); setTentativaBens((valor) => valor + 1); }} />}
                   <Button variant="outline" size="sm" onClick={() => { setTermoSelecionado(null); setBuscaBens(""); setSelecionados([]); }}>Mostrar todos os bens da sala</Button>
                 </div>
@@ -1302,7 +1320,7 @@ function DepartamentosPage() {
               <Table className="table-fixed min-w-[1100px] text-xs [&_tbody_tr]:h-10 [&_tbody_td]:h-10 [&_tbody_td]:max-h-10 [&_tbody_td]:overflow-hidden [&_tbody_td]:whitespace-nowrap [&_td]:text-xs [&_td_button]:text-xs [&_td_span]:text-xs">
                 <TableHeader className="sticky top-0 z-10 bg-room-assets-header [&_th]:border-y-2 [&_th]:border-room-assets-header-border [&_th]:font-bold [&_th]:text-[10px] [&_th]:text-room-assets-header-foreground [&_th]:whitespace-nowrap [&_th:first-child]:border-l-2 [&_th:last-child]:border-r-2">
                   <TableRow className="h-8 hover:bg-room-assets-header">
-                    <TableHead className="h-8 w-12 py-1 text-center">EXC.</TableHead>
+                    <TableHead className="h-8 w-12 py-1 text-center" title="Selecionar para novo termo ou exclusão">SEL.</TableHead>
                     <TableHead className="h-8 w-16 py-1 text-center">TRAN</TableHead>
                     {colunasOrdenaveis.map(({ campo, titulo, classe }) => {
                       const ativa = ordenacaoBens.campo === campo;

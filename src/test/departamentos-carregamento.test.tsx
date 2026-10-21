@@ -194,14 +194,16 @@ describe("Carregamento dos registros em Departamentos", () => {
   it("exibe o cabeçalho dos bens como o modelo e preserva as seleções em lote acima da tabela", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
-    const cabecalho = screen.getByRole("columnheader", { name: "EXC." }).closest("thead")!;
+    const cabecalho = screen.getByRole("columnheader", { name: "SEL." }).closest("thead")!;
     expect(within(cabecalho).getAllByRole("columnheader").map((coluna) => coluna.textContent)).toEqual([
-      "EXC.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "STATUS", "VALOR", "",
+      "SEL.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "STATUS", "VALOR", "",
     ]);
     expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-[10px]");
     expect(cabecalho.closest("table")).toHaveClass("text-xs", "[&_td]:text-xs");
     expect(within(cabecalho).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Novo termo" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    expect(screen.getByRole("button", { name: "Novo termo" })).toBeEnabled();
     expect(screen.getByRole("checkbox", { name: "Selecionar 123" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
     expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeEnabled();

@@ -9,12 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-type Props = { importacaoId: string; salaId: string; usuarioId?: string; nomeAlternativo?: string; origem?: "importacao" | "transferencia"; onClose: () => void };
+type Props = { importacaoId: string; salaId: string; usuarioId?: string; nomeAlternativo?: string; origem?: "importacao" | "transferencia" | "novo-termo"; onClose: () => void };
 
 export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nomeAlternativo = "", origem = "importacao", onClose }: Props) {
   const transferencia = origem === "transferencia";
   const [dataTermo, setDataTermo] = useState("");
-  const [etapa, setEtapa] = useState<"pergunta" | "formulario" | "documento">("pergunta");
+  const [etapa, setEtapa] = useState<"pergunta" | "formulario" | "documento">(origem === "novo-termo" ? "formulario" : "pergunta");
   const [termo, setTermo] = useState<TermoResponsabilidade | null>(null);
   const [responsavelSala, setResponsavelSala] = useState("");
   const [cpfSala, setCpfSala] = useState("");
