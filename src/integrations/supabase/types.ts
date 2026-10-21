@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      notas_fiscais: {
+        Row: {
+          id: string
+          fornecedor: string
+          numero: string
+          serie: string
+          chave: string
+          xml: string
+          arquivo: string
+          criado_por: string
+          criado_em: string
+        }
+        Insert: {
+          id?: string
+          fornecedor: string
+          numero: string
+          serie: string
+          chave: string
+          xml: string
+          arquivo: string
+          criado_por: string
+          criado_em?: string
+        }
+        Update: {
+          id?: string
+          fornecedor?: string
+          numero?: string
+          serie?: string
+          chave?: string
+          xml?: string
+          arquivo?: string
+          criado_por?: string
+          criado_em?: string
+        }
+        Relationships: []
+      }
       bens: {
         Row: {
           ano_empenho: string | null
@@ -760,6 +796,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fornecedores_notas_fiscais: {
+        Args: Record<PropertyKey, never>
+        Returns: { fornecedor: string }[]
+      }
+      bens_da_nota_fiscal: {
+        Args: { _fornecedor: string; _numero: string }
+        Returns: Database["public"]["Tables"]["bens"]["Row"][]
+      }
       associar_checklist_veiculo: {
         Args: { _bem_id: string; _checklist_id: string }
         Returns: Json

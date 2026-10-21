@@ -42,6 +42,7 @@ import { TransferenciaBensDialog } from "@/components/TransferenciaBensDialog";
 import { EstornoTransferenciaDialog } from "@/components/EstornoTransferenciaDialog";
 import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog";
 import { RecebimentosVeiculos } from "@/components/RecebimentosVeiculos";
+import { NotasFiscais } from "@/components/NotasFiscais";
 import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
 import { BensIncorporadosDialog } from "@/components/BensIncorporadosDialog";
 import { ImportarFornecedorDialog } from "@/components/ImportarFornecedorDialog";
@@ -890,6 +891,7 @@ function DepartamentosPage() {
               <span>Sonner</span>
             </a>
             <RecebimentosVeiculos />
+            <NotasFiscais />
             <Button
               variant="ghost"
               size="sm"
