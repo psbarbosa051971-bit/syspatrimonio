@@ -99,6 +99,13 @@
       "when": 1792540863645,
       "tag": "0013_dados_fornecedor_bens",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792541423766,
+      "tag": "0014_vincular_fornecedor_em_lote",
+      "breakpoints": true
     }
   ]
 }
