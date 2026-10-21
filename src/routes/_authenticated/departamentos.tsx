@@ -963,7 +963,7 @@ function DepartamentosPage() {
         onClose={() => setImpressaoImportacao(null)}
       />}
 
-      <main className="mx-auto grid max-w-[1800px] gap-4 px-3 py-4 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px]">
+      <main className="mx-auto grid max-w-[1800px] items-stretch gap-3 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-6 lg:contents">
           {carregandoDepartamentos && (
             <p role="status" className="text-sm text-muted-foreground lg:col-span-2">Carregando departamentos salvos...</p>
@@ -1065,13 +1065,13 @@ function DepartamentosPage() {
 
           {/* Subformulário de bens */}
           <Card id="bens-da-sala" className="bens-sala-form min-w-0 scroll-mt-4">
-            <CardHeader className="gap-4">
+            <CardHeader className="gap-2 space-y-0 p-4 pb-3">
               <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
-              <div className="space-y-3">
-                <div className="grid gap-3 xl:grid-cols-2">
-                  <section aria-label="Importação e cadastro" className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+              <div className="space-y-2">
+                <div className="grid gap-1.5">
+                  <section aria-label="Importação e cadastro" className="space-y-1 rounded-md border border-border bg-muted/30 p-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Importação e cadastro</h3>
-                    <div className="bens-sala-acoes flex flex-wrap gap-2">
+                    <div className="bens-sala-acoes flex flex-wrap items-center gap-1">
                       <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="hidden" onChange={importarHtml} />
                       <Button variant="outline" size="sm"
                         disabled={!departamentoSel || importando || localizando || !!resultadoPesquisa}
@@ -1082,20 +1082,31 @@ function DepartamentosPage() {
                       <ImportarFornecedorDialog />
                     </div>
                   </section>
-                  <section aria-label="Movimentação de bens" className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                  <section aria-label="Movimentação de bens" className="space-y-1 rounded-md border border-border bg-muted/30 p-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Movimentação de bens</h3>
-                    <div className="bens-sala-acoes flex flex-wrap gap-2">
+                    <div className="bens-sala-acoes flex flex-wrap items-center gap-1">
                       <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
                         Gerar transferência
                       </Button>
                       <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogEstorno(true)}>
                         Estornar transferência
                       </Button>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Label htmlFor="ano-incorporacao-sala">Ano de incorporação</Label>
+                        <select id="ano-incorporacao-sala"
+                          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                          value={filtroAnoIncorporacao}
+                          disabled={(!salaSel && !resultadoPesquisa) || carregandoBens || importando || localizando}
+                          onChange={(e) => { setFiltroAnoIncorporacao(e.target.value); setSelecionados([]); }}>
+                          <option value="">Todos os anos</option>
+                          {anosIncorporacao.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+                        </select>
+                      </div>
                     </div>
                   </section>
-                  <section aria-label="Termos e relatórios" className="space-y-2 rounded-lg border border-border bg-muted/30 p-3 xl:col-span-2">
+                  <section aria-label="Termos e relatórios" className="space-y-1 rounded-md border border-border bg-muted/30 p-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termos e relatórios</h3>
-                    <div className="bens-sala-acoes flex flex-wrap gap-2">
+                    <div className="bens-sala-acoes flex flex-wrap items-center gap-1">
                       <Button variant="outline" size="sm"
                         disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
                         onClick={() => { setConsultarTermoPorNumero(true); setDialogTermos(true); }}>
@@ -1107,29 +1118,19 @@ function DepartamentosPage() {
                         <Printer className="mr-1 h-4 w-4" /> Imprimir termo de Responsabilidade
                       </Button>
                       <BensIncorporadosDialog />
-                      <CompartilharRelatorioSala dados={dadosRelatorioSala}
-                        disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
+                      <div className="flex max-w-full flex-wrap items-center gap-1">
+                        <CompartilharRelatorioSala dados={dadosRelatorioSala}
+                          disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
+                        <Button variant="outline" size="sm"
+                          title="Excluir apenas salas vazias"
+                          disabled={!!resultadoPesquisa || localizando || !salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
+                          onClick={excluirSalaVazia}>
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          {excluindoSala ? "Excluindo..." : "Excluir sala vazia"}
+                        </Button>
+                      </div>
                     </div>
                   </section>
-                </div>
-                <div className="flex flex-wrap items-end justify-between gap-3 border-t border-border pt-3">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="ano-incorporacao-sala">Ano de incorporação</Label>
-                    <select id="ano-incorporacao-sala"
-                      className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                      value={filtroAnoIncorporacao}
-                      disabled={(!salaSel && !resultadoPesquisa) || carregandoBens || importando || localizando}
-                      onChange={(e) => { setFiltroAnoIncorporacao(e.target.value); setSelecionados([]); }}>
-                      <option value="">Todos os anos</option>
-                      {anosIncorporacao.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
-                    </select>
-                  </div>
-                  <Button variant="destructive" size="sm"
-                    disabled={!!resultadoPesquisa || localizando || !salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
-                    onClick={excluirSalaVazia}>
-                    <Trash2 className="mr-1 h-4 w-4" />
-                    {excluindoSala ? "Excluindo..." : "Excluir sala vazia"}
-                  </Button>
                 </div>
                 <div>
                   {dialogEstorno && <EstornoTransferenciaDialog
@@ -1161,7 +1162,7 @@ function DepartamentosPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
+            <CardContent className="flex flex-col gap-3 px-4 pb-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
               {!resultadoPesquisa && <div className="resumo-local grid gap-x-3 gap-y-2 p-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,3fr)_minmax(0,1.2fr)]">
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor="cabData">Última</Label>

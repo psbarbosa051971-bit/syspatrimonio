@@ -143,6 +143,24 @@ async function importarParaLiberarUnidade() {
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("compacta as ações, reposiciona o ano e a exclusão e remove as instruções dos termos", async () => {
+    const { container } = render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const movimentacao = screen.getByRole("region", { name: "Movimentação de bens" });
+    const ano = within(movimentacao).getByRole("combobox", { name: "Ano de incorporação" });
+    expect(ano.parentElement?.previousElementSibling).toBe(
+      within(movimentacao).getByRole("button", { name: "Estornar transferência" }),
+    );
+    const compartilhar = screen.getByRole("button", { name: "Compartilhar Relatório" });
+    expect(compartilhar.nextElementSibling).toBe(
+      screen.getByRole("button", { name: "Excluir sala vazia" }),
+    );
+    expect(container.querySelector("main")).toHaveClass("lg:grid-cols-2", "items-stretch");
+    expect(ano.closest(".bens-sala-acoes")).toHaveClass("gap-1");
+    expect(screen.queryByText(/Clique no número do termo para mostrar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Vermelho: Aguardando Entrega/)).not.toBeInTheDocument();
+  });
+
   it("mostra os bens do termo clicado e permite voltar à sala inteira", async () => {
     mocks.termos = [{
       id: "termo-1", numero: 29, termo_ano: 2026, created_at: "2026-10-17T12:00:00Z", arquivo: "termo.html",

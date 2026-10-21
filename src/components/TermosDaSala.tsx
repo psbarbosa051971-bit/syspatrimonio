@@ -9,7 +9,7 @@ import { ExcluirTermoDialog } from "@/components/ExcluirTermoDialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { Printer } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Props = {
   salaId: string | null; atualizar: number; selecionado: string | null;
@@ -65,7 +65,6 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
           <Button size="sm" variant="outline" onClick={onLimpar}>Mostrar todos os bens da sala</Button>
         </div>}
       </div>
-      <CardDescription>Clique no número do termo para mostrar seus bens atuais em Bens da sala e liberar Incluir bens ao termo. Quantidade e valor correspondem ao documento salvo, incluindo os bens anexados; bens transferidos, excluídos ou vinculados a outro termo não aparecem no filtro atual.</CardDescription>
     </CardHeader>
     <CardContent className="space-y-3">
       <div className="max-h-64 overflow-auto rounded-md border border-border">
@@ -103,7 +102,6 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">Vermelho: Aguardando Entrega. Azul: Entregue. Use o botão Status ao lado da impressora para registrar ou atualizar a entrega. Termos sem registro de entrega ficam como Aguardando Entrega.</p>
       <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 text-center sm:grid-cols-3">
         <div><p className="text-xs font-bold uppercase">Quantidade de termos</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{carregando || erro ? "—" : termos.length}</p></div>
         <div><p className="text-xs font-bold uppercase">Quantidade de bens na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{quantidadeBens}</p></div>
