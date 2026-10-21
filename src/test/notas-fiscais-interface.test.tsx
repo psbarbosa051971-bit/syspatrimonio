@@ -92,6 +92,37 @@ describe("Formulário Notas Fiscais", () => {
     await waitFor(() => expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ fornecedor: "Fornecedor A", numero: "614", serie: "1", chave: nota.chave, xml: "<NFe />", criado_por: "usuario" })));
     await waitFor(() => expect(mocks.sucesso).toHaveBeenCalled());
   });
+  it("carrega os fornecedores diretamente quando a consulta principal falha", async () => {
+    mocks.rpc.mockReturnValue({ order: vi.fn().mockReturnThis(), range: vi.fn().mockResolvedValue({ data: null, error: { message: "Consulta indisponível" } }) });
+    mocks.from.mockImplementation((tabela: string) => {
+      const consulta = { select: vi.fn(), not: vi.fn(), neq: vi.fn(), order: vi.fn(), range: vi.fn().mockResolvedValue({ data: tabela === "bens" ? [{ fornecedor: "Fornecedor alternativo" }] : [], error: null }) };
+      consulta.select.mockReturnValue(consulta); consulta.not.mockReturnValue(consulta); consulta.neq.mockReturnValue(consulta); consulta.order.mockReturnValue(consulta);
+      return consulta;
+    });
+    render(<NotasFiscais />);
+    fireEvent.click(screen.getByRole("button", { name: "Notas Fiscais" }));
+    await screen.findByRole("option", { name: "Fornecedor alternativo" });
+    expect(screen.getByLabelText("Fornecedor")).not.toBeDisabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+  it("mantém o fornecedor importado utilizável mesmo quando a lista falha", async () => {
+    const rpcOriginal = mocks.rpc.getMockImplementation()!;
+    mocks.rpc.mockImplementation((nome: string, ...args: unknown[]) => nome === "fornecedores_notas_fiscais"
+      ? { order: vi.fn().mockReturnThis(), range: vi.fn().mockResolvedValue({ data: null, error: { message: "Consulta indisponível" } }) }
+      : rpcOriginal(nome, ...args));
+    mocks.from.mockImplementation(() => {
+      const consulta = { select: vi.fn(), not: vi.fn(), neq: vi.fn(), eq: vi.fn(), order: vi.fn(), range: vi.fn().mockResolvedValue({ data: null, error: { message: "Sem conexão" } }) };
+      consulta.select.mockReturnValue(consulta); consulta.not.mockReturnValue(consulta); consulta.neq.mockReturnValue(consulta); consulta.eq.mockReturnValue(consulta); consulta.order.mockReturnValue(consulta);
+      return consulta;
+    });
+    render(<NotasFiscais fornecedorImportado="Fornecedor importado" />);
+    fireEvent.click(screen.getByRole("button", { name: "Notas Fiscais" }));
+    await screen.findByText(/Não foi possível carregar os fornecedores/);
+    expect(screen.getByLabelText("Fornecedor")).toHaveValue("Fornecedor importado");
+    expect(screen.getByLabelText("Fornecedor")).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Número da nota fiscal"), { target: { value: "614" } });
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("bens_da_nota_fiscal", { _fornecedor: "Fornecedor importado", _numero: "614" }));
+  });
   it("recusa anexo de outra nota antes de gravar", async () => {
     mocks.lerArquivo.mockResolvedValueOnce({ xml: "<NFe />", nota: { ...nota, numero: "999" } });
     await consultar();
