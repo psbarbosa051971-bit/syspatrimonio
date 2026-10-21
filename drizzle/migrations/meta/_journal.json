@@ -92,6 +92,13 @@
       "when": 1792537288962,
       "tag": "0012_relatorio_incorporados_rapido",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792540863645,
+      "tag": "0013_dados_fornecedor_bens",
+      "breakpoints": true
     }
   ]
 }

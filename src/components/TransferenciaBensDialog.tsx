@@ -22,7 +22,7 @@ function bensDoAlerta(grupo?: GrupoSolicitacoes): BemTransferencia[] {
     id: item.bem_id!, sala_id: item.sala_id, codigo_red: item.codigo_red,
     descricao: item.descricao, valor: item.valor, user_id: item.user_id,
     created_at: item.created_at, observacao: item.observacao, conferido: false,
-    conferencia_finalizada: false, incorporacao: null, tipo: null, importacao_id: null,
+    conferencia_finalizada: false, ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null, incorporacao: null, tipo: null, importacao_id: null,
   }));
 }
 
