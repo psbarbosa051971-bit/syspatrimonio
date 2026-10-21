@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRole } from "@/hooks/use-role";
 import { limparDescricao } from "@/lib/pdf-parse";
 import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
+import { htmlPesquisaDinamica } from "@/lib/pesquisa-dinamica-impressao";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
@@ -235,6 +236,22 @@ function DepartamentosPage() {
   }, [bensExibidos, buscaBens, filtroAnoIncorporacao]);
   const idsBensFiltrados = bensFiltrados.map((bem) => bem.id);
   const todosFiltradosSelecionados = idsBensFiltrados.length > 0 && idsBensFiltrados.every((id) => selecionados.includes(id));
+
+  function imprimirPesquisa() {
+    if (!resultadoPesquisa || !bensFiltrados.length) return;
+    const html = htmlPesquisaDinamica({ ...resultadoPesquisa, bens: bensFiltrados }, {
+      busca: buscaBens.trim(), ano: filtroAnoIncorporacao,
+    });
+    const janela = window.open("", "_blank");
+    if (!janela) {
+      toast.error("Permita abrir novas janelas neste site para imprimir o relatório.");
+      return;
+    }
+    janela.opener = null;
+    janela.document.open();
+    janela.document.write(html);
+    janela.document.close();
+  }
 
   // formulário de departamento (cabeçalho)
   const [form, setForm] = useState({
@@ -786,6 +803,12 @@ function DepartamentosPage() {
                   disabled={localizando || importando || carregandoPapel || !["admin", "operador"].includes(role ?? "") || (!resultadoPesquisa && !pesquisaDinamica.trim())}>
                   {localizando ? "Localizando..." : resultadoPesquisa ? "Atualizar" : "Localizar"}
                 </Button>
+                {resultadoPesquisa && <Button type="button" variant="secondary" className="shrink-0"
+                  onClick={imprimirPesquisa} disabled={localizando || !bensFiltrados.length}
+                  aria-label="Imprimir resultado em A4" title="Imprimir resultado em A4">
+                  <Printer className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Imprimir A4</span>
+                </Button>}
               </div>
               <p className="text-xs text-primary-foreground" aria-live="polite">
                 {resultadoPesquisa
