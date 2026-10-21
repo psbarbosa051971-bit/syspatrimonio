@@ -368,6 +368,32 @@ function DepartamentosPage() {
 
   const [dialogTermos, setDialogTermos] = useState(false);
   const [novoTermo, setNovoTermo] = useState<{ sala: Sala; bens: Bem[] } | null>(null);
+  const [abrindoNovoTermo, setAbrindoNovoTermo] = useState(false);
+  const bensSelecionadosParaTermo = bensExibidos.filter((bem) => selecionados.includes(bem.id));
+
+  async function abrirNovoTermo() {
+    if (abrindoNovoTermo || !bensSelecionadosParaTermo.length) return;
+    const salaId = bensSelecionadosParaTermo[0].sala_id;
+    if (!salaId || bensSelecionadosParaTermo.some((bem) => bem.sala_id !== salaId)) {
+      toast.error("Para criar um novo termo, selecione apenas bens do mesmo Local Físico. Para mudar bens de sala, use Gerar transferência.");
+      return;
+    }
+    setAbrindoNovoTermo(true);
+    try {
+      let salaDoTermo = salas.find((sala) => sala.id === salaId);
+      if (!salaDoTermo) {
+        const { data, error } = await supabase.from("salas").select("*").eq("id", salaId).single();
+        if (error || !data) throw error ?? new Error("Local Físico não encontrado");
+        salaDoTermo = data;
+      }
+      setNovoTermo({ sala: salaDoTermo, bens: bensSelecionadosParaTermo });
+    } catch {
+      toast.error("Não foi possível consultar o Local Físico dos bens selecionados. Tente novamente.");
+    } finally {
+      setAbrindoNovoTermo(false);
+    }
+  }
+
   const [consultarTermoPorNumero, setConsultarTermoPorNumero] = useState(false);
   const [dialogTransferencia, setDialogTransferencia] = useState(false);
   const [dialogEstorno, setDialogEstorno] = useState(false);
@@ -1111,9 +1137,9 @@ function DepartamentosPage() {
                     <div className="bens-sala-acoes flex flex-wrap items-center gap-1">
                       <Button variant="outline" size="sm"
                         title="Marque os bens na coluna SEL. para criar um termo sem movimentá-los"
-                        disabled={!salaSel || !selecionados.length || carregandoBens || !!erroBens || importando || localizando || !!resultadoPesquisa}
-                        onClick={() => { if (salaSel) setNovoTermo({ sala: salaSel, bens: bens.filter((bem) => selecionados.includes(bem.id)) }); }}>
-                        <Plus className="mr-1 h-4 w-4" /> Novo termo
+                        disabled={!bensSelecionadosParaTermo.length || (!resultadoPesquisa && (carregandoBens || !!erroBens)) || importando || localizando || abrindoNovoTermo}
+                        onClick={abrirNovoTermo}>
+                        <Plus className="mr-1 h-4 w-4" /> {abrindoNovoTermo ? "Abrindo..." : "Novo termo"}
                       </Button>
                       <Button variant="outline" size="sm"
                         disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
@@ -1165,7 +1191,7 @@ function DepartamentosPage() {
                     bens={novoTermo.bens}
                     onClose={() => setNovoTermo(null)}
                     onSaved={(termoId) => {
-                      setUltimaImportacao(termoId);
+                      if (salaSel?.id === novoTermo.sala.id) setUltimaImportacao(termoId);
                       setSelecionados([]);
                       setTentativaBens((valor) => valor + 1);
                     }}

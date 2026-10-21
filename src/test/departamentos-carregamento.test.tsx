@@ -211,6 +211,55 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("123, 456, ");
   });
 
+  it("libera Novo termo ao marcar um item em SEL. e usa somente o item selecionado", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 456" }));
+    const botao = screen.getByRole("button", { name: "Novo termo" });
+    expect(botao).toBeEnabled();
+    fireEvent.click(botao);
+    const dialogo = await screen.findByRole("dialog", { name: "Novo termo de responsabilidade" });
+    expect(within(dialogo).getByText("Cadeira azul")).toBeInTheDocument();
+    expect(within(dialogo).queryByText("Mesa cadastrada")).not.toBeInTheDocument();
+    expect(within(dialogo).getByRole("button", { name: "Criar termo" })).toBeEnabled();
+  });
+
+  it("libera Novo termo na pesquisa dinâmica e consulta a sala dos bens selecionados", async () => {
+    mocks.salas = [sala, { ...sala, id: "outra-sala", departamento_id: "outro-dep", nome: "Arquivo central" }];
+    mocks.bens = [bem, {
+      ...outroBem, id: "bem-distante", sala_id: "outra-sala", codigo_red: "987654", descricao: "Módulo de aço",
+    }];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" }), { target: { value: "987654" } });
+    fireEvent.click(screen.getByRole("button", { name: "Localizar" }));
+    await screen.findByText("Módulo de aço");
+    expect(screen.getByRole("button", { name: "Novo termo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 987654" }));
+    const botao = screen.getByRole("button", { name: "Novo termo" });
+    expect(botao).toBeEnabled();
+    fireEvent.click(botao);
+    const dialogo = await screen.findByRole("dialog", { name: "Novo termo de responsabilidade" });
+    expect(within(dialogo).getByText("Local Físico: Arquivo central")).toBeInTheDocument();
+    expect(within(dialogo).getByText("Módulo de aço")).toBeInTheDocument();
+    expect(within(dialogo).queryByText("Mesa cadastrada")).not.toBeInTheDocument();
+    expect(within(dialogo).getByRole("button", { name: "Criar termo" })).toBeEnabled();
+  });
+
+  it("orienta a selecionar o mesmo local quando SEL. contém bens de salas diferentes", async () => {
+    mocks.salas = [sala, { ...sala, id: "outra-sala", departamento_id: "outro-dep", nome: "Arquivo central" }];
+    mocks.bens = [bem, { ...outroBem, sala_id: "outra-sala", descricao: "Mesa antiga" }];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" }), { target: { value: "mesa" } });
+    fireEvent.click(screen.getByRole("button", { name: "Localizar" }));
+    await screen.findByText("Mesa antiga");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Novo termo" }));
+    expect(mocks.erroToast).toHaveBeenCalledWith(expect.stringContaining("selecione apenas bens do mesmo Local Físico"));
+    expect(screen.queryByRole("dialog", { name: "Novo termo de responsabilidade" })).not.toBeInTheDocument();
+  });
+
   it.each([
     ["PATRIMÔNIO", ["2", "10"]],
     ["DESCRIÇÃO DO BEM", ["2", "10"]],
