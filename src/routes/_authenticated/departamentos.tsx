@@ -3,9 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { responsavelDoLocal } from "@/lib/usuarios.functions";
 import { formatarCpf } from "@/lib/cpf";
-import { formatarCodigoRed } from "@/lib/codigo-red";
+import { formatarCodigoRed, normalizarCodigoRed } from "@/lib/codigo-red";
 import { statusBem, classeStatusBem } from "@/lib/status-bem";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Building2,
   CheckSquare,
   FileText,
@@ -98,6 +101,14 @@ export const Route = createFileRoute("/_authenticated/departamentos")({
 type Departamento = Tables<"departamentos">;
 type Sala = Tables<"salas">;
 type Bem = Tables<"bens">;
+type CampoOrdenacaoBem = "codigo_red" | "descricao" | "incorporacao" | "tipo" | "status";
+const colunasOrdenaveis: { campo: CampoOrdenacaoBem; titulo: string; classe: string }[] = [
+  { campo: "codigo_red", titulo: "PATRIMÔNIO", classe: "h-8 w-36 py-1" },
+  { campo: "descricao", titulo: "DESCRIÇÃO DO BEM", classe: "h-8 py-1" },
+  { campo: "incorporacao", titulo: "INCORPORAÇÃO", classe: "h-8 w-36 py-1" },
+  { campo: "tipo", titulo: "TIPO", classe: "h-8 w-28 py-1" },
+  { campo: "status", titulo: "STATUS", classe: "h-8 w-36 py-1" },
+];
 
 const formataMoeda = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -165,6 +176,10 @@ function DepartamentosPage() {
     setUnidadeLiberadaSalaId((atual) => atual === salaSel?.id ? atual : null);
   }, [salaSel?.id]);
   const [buscaBens, setBuscaBens] = useState("");
+  const [ordenacaoBens, setOrdenacaoBens] = useState<{ campo: CampoOrdenacaoBem; direcao: "asc" | "desc" }>({ campo: "codigo_red", direcao: "asc" });
+  function classificarBens(campo: CampoOrdenacaoBem) {
+    setOrdenacaoBens((atual) => ({ campo, direcao: atual.campo === campo && atual.direcao === "asc" ? "desc" : "asc" }));
+  }
   const [filtroAnoIncorporacao, setFiltroAnoIncorporacao] = useState("");
   const [pesquisaDinamica, setPesquisaDinamica] = useState("");
   const [resultadoPesquisa, setResultadoPesquisa] = useState<ResultadoPesquisaDinamica | null>(null);
@@ -234,6 +249,23 @@ function DepartamentosPage() {
       return termos.every((termo) => campos.includes(termo));
     });
   }, [bensExibidos, buscaBens, filtroAnoIncorporacao]);
+  const bensOrdenados = useMemo(() => {
+    const comparador = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
+    const valor = (bem: Bem): string => {
+      switch (ordenacaoBens.campo) {
+        case "codigo_red": return normalizarCodigoRed(bem.codigo_red);
+        case "descricao": return limparDescricao(bem.descricao);
+        case "status": return statusBem(bem);
+        case "incorporacao": {
+          const texto = bem.incorporacao?.trim() ?? "";
+          const data = texto.match(/^(\d{1,2})(?:\/(\d{1,2}))?\/(\d{4})$/);
+          return data ? `${data[3]}-${(data[2] ?? data[1]).padStart(2, "0")}-${data[2] ? data[1].padStart(2, "0") : "00"}` : texto;
+        }
+        case "tipo": return bem.tipo ?? "";
+      }
+    };
+    return [...bensFiltrados].sort((a, b) => comparador.compare(valor(a), valor(b)) * (ordenacaoBens.direcao === "asc" ? 1 : -1));
+  }, [bensFiltrados, ordenacaoBens]);
   const idsBensFiltrados = bensFiltrados.map((bem) => bem.id);
   const todosFiltradosSelecionados = idsBensFiltrados.length > 0 && idsBensFiltrados.every((id) => selecionados.includes(id));
 
@@ -1278,11 +1310,19 @@ function DepartamentosPage() {
                   <TableRow className="h-8 hover:bg-room-assets-header">
                     <TableHead className="h-8 w-12 py-1 text-center">EXC.</TableHead>
                     <TableHead className="h-8 w-16 py-1 text-center">TRAN</TableHead>
-                    <TableHead className="h-8 w-36 py-1">PATRIMÔNIO</TableHead>
-                    <TableHead className="h-8 py-1">DESCRIÇÃO DO BEM</TableHead>
-                    <TableHead className="h-8 w-36 py-1">INCORPORAÇÃO</TableHead>
-                    <TableHead className="h-8 w-28 py-1">TIPO</TableHead>
-                    <TableHead className="h-8 w-36 py-1">STATUS</TableHead>
+                    {colunasOrdenaveis.map(({ campo, titulo, classe }) => {
+                      const ativa = ordenacaoBens.campo === campo;
+                      const crescente = ordenacaoBens.direcao === "asc";
+                      const Icone = ativa ? crescente ? ArrowUp : ArrowDown : ArrowUpDown;
+                      const proximaOrdem = ativa && crescente ? "decrescente" : "crescente";
+                      return <TableHead key={campo} className={classe} aria-sort={ativa ? crescente ? "ascending" : "descending" : "none"}>
+                        <button type="button" className="flex h-full w-full items-center gap-1 rounded-sm text-left font-bold hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+                          aria-label={`Classificar ${titulo} em ordem ${proximaOrdem}`}
+                          title={`Classificar em ordem ${proximaOrdem}`} onClick={() => classificarBens(campo)}>
+                          {titulo}<Icone className="h-3 w-3 shrink-0" aria-hidden="true" />
+                        </button>
+                      </TableHead>;
+                    })}
                     <TableHead className="h-8 w-32 py-1 text-right">VALOR</TableHead>
                     <TableHead className="h-8 w-12 py-1" />
                   </TableRow>
@@ -1319,7 +1359,7 @@ function DepartamentosPage() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {bensFiltrados.map((b) => (
+                  {bensOrdenados.map((b) => (
                     <TableRow key={b.id} className={classeStatusBem(b)}>
                       <TableCell className="py-1 text-center">
                         <input

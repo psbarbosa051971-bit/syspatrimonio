@@ -178,7 +178,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     await screen.findByText("Mesa cadastrada");
     const cabecalho = screen.getByRole("columnheader", { name: "EXC." }).closest("thead")!;
     expect(within(cabecalho).getAllByRole("columnheader").map((coluna) => coluna.textContent)).toEqual([
-      "EXC.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "VALOR", "",
+      "EXC.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "STATUS", "VALOR", "",
     ]);
     expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-[10px]");
     expect(cabecalho.closest("table")).toHaveClass("text-xs", "[&_td]:text-xs");
@@ -189,6 +189,51 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeEnabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos para transferência" }));
     expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("123, 456, ");
+  });
+
+  it.each([
+    ["PATRIMÔNIO", ["2", "10"]],
+    ["DESCRIÇÃO DO BEM", ["2", "10"]],
+    ["INCORPORAÇÃO", ["2", "10"]],
+    ["TIPO", ["2", "10"]],
+    ["STATUS", ["10", "2"]],
+  ] as const)("classifica %s nos dois sentidos sem perder seleções", async (campo, esperados) => {
+    mocks.bens = [
+      { ...bem, codigo_red: "10", conferido: true },
+      { ...outroBem, codigo_red: "2", conferido: false },
+    ];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 10" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 10 para transferência" }));
+    const cabecalho = screen.getByRole("columnheader", { name: new RegExp(campo) });
+    const tabela = cabecalho.closest("table")!;
+    const codigos = () => within(tabela).getAllByRole("row").slice(1).map((linha) =>
+      within(linha).getByRole("checkbox", { name: /^Selecionar / }).getAttribute("aria-label")?.replace("Selecionar ", ""));
+    if (campo !== "PATRIMÔNIO") {
+      fireEvent.click(screen.getByRole("button", { name: `Classificar ${campo} em ordem crescente` }));
+    }
+    expect(cabecalho).toHaveAttribute("aria-sort", "ascending");
+    expect(codigos()).toEqual(esperados);
+    fireEvent.click(screen.getByRole("button", { name: `Classificar ${campo} em ordem decrescente` }));
+    expect(cabecalho).toHaveAttribute("aria-sort", "descending");
+    expect(codigos()).toEqual([...esperados].reverse());
+    fireEvent.click(screen.getByRole("button", { name: `Classificar ${campo} em ordem crescente` }));
+    expect(codigos()).toEqual(esperados);
+    expect(screen.getByRole("checkbox", { name: "Selecionar 10" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Copiar RED 10 para transferência" })).toBeChecked();
+    expect(screen.getByText("Quantidade de bens: 2")).toBeInTheDocument();
+  });
+
+  it("mantém a pesquisa ao classificar os bens", async () => {
+    mocks.bens = [bem, outroBem, { ...outroBem, id: "terceiro", codigo_red: "789", descricao: "Mesa antiga" }];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), { target: { value: "Mesa" } });
+    fireEvent.click(screen.getByRole("button", { name: "Classificar DESCRIÇÃO DO BEM em ordem crescente" }));
+    expect(screen.queryByText("Cadeira azul")).not.toBeInTheDocument();
+    expect(screen.getByText("Mesa antiga")).toBeInTheDocument();
+    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
   });
 
   it("separa seleção de exclusão da transferência e preenche os códigos mascarados no formulário", async () => {
