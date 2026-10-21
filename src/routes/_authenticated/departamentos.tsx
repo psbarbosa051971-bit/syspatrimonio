@@ -1064,81 +1064,74 @@ function DepartamentosPage() {
           )}
 
           {/* Subformulário de bens */}
-          <Card id="bens-da-sala" className="min-w-0 scroll-mt-4">
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
-                <CompartilharRelatorioSala dados={dadosRelatorioSala}
-                  disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <div className="flex flex-wrap gap-2">
-                  <BensIncorporadosDialog />
-                  <ImportarFornecedorDialog />
+          <Card id="bens-da-sala" className="bens-sala-form min-w-0 scroll-mt-4">
+            <CardHeader className="gap-4">
+              <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
+              <div className="space-y-3">
+                <div className="grid gap-3 xl:grid-cols-2">
+                  <section aria-label="Importação e cadastro" className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Importação e cadastro</h3>
+                    <div className="bens-sala-acoes flex flex-wrap gap-2">
+                      <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="hidden" onChange={importarHtml} />
+                      <Button variant="outline" size="sm"
+                        disabled={!departamentoSel || importando || localizando || !!resultadoPesquisa}
+                        onClick={() => fileRef.current?.click()}>
+                        <Upload className="mr-1 h-4 w-4" />
+                        {importando ? "Lendo HTML..." : "Importar HTML do Sonner"}
+                      </Button>
+                      <ImportarFornecedorDialog />
+                    </div>
+                  </section>
+                  <section aria-label="Movimentação de bens" className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Movimentação de bens</h3>
+                    <div className="bens-sala-acoes flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
+                        Gerar transferência
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogEstorno(true)}>
+                        Estornar transferência
+                      </Button>
+                    </div>
+                  </section>
+                  <section aria-label="Termos e relatórios" className="space-y-2 rounded-lg border border-border bg-muted/30 p-3 xl:col-span-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termos e relatórios</h3>
+                    <div className="bens-sala-acoes flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm"
+                        disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
+                        onClick={() => { setConsultarTermoPorNumero(true); setDialogTermos(true); }}>
+                        <Printer className="mr-1 h-4 w-4" /> Termo de Responsabilidade
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
+                        onClick={() => { setConsultarTermoPorNumero(false); setDialogTermos(true); }}>
+                        <Printer className="mr-1 h-4 w-4" /> Imprimir termo de Responsabilidade
+                      </Button>
+                      <BensIncorporadosDialog />
+                      <CompartilharRelatorioSala dados={dadosRelatorioSala}
+                        disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
+                    </div>
+                  </section>
+                </div>
+                <div className="flex flex-wrap items-end justify-between gap-3 border-t border-border pt-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="ano-incorporacao-sala">Ano de incorporação</Label>
+                    <select id="ano-incorporacao-sala"
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      value={filtroAnoIncorporacao}
+                      disabled={(!salaSel && !resultadoPesquisa) || carregandoBens || importando || localizando}
+                      onChange={(e) => { setFiltroAnoIncorporacao(e.target.value); setSelecionados([]); }}>
+                      <option value="">Todos os anos</option>
+                      {anosIncorporacao.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+                    </select>
+                  </div>
                   <Button variant="destructive" size="sm"
                     disabled={!!resultadoPesquisa || localizando || !salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
                     onClick={excluirSalaVazia}>
                     <Trash2 className="mr-1 h-4 w-4" />
                     {excluindoSala ? "Excluindo..." : "Excluir sala vazia"}
                   </Button>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept=".html,.htm,text/html"
-                    className="hidden"
-                    onChange={importarHtml}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!departamentoSel || importando || localizando || !!resultadoPesquisa}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <Upload className="mr-1 h-4 w-4" />
-                    {importando ? "Lendo HTML..." : "Importar HTML do Sonner"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
-                    onClick={() => { setConsultarTermoPorNumero(false); setDialogTermos(true); }}
-                  >
-                    <Printer className="mr-1 h-4 w-4" />
-                    Imprimir termo de Responsabilidade
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!salaSel || importando || localizando || !!resultadoPesquisa}
-                    onClick={() => { setConsultarTermoPorNumero(true); setDialogTermos(true); }}
-                  >
-                    <Printer className="mr-1 h-4 w-4" />
-                    Termo de Responsabilidade
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
-                    Gerar transferência
-                  </Button>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogEstorno(true)}>
-                      Estornar transferência
-                    </Button>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="ano-incorporacao-sala" className="whitespace-nowrap">Ano de incorporação</Label>
-                      <select
-                        id="ano-incorporacao-sala"
-                        className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                        value={filtroAnoIncorporacao}
-                        disabled={(!salaSel && !resultadoPesquisa) || carregandoBens || importando || localizando}
-                        onChange={(e) => {
-                          setFiltroAnoIncorporacao(e.target.value);
-                          setSelecionados([]);
-                        }}
-                      >
-                        <option value="">Todos os anos</option>
-                        {anosIncorporacao.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                </div>
+                <div>
                   {dialogEstorno && <EstornoTransferenciaDialog
                     onClose={() => setDialogEstorno(false)}
                     onSaved={() => {

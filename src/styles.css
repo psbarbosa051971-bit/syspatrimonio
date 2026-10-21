@@ -199,6 +199,40 @@
   border-color: oklch(0.78 0.05 255);
 }
 
+/* Ações amarelas apenas no formulário Bens da sala, nos dois temas.
+ * Os diálogos usam portais e mantêm suas próprias cores. */
+.bens-sala-form {
+  --bens-sala-botao: oklch(0.9 0.18 98);
+  --bens-sala-botao-hover: oklch(0.84 0.17 92);
+  --bens-sala-botao-texto: oklch(0.22 0.025 75);
+  --bens-sala-botao-borda: oklch(0.68 0.14 88);
+}
+.bens-sala-form button.inline-flex {
+  background-color: var(--bens-sala-botao);
+  color: var(--bens-sala-botao-texto);
+  border: 1px solid var(--bens-sala-botao-borda);
+}
+.bens-sala-form button.inline-flex:hover:not(:disabled) {
+  background-color: var(--bens-sala-botao-hover);
+  color: var(--bens-sala-botao-texto);
+}
+.bens-sala-form button.inline-flex:focus-visible {
+  outline: 2px solid var(--bens-sala-botao-borda);
+  outline-offset: 3px;
+}
+.bens-sala-form button.inline-flex:disabled {
+  opacity: 0.5;
+}
+.bens-sala-acoes button.inline-flex {
+  height: auto;
+  min-height: 2.25rem;
+  white-space: normal;
+  text-align: center;
+}
+@media (max-width: 639px) {
+  .bens-sala-acoes button.inline-flex { width: 100%; }
+}
+
 /* Destaque da leitura da NF-e, com o mesmo contraste nos dois temas. */
 input.campo-nfe-preenchido,
 .dark input.campo-nfe-preenchido {
