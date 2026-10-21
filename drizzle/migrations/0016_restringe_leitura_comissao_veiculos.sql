@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS "consulta comissao permanente" ON public.comissao_recebimento_veiculos;
+CREATE POLICY "consulta comissao permanente" ON public.comissao_recebimento_veiculos FOR SELECT TO authenticated USING (public.has_any_role(auth.uid()));
