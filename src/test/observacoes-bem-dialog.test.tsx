@@ -17,7 +17,7 @@ import { ObservacoesBemDialog } from "@/components/ObservacoesBemDialog";
 const bem: Tables<"bens"> = {
   id: "bem-1", user_id: "usuario-1", sala_id: "origem", codigo_red: "123", descricao: "Mesa",
   valor: 10, created_at: "2026-10-12T12:00:00Z", conferido: true, observacao: "Mover mesa",
-  incorporacao: null, tipo: null, importacao_id: null, conferencia_finalizada: false,
+  incorporacao: null, tipo: null, importacao_id: null, conferencia_finalizada: false, ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
 };
 const locais = [
   { id: "origem", nome: "12 SECRETARIA", unidade: "CENTRAL" },
