@@ -1522,58 +1522,28 @@ function DepartamentosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: termo do bem (clique no Código RED.) */}
+      {/* Dialog: dados de aquisição do bem (clique no Código RED.) */}
       <Dialog open={!!termoBem} onOpenChange={(o) => !o && setTermoBem(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Termo de Responsabilidade</DialogTitle>
-            <DialogDescription>
-              Informações do bem {termoBem ? formatarCodigoRed(termoBem.codigo_red) : ""}
-            </DialogDescription>
+            <DialogTitle>Patrimônio {termoBem ? formatarCodigoRed(termoBem.codigo_red) : ""}</DialogTitle>
+            <DialogDescription className="line-clamp-2">{termoBem ? limparDescricao(termoBem.descricao) : ""}</DialogDescription>
           </DialogHeader>
-          {termoBem && departamentoSel && !resultadoPesquisa && (
-            <div className="rounded-md border border-border">
-              <div className="border-b border-border bg-muted/50 px-4 py-3 text-sm">
-                <p>
-                  <strong>Diretor:</strong> {departamentoSel.diretor}
-                </p>
-                <p>
-                  <strong>Departamento:</strong> {departamentoSel.departamento}
-                </p>
-                <p>
-                  <strong>Almoxarifado:</strong> {departamentoSel.almoxarifado}
-                </p>
-                <p>
-                  <strong>Local:</strong> {salaSel?.nome ?? "—"}
-                </p>
-              </div>
-              <div className="px-4 py-3 text-sm">
-                <p>
-                  <strong>Código RED.:</strong> {formatarCodigoRed(termoBem.codigo_red)}
-                </p>
-                <p>
-                  <strong>Descrição do bem:</strong> {termoBem.descricao}
-                </p>
-                <p>
-                  <strong>Valor:</strong> {formataMoeda(Number(termoBem.valor))}
-                </p>
-              </div>
-            </div>
-          )}
-          {termoBem && (!departamentoSel || resultadoPesquisa) && (
-            <div className="px-1 text-sm">
-              {resultadoPesquisa && <p>
-                <strong>Local Físico:</strong> {termoBem.sala_id ? resultadoPesquisa.locais[termoBem.sala_id] : "—"}
-              </p>}
-              <p>
-                <strong>Código RED.:</strong> {formatarCodigoRed(termoBem.codigo_red)}
-              </p>
-              <p>
-                <strong>Descrição do bem:</strong> {termoBem.descricao}
-              </p>
-              <p>
-                <strong>Valor:</strong> {formataMoeda(Number(termoBem.valor))}
-              </p>
+          {termoBem && (
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {([
+                ["Fornecedor", termoBem.fornecedor, true],
+                ["Nota Fiscal", termoBem.nota_fiscal],
+                ["Pedido", termoBem.pedido],
+                ["Empenho", termoBem.empenho],
+                ["Ano Empenho", termoBem.ano_empenho],
+                ["Ano Pedido", termoBem.ano_pedido],
+              ] as [string, string | null, boolean?][]).map(([rotulo, valor, largo]) => (
+                <div key={rotulo} className={largo ? "col-span-2" : ""}>
+                  <Label className="text-xs text-muted-foreground">{rotulo}</Label>
+                  <Input readOnly value={valor ?? ""} placeholder="—" className="h-8" />
+                </div>
+              ))}
             </div>
           )}
         </DialogContent>
