@@ -14,59 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      comissao_recebimento_veiculos: {
-        Row: {
-          id: boolean
-          dados: Json
-          atualizado_por: string
-          atualizado_em: string
-        }
-        Insert: {
-          id?: boolean
-          dados?: Json
-          atualizado_por: string
-          atualizado_em?: string
-        }
-        Update: {
-          id?: boolean
-          dados?: Json
-          atualizado_por?: string
-          atualizado_em?: string
-        }
-        Relationships: []
-      }
-      retiradas_veiculos: {
-        Row: {
-          bem_id: string
-          numero: number
-          ano: number
-          criado_em: string
-          criado_por: string
-        }
-        Insert: {
-          bem_id: string
-          numero: number
-          ano: number
-          criado_em?: string
-          criado_por: string
-        }
-        Update: {
-          bem_id?: string
-          numero?: number
-          ano?: number
-          criado_em?: string
-          criado_por?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "retiradas_veiculos_bem_id_fkey"
-            columns: ["bem_id"]
-            isOneToOne: true
-            referencedRelation: "recebimentos_veiculos"
-            referencedColumns: ["bem_id"]
-          },
-        ]
-      }
       bens: {
         Row: {
           ano_empenho: string | null
@@ -281,6 +228,27 @@ export type Database = {
           },
         ]
       }
+      comissao_recebimento_veiculos: {
+        Row: {
+          atualizado_em: string
+          atualizado_por: string
+          dados: Json
+          id: boolean
+        }
+        Insert: {
+          atualizado_em?: string
+          atualizado_por: string
+          dados?: Json
+          id?: boolean
+        }
+        Update: {
+          atualizado_em?: string
+          atualizado_por?: string
+          dados?: Json
+          id?: boolean
+        }
+        Relationships: []
+      }
       departamentos: {
         Row: {
           almoxarifado: string
@@ -478,6 +446,38 @@ export type Database = {
           ultimo_numero?: number
         }
         Relationships: []
+      }
+      retiradas_veiculos: {
+        Row: {
+          ano: number
+          bem_id: string
+          criado_em: string
+          criado_por: string
+          numero: number
+        }
+        Insert: {
+          ano: number
+          bem_id: string
+          criado_em?: string
+          criado_por: string
+          numero: number
+        }
+        Update: {
+          ano?: number
+          bem_id?: string
+          criado_em?: string
+          criado_por?: string
+          numero?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retiradas_veiculos_bem_id_fkey"
+            columns: ["bem_id"]
+            isOneToOne: true
+            referencedRelation: "recebimentos_veiculos"
+            referencedColumns: ["bem_id"]
+          },
+        ]
       }
       salas: {
         Row: {
@@ -785,10 +785,9 @@ export type Database = {
       }
       consultar_proximo_numero_transferencia: { Args: never; Returns: Json }
       criar_termo_bens_sala: {
-        Args: { _sala: string; _itens: string[]; _pedido: string }
+        Args: { _itens: string[]; _pedido: string; _sala: string }
         Returns: Json
       }
-      emitir_retirada_veiculo: { Args: { _bem_id: string }; Returns: Json }
       dados_responsavel_sala_termo: {
         Args: { _sala_id: string }
         Returns: Json
@@ -803,6 +802,7 @@ export type Database = {
           total: number
         }[]
       }
+      emitir_retirada_veiculo: { Args: { _bem_id: string }; Returns: Json }
       estornar_bens_inserviveis: {
         Args: { _sala_id: string; _solicitacoes: string[] }
         Returns: number
