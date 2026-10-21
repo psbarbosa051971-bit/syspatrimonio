@@ -16,45 +16,63 @@ export type Database = {
     Tables: {
       bens: {
         Row: {
+          ano_empenho: string | null
+          ano_pedido: string | null
           codigo_red: string
           conferencia_finalizada: boolean
           conferido: boolean
           created_at: string
           descricao: string
+          empenho: string | null
+          fornecedor: string | null
           id: string
           importacao_id: string | null
           incorporacao: string | null
+          nota_fiscal: string | null
           observacao: string | null
+          pedido: string | null
           sala_id: string | null
           tipo: string | null
           user_id: string
           valor: number
         }
         Insert: {
+          ano_empenho?: string | null
+          ano_pedido?: string | null
           codigo_red: string
           conferencia_finalizada?: boolean
           conferido?: boolean
           created_at?: string
           descricao: string
+          empenho?: string | null
+          fornecedor?: string | null
           id?: string
           importacao_id?: string | null
           incorporacao?: string | null
+          nota_fiscal?: string | null
           observacao?: string | null
+          pedido?: string | null
           sala_id?: string | null
           tipo?: string | null
           user_id: string
           valor?: number
         }
         Update: {
+          ano_empenho?: string | null
+          ano_pedido?: string | null
           codigo_red?: string
           conferencia_finalizada?: boolean
           conferido?: boolean
           created_at?: string
           descricao?: string
+          empenho?: string | null
+          fornecedor?: string | null
           id?: string
           importacao_id?: string | null
           incorporacao?: string | null
+          nota_fiscal?: string | null
           observacao?: string | null
+          pedido?: string | null
           sala_id?: string | null
           tipo?: string | null
           user_id?: string
@@ -838,6 +856,13 @@ export type Database = {
       transferir_bens: {
         Args: { _destino: string; _itens: Json; _pedido: string }
         Returns: Json
+      }
+      vincular_dados_fornecedor: {
+        Args: { _itens: Json }
+        Returns: {
+          codigo_red: string
+          vinculados: number
+        }[]
       }
     }
     Enums: {
