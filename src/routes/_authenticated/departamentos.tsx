@@ -38,6 +38,7 @@ import { BotaoRecebimentoVeiculo } from "@/components/RecebimentoVeiculosDialog"
 import { RecebimentosVeiculos } from "@/components/RecebimentosVeiculos";
 import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
 import { BensIncorporadosDialog } from "@/components/BensIncorporadosDialog";
+import { ImportarFornecedorDialog } from "@/components/ImportarFornecedorDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1012,6 +1013,7 @@ function DepartamentosPage() {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="flex flex-wrap gap-2">
                   <BensIncorporadosDialog />
+                  <ImportarFornecedorDialog />
                   <Button variant="destructive" size="sm"
                     disabled={!!resultadoPesquisa || localizando || !salaSel || bens.length > 0 || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || excluindoSala}
                     onClick={excluirSalaVazia}>
