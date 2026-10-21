@@ -72,7 +72,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
       </div>
     </CardHeader>
     <CardContent className="space-y-3">
-      <div className="max-h-64 overflow-auto rounded-md border border-border">
+      <div className="max-h-[416px] overflow-auto rounded-md border border-border">
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10 bg-muted text-foreground">
             <tr className="text-left [&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-2">

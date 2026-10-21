@@ -143,20 +143,25 @@ async function importarParaLiberarUnidade() {
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
-  it("compacta as ações, reposiciona o ano e a exclusão e remove as instruções dos termos", async () => {
+  it("reúne as ações acima dos painéis e reserva mais espaço para os termos", async () => {
     const { container } = render(<Page />);
     await screen.findByText("Mesa cadastrada");
-    const movimentacao = screen.getByRole("region", { name: "Movimentação de bens" });
-    const ano = within(movimentacao).getByRole("combobox", { name: "Ano de incorporação" });
-    expect(ano.parentElement?.previousElementSibling).toBe(
-      within(movimentacao).getByRole("button", { name: "Estornar transferência" }),
-    );
-    const compartilhar = screen.getByRole("button", { name: "Compartilhar Relatório" });
+    const acoes = screen.getByRole("region", { name: "Ações da sala" });
+    const botoes = within(acoes).getAllByRole("button");
+    expect(botoes.slice(0, 6).map((botao) => botao.textContent?.trim())).toEqual([
+      "Importar HTML do Sonner", "Importar por fornecedor", "Gerar transferência",
+      "Estornar transferência", "Termo de Responsabilidade", "Imprimir termo de Responsabilidade",
+    ]);
+    const compartilhar = within(acoes).getByRole("button", { name: "Compartilhar Relatório" });
     expect(compartilhar.nextElementSibling).toBe(
-      screen.getByRole("button", { name: "Excluir sala vazia" }),
+      within(acoes).getByRole("button", { name: "Excluir sala vazia" }),
     );
-    expect(container.querySelector("main")).toHaveClass("lg:grid-cols-2", "items-stretch");
-    expect(ano.closest(".bens-sala-acoes")).toHaveClass("gap-1");
+    const painelBens = container.querySelector("#bens-da-sala");
+    expect(acoes.nextElementSibling).toBe(painelBens);
+    expect(painelBens).toContainElement(screen.getByRole("combobox", { name: "Ano de incorporação" }));
+    expect(painelBens?.querySelector('[class~="h-[234px]"]')).toBeInTheDocument();
+    expect(container.querySelector("main")).toHaveClass("lg:grid-cols-[minmax(0,1fr)_360px]", "items-stretch");
+    expect(container.querySelector('[class~="max-h-[416px]"]')).toBeInTheDocument();
     expect(screen.queryByText(/Clique no número do termo para mostrar/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Vermelho: Aguardando Entrega/)).not.toBeInTheDocument();
   });
