@@ -33,6 +33,43 @@ describe("Relatório A4 da pesquisa dinâmica", () => {
     expect(html).not.toContain("Mesa de aço");
   });
 
+  it("agrupa bens intercalados por sala, com subtotais e total geral", () => {
+    const html = htmlPesquisaDinamica({
+      ...resultado,
+      bens: [bem,
+        { ...bem, id: "bem-2", sala_id: "sala-2", descricao: "Cadeira", valor: 100 },
+        { ...bem, id: "bem-3", descricao: "Armário", valor: 250 },
+      ],
+      locais: { ...resultado.locais, "sala-2": "Secretaria de Educação" },
+    });
+    const grupos = [...html.matchAll(/<section class="sala">([\s\S]*?)<\/section>/g)]
+      .map((grupo) => grupo[1]);
+    expect(grupos).toHaveLength(2);
+    expect(grupos[0]).toContain("<h3>Arquivo central</h3>");
+    expect(grupos[0]).toContain("Mesa de aço");
+    expect(grupos[0]).toContain("Armário");
+    expect(grupos[0]).not.toContain("Cadeira");
+    expect(grupos[0]).toContain("02 ITEM(NS)");
+    expect(grupos[0]).toContain("VALOR TOTAL DA SALA:");
+    expect(grupos[0]).toContain("1.500,75");
+    expect(grupos[1]).toContain("<h3>Secretaria de Educação</h3>");
+    expect(grupos[1]).toContain("Cadeira");
+    expect(grupos[1]).toContain("01 ITEM(NS)");
+    expect(grupos[1]).toContain("100,00");
+    expect(html).not.toContain("<th>LOCAL FÍSICO</th>");
+    expect(html).toContain("QUANTIDADE DE BENS: 3");
+    expect(html).toContain("1.600,75");
+  });
+
+  it("mantém salas distintas separadas mesmo com o mesmo nome", () => {
+    const html = htmlPesquisaDinamica({ ...resultado,
+      bens: [bem, { ...bem, id: "bem-2", sala_id: "sala-2" }],
+      locais: { "sala-1": "Arquivo", "sala-2": "Arquivo" },
+    });
+    expect(html.match(/<section class="sala">/g)).toHaveLength(2);
+    expect(html.match(/01 ITEM\(NS\)/g)).toHaveLength(2);
+  });
+
   it("escapa o conteúdo da pesquisa e dos locais antes de criar o documento", () => {
     const html = htmlPesquisaDinamica({ ...resultado, termo: '<img src=x onerror="alert(1)">',
       locais: { "sala-1": "Arquivo <script>alert(1)</script>" },

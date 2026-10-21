@@ -15,15 +15,34 @@ export function htmlPesquisaDinamica(
 ): string {
   const emitido = new Date().toLocaleString("pt-BR");
   const total = resultado.bens.reduce((soma, bem) => soma + Number(bem.valor), 0);
-  const linhas = resultado.bens.map((bem) => `<tr>
-    <td class="codigo">${escapar(formatarCodigoRed(bem.codigo_red))}</td>
-    <td>${escapar(limparDescricao(bem.descricao))}</td>
-    <td>${escapar(bem.sala_id ? resultado.locais[bem.sala_id] || "—" : "—")}</td>
-    <td>${escapar(bem.incorporacao || "—")}</td>
-    <td>${escapar(bem.tipo || "—")}</td>
-    <td>${escapar(statusBem(bem))}</td>
-    <td class="valor">${escapar(moeda(Number(bem.valor)))}</td>
-  </tr>`).join("");
+  const salas = new Map<string | null, ResultadoPesquisaDinamica["bens"]>();
+  for (const bem of resultado.bens) {
+    const bensDaSala = salas.get(bem.sala_id);
+    if (bensDaSala) bensDaSala.push(bem);
+    else salas.set(bem.sala_id, [bem]);
+  }
+  const grupos = Array.from(salas, ([salaId, bens]) => {
+    const nome = salaId ? resultado.locais[salaId] || "Sala não identificada" : "Sem sala";
+    const subtotal = bens.reduce((soma, bem) => soma + Number(bem.valor), 0);
+    const linhas = bens.map((bem) => `<tr>
+      <td class="codigo">${escapar(formatarCodigoRed(bem.codigo_red))}</td>
+      <td>${escapar(limparDescricao(bem.descricao))}</td>
+      <td>${escapar(bem.incorporacao || "—")}</td>
+      <td>${escapar(bem.tipo || "—")}</td>
+      <td>${escapar(statusBem(bem))}</td>
+      <td class="valor">${escapar(moeda(Number(bem.valor)))}</td>
+    </tr>`).join("");
+    return `<section class="sala"><h3>${escapar(nome)}</h3>
+      <table aria-label="Bens da sala: ${escapar(nome)}"><colgroup>
+        <col style="width:9%"><col style="width:41%"><col style="width:11%">
+        <col style="width:9%"><col style="width:15%"><col style="width:15%">
+      </colgroup><thead><tr><th>PATRIMÔNIO</th><th>DESCRIÇÃO DO BEM</th>
+        <th>INCORPORAÇÃO</th><th>TIPO</th><th>STATUS</th><th class="valor">VALOR</th></tr></thead>
+      <tbody>${linhas}</tbody></table>
+      <div class="totais subtotal"><span>${String(bens.length).padStart(2, "0")} ITEM(NS)</span>
+        <span>VALOR TOTAL DA SALA: ${escapar(moeda(subtotal))}</span></div>
+    </section>`;
+  }).join("");
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
     <title>Relatório da pesquisa dinâmica — SysPatrimônio</title>
     <style>
@@ -41,7 +60,11 @@ export function htmlPesquisaDinamica(
       tr { break-inside: avoid; page-break-inside: avoid; }
       .codigo { font-weight: bold; }
       .valor { text-align: right; white-space: nowrap; }
-      .totais { margin-top: 10px; padding: 8px; border: 1px solid oklch(0.6 0 0); display: flex; justify-content: space-between; gap: 12px; font-weight: bold; break-inside: avoid; }
+      .sala { margin-top: 28px; margin-bottom: 30px; }
+      .sala h3 { margin: 0 0 10px; font-size: 12px; break-after: avoid; page-break-after: avoid; }
+      .sala table { margin-top: 0; }
+      .totais { margin-top: 10px; padding: 4px 8px; border: 1px solid oklch(0.6 0 0); display: flex; justify-content: space-between; gap: 12px; font-weight: bold; break-inside: avoid; }
+      .total-geral { margin-top: 30px; }
       .acoes { text-align: center; padding: 12px; }
       button { padding: 10px 18px; cursor: pointer; }
       @media print {
@@ -56,13 +79,8 @@ export function htmlPesquisaDinamica(
     ${filtros.busca ? `<p><strong>Filtro dos bens:</strong> ${escapar(filtros.busca)}</p>` : ""}
     ${filtros.ano ? `<p><strong>Ano de incorporação:</strong> ${escapar(filtros.ano)}</p>` : ""}
     <p>Emitido em: ${escapar(emitido)} · SysPatrimônio · Somente os resultados filtrados.</p>
-    <table aria-label="Resultado da pesquisa dinâmica"><colgroup>
-      <col style="width:9%"><col style="width:31%"><col style="width:20%"><col style="width:11%">
-      <col style="width:8%"><col style="width:11%"><col style="width:10%">
-    </colgroup><thead><tr><th>PATRIMÔNIO</th><th>DESCRIÇÃO DO BEM</th><th>LOCAL FÍSICO</th>
-      <th>INCORPORAÇÃO</th><th>TIPO</th><th>STATUS</th><th class="valor">VALOR</th></tr></thead>
-    <tbody>${linhas || '<tr><td colspan="7">Nenhum bem encontrado para os filtros aplicados.</td></tr>'}</tbody></table>
-    <div class="totais"><span>QUANTIDADE DE BENS: ${resultado.bens.length}</span><span>VALOR TOTAL: ${escapar(moeda(total))}</span></div>
+    ${grupos || '<p class="sem-resultados">Nenhum bem encontrado para os filtros aplicados.</p>'}
+    <div class="totais total-geral"><span>QUANTIDADE DE BENS: ${resultado.bens.length}</span><span>VALOR TOTAL: ${escapar(moeda(total))}</span></div>
     </main><script>window.addEventListener('load', function () { window.focus(); window.print(); });</script>
     </body></html>`;
 }
