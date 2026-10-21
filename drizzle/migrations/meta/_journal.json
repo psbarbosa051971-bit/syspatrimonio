@@ -106,6 +106,13 @@
       "when": 1792541423766,
       "tag": "0014_vincular_fornecedor_em_lote",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792541577004,
+      "tag": "0015_vincular_fornecedor_rapido",
+      "breakpoints": true
     }
   ]
 }
