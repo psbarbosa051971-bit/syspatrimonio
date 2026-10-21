@@ -26,10 +26,14 @@ export function ImportarFornecedorDialog() {
 
   const vincular = async () => {
     setSalvando(true);
-    const { data, error } = await supabase.rpc("vincular_dados_fornecedor", { _itens: itens });
+    const data: { vinculados: number }[] = [];
+    for (let i = 0; i < itens.length; i += 200) {
+      const r = await supabase.rpc("vincular_dados_fornecedor", { _itens: itens.slice(i, i + 200) });
+      if (r.error) { setSalvando(false); toast.error(`Não foi possível vincular os dados: ${r.error.message}`); return; }
+      data.push(...(r.data ?? []));
+    }
     setSalvando(false);
-    if (error) { toast.error("Não foi possível vincular os dados."); return; }
-    const ok = (data ?? []).filter((r) => r.vinculados > 0).length;
+    const ok = data.filter((r) => r.vinculados > 0).length;
     const faltam = itens.length - ok;
     toast.success(`${ok} bem(ns) vinculado(s).${faltam ? ` ${faltam} código(s) não existem no sistema.` : ""}`);
   };
