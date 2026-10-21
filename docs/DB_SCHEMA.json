@@ -1,0 +1,2172 @@
+{
+  "enums": [
+    {
+      "nome": "app_role",
+      "valores": [
+        "admin",
+        "operador",
+        "visualizador"
+      ]
+    }
+  ],
+  "funcoes": [
+    {
+      "nome": "aplicar_numero_reservado_transferencia",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.aplicar_numero_reservado_transferencia()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  -- O contador é compartilhado com as importações, assim como a numeração anterior.\n  -- A atualização só é confirmada junto com o salvamento completo do termo.\n  UPDATE public.termos_numeracao_contador\n    SET ultimo_numero = ultimo_numero + 1\n    WHERE id = true\n    RETURNING ultimo_numero INTO NEW.numero;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Numeração indisponível'; END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "associar_checklist_veiculo",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.associar_checklist_veiculo(_checklist_id uuid, _bem_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE checklist public.checklists_veiculos%ROWTYPE; bem public.bens%ROWTYPE; termo public.recebimentos_veiculos%ROWTYPE; nome_local text;\nBEGIN\n IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Entre novamente para associar o checklist.'; END IF;\n SELECT * INTO checklist FROM public.checklists_veiculos WHERE id = _checklist_id FOR UPDATE;\n IF NOT FOUND OR NOT (checklist.user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'::public.app_role)) THEN\n   RAISE EXCEPTION 'Checklist não disponível para esta conta.';\n END IF;\n IF checklist.bem_id IS NOT NULL THEN RAISE EXCEPTION 'Este checklist já foi associado a um patrimônio.'; END IF;\n SELECT * INTO bem FROM public.bens WHERE id = _bem_id FOR SHARE;\n IF NOT FOUND OR bem.sala_id IS NULL THEN RAISE EXCEPTION 'Veículo sem Local Físico disponível.'; END IF;\n IF NOT public.pode_ver_sala(auth.uid(), bem.sala_id) THEN RAISE EXCEPTION 'Você não tem acesso ao Local Físico deste veículo.'; END IF;\n PERFORM pg_advisory_xact_lock(hashtextextended(_bem_id::text, 815));\n IF EXISTS (SELECT 1 FROM public.recebimentos_veiculos WHERE bem_id = _bem_id) THEN\n   RAISE EXCEPTION 'Este veículo já possui um termo. Escolha outro patrimônio para não sobrescrever o recebimento existente.';\n END IF;\n SELECT nome INTO nome_local FROM public.salas WHERE id = bem.sala_id;\n INSERT INTO public.recebimentos_veiculos(bem_id, dados, atualizado_por, atualizado_em)\n VALUES (_bem_id, jsonb_build_object('orgao', 'PREFEITURA MUNICIPAL DE ITAJUBÁ', 'cidade', 'Itajubá') || checklist.dados || jsonb_build_object('local_fisico', nome_local, 'data_termo', to_char(now() AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')), auth.uid(), now())\n RETURNING * INTO termo;\n UPDATE public.checklists_veiculos SET bem_id = _bem_id, atualizado_em = now() WHERE id = _checklist_id;\n RETURN to_jsonb(termo);\nEND;\n$function$\n",
+      "argumentos": "_checklist_id uuid, _bem_id uuid"
+    },
+    {
+      "nome": "associar_checklist_veiculo_por_red",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.associar_checklist_veiculo_por_red(_checklist_id uuid, _codigo_red text, _sala_id uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n checklist public.checklists_veiculos%ROWTYPE;\n bem public.bens%ROWTYPE;\n codigo text;\n modelo text;\n descricao_veiculo text;\n valor_texto text;\n valor_veiculo numeric;\n termo jsonb;\nBEGIN\n IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Entre novamente para associar o checklist.'; END IF;\n SELECT * INTO checklist FROM public.checklists_veiculos WHERE id = _checklist_id FOR UPDATE;\n IF NOT FOUND OR NOT (checklist.user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'::public.app_role)) THEN\n  RAISE EXCEPTION 'Checklist não disponível para esta conta.';\n END IF;\n IF checklist.bem_id IS NOT NULL THEN RAISE EXCEPTION 'Este checklist já foi associado a um patrimônio.'; END IF;\n codigo := public.chave_codigo_red_importacao(_codigo_red);\n IF codigo IS NULL OR codigo !~ '^[0-9]{1,50}$' THEN RAISE EXCEPTION 'Informe um código RED numérico válido.'; END IF;\n PERFORM pg_advisory_xact_lock(hashtextextended('codigo-red:' || codigo, 0));\n SELECT * INTO bem FROM public.bens WHERE public.chave_codigo_red_importacao(codigo_red) = codigo;\n IF FOUND THEN\n  IF bem.sala_id IS NULL OR NOT public.pode_ver_sala(auth.uid(), bem.sala_id) THEN\n   RAISE EXCEPTION 'Este código RED já está cadastrado, mas não está disponível em um Local Físico acessível à sua conta. Solicite a conferência ao administrador.';\n  END IF;\n ELSE\n  IF NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'O código RED ainda não está cadastrado. Peça a um administrador ou operador para cadastrá-lo.'; END IF;\n  IF _sala_id IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala_id) THEN RAISE EXCEPTION 'Escolha um Local Físico disponível para cadastrar o veículo.'; END IF;\n  PERFORM 1 FROM public.salas WHERE id = _sala_id FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local Físico não encontrado.'; END IF;\n  modelo := btrim(coalesce(checklist.dados->>'modelo_veiculo', ''));\n  IF modelo = '' THEN RAISE EXCEPTION 'Preencha o modelo do veículo no checklist antes de cadastrar o código RED.'; END IF;\n  valor_texto := btrim(coalesce(checklist.dados->>'valor', ''));\n  IF valor_texto = '' THEN valor_veiculo := 0;\n  ELSE\n   IF valor_texto !~ '^[0-9]+([.][0-9]{1,2})?$' OR length(valor_texto) > 13 THEN RAISE EXCEPTION 'Confira o campo Valor do checklist.'; END IF;\n   valor_veiculo := valor_texto::numeric;\n   IF valor_veiculo >= 10000000000 THEN RAISE EXCEPTION 'O valor do veículo excede o limite permitido.'; END IF;\n  END IF;\n  descricao_veiculo := concat_ws(E'\\n', 'VEÍCULO/MODELO: ' || modelo,\n   CASE WHEN btrim(coalesce(checklist.dados->>'ano_modelo','')) <> '' THEN 'ANO/MOD: ' || (checklist.dados->>'ano_modelo') END,\n   CASE WHEN btrim(coalesce(checklist.dados->>'chassi','')) <> '' THEN 'CHASSI: ' || (checklist.dados->>'chassi') END,\n   CASE WHEN btrim(coalesce(checklist.dados->>'motor','')) <> '' THEN 'MOTOR Nº: ' || (checklist.dados->>'motor') END,\n   CASE WHEN btrim(coalesce(checklist.dados->>'renavam','')) <> '' THEN 'RENAVAM: ' || (checklist.dados->>'renavam') END,\n   CASE WHEN btrim(coalesce(checklist.dados->>'placa','')) <> '' THEN 'PLACA: ' || (checklist.dados->>'placa') END,\n   CASE WHEN btrim(coalesce(checklist.dados->>'km','')) <> '' THEN 'KM: ' || (checklist.dados->>'km') END);\n  INSERT INTO public.bens(user_id, sala_id, codigo_red, descricao, valor, tipo)\n   VALUES(auth.uid(), _sala_id, codigo, descricao_veiculo, valor_veiculo, 'VEÍCULO') RETURNING * INTO bem;\n END IF;\n termo := public.associar_checklist_veiculo(_checklist_id, bem.id);\n RETURN jsonb_build_object('bem', to_jsonb(bem), 'termo', termo);\nEND;\n$function$\n",
+      "argumentos": "_checklist_id uuid, _codigo_red text, _sala_id uuid DEFAULT NULL::uuid"
+    },
+    {
+      "nome": "buscar_ultima_transferencia",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.buscar_ultima_transferencia(_codigo text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  transferencia uuid;\n  resultado jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para consultar transferências'; END IF;\n  IF _codigo IS NULL OR btrim(_codigo) !~ '^[0-9]+$' THEN RAISE EXCEPTION 'Digite apenas um código RED, somente com números'; END IF;\n  SELECT transferencia_id INTO transferencia FROM public.transferencias_bens_itens\n    WHERE codigo_red = btrim(_codigo) ORDER BY id DESC LIMIT 1;\n  IF NOT FOUND THEN RETURN NULL; END IF;\n  SELECT jsonb_build_object(\n    'id', transferencia, 'numero', min(t.numero), 'ano', min(t.termo_ano),\n    'data', min(t.created_at), 'destino', min(t.destino_nome),\n    'itens', jsonb_agg(jsonb_build_object(\n      'id', t.bem_id, 'codigo_red', t.codigo_red, 'descricao', t.descricao, 'valor', t.valor,\n      'origem', t.origem_nome, 'estornado_em', t.estornado_em,\n      'impedimento', CASE\n        WHEN t.estornado_em IS NOT NULL THEN 'Já estornado'\n        WHEN b.id IS NULL THEN 'Bem removido'\n        WHEN b.sala_id IS DISTINCT FROM t.destino_sala_id OR b.importacao_id IS DISTINCT FROM t.transferencia_id THEN 'Bem movimentado após esta transferência'\n        WHEN t.origem_sala_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.salas s WHERE s.id = t.origem_sala_id) THEN 'Sala de origem removida'\n        WHEN EXISTS (SELECT 1 FROM public.bens outro WHERE outro.id <> t.bem_id AND outro.codigo_red = t.codigo_red AND outro.sala_id IS NOT DISTINCT FROM t.origem_sala_id) THEN 'O local de origem já contém este código RED'\n        ELSE NULL END\n    ) ORDER BY t.codigo_red, t.id)\n  ) INTO resultado FROM public.transferencias_bens_itens t LEFT JOIN public.bens b ON b.id = t.bem_id\n    WHERE t.transferencia_id = transferencia;\n  RETURN resultado;\nEND;\n$function$\n",
+      "argumentos": "_codigo text"
+    },
+    {
+      "nome": "can_edit",
+      "retorno": "boolean",
+      "definicao": "CREATE OR REPLACE FUNCTION public.can_edit(_user_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (select 1 from public.user_roles where user_id = _user_id and role in ('admin','operador'))\n$function$\n",
+      "argumentos": "_user_id uuid"
+    },
+    {
+      "nome": "chat_identificar_usuario",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.chat_identificar_usuario()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  SELECT COALESCE(NULLIF(btrim(p.nome), ''), NULLIF(btrim(p.login), ''), 'Usuário') INTO NEW.nome FROM public.profiles p WHERE p.id = NEW.user_id;\n  NEW.nome := COALESCE(NEW.nome, 'Usuário');\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "chat_notificar_push",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.chat_notificar_push()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'extensions'\nAS $function$\nDECLARE segredo text;\nBEGIN\n  SELECT dispatch_token INTO segredo FROM public.chat_push_config WHERE id = true;\n  PERFORM net.http_post(\n    url := 'https://wdkimydszbyxnmduedid.supabase.co/functions/v1/chat-push',\n    headers := jsonb_build_object('Content-Type', 'application/json'),\n    body := jsonb_build_object('action', 'dispatch', 'messageId', NEW.id, 'token', segredo),\n    timeout_milliseconds := 10000\n  );\n  RETURN NEW;\nEXCEPTION WHEN OTHERS THEN\n  RAISE WARNING 'Não foi possível agendar o aviso do chat: %', SQLERRM;\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "chave_codigo_red_importacao",
+      "retorno": "text",
+      "definicao": "CREATE OR REPLACE FUNCTION public.chave_codigo_red_importacao(_codigo text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE STRICT\n SET search_path TO 'public'\nAS $function$ SELECT regexp_replace(btrim(_codigo), '[.[:space:]]', '', 'g') $function$\n",
+      "argumentos": "_codigo text"
+    },
+    {
+      "nome": "consultar_bens_importacao",
+      "retorno": "TABLE(id uuid, sala_id uuid, codigo_red text, sala_nome text)",
+      "definicao": "CREATE OR REPLACE FUNCTION public.consultar_bens_importacao(_bens jsonb)\n RETURNS TABLE(id uuid, sala_id uuid, codigo_red text, sala_nome text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para importar';\n  END IF;\n  IF jsonb_typeof(_bens) IS DISTINCT FROM 'array' THEN\n    RAISE EXCEPTION 'Lista de bens inválida';\n  END IF;\n  RETURN QUERY SELECT b.id, b.sala_id, b.codigo_red, coalesce(s.nome, 'Sem sala')\n    FROM public.bens b LEFT JOIN public.salas s ON s.id = b.sala_id\n    WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n      SELECT public.chave_codigo_red_importacao(x->>'codigo_red') FROM jsonb_array_elements(_bens) x\n    ) ORDER BY b.id;\nEND;\n$function$\n",
+      "argumentos": "_bens jsonb"
+    },
+    {
+      "nome": "consultar_proximo_numero_transferencia",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.consultar_proximo_numero_transferencia()\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  proximo bigint;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para gerar transferência';\n  END IF;\n  SELECT ultimo_numero + 1 INTO proximo FROM public.termos_numeracao_contador WHERE id = true;\n  IF proximo IS NULL THEN RAISE EXCEPTION 'Numeração indisponível'; END IF;\n  RETURN jsonb_build_object('numero', proximo, 'ano', extract(year FROM timezone('America/Sao_Paulo', now()))::integer);\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "dados_responsavel_sala_termo",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.dados_responsavel_sala_termo(_sala_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  _sala public.salas%ROWTYPE;\n  _nome text;\n  _cpf text;\n  _nome_sala text;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Você não tem permissão para consultar o responsável pela sala.';\n  END IF;\n  SELECT * INTO _sala FROM public.salas WHERE id = _sala_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada.'; END IF;\n  _nome_sala := nullif(btrim(_sala.responsavel), '');\n  SELECT p.nome, p.cpf INTO _nome, _cpf\n    FROM public.user_salas us JOIN public.profiles p ON p.id = us.user_id\n    WHERE us.sala_id = _sala_id AND nullif(btrim(p.nome), '') IS NOT NULL\n    ORDER BY (lower(btrim(p.nome)) = lower(coalesce(_nome_sala, ''))) DESC, p.created_at DESC, p.id\n    LIMIT 1;\n  IF _nome_sala IS NOT NULL AND lower(btrim(coalesce(_nome, ''))) <> lower(_nome_sala) THEN\n    _cpf := '';\n  END IF;\n  RETURN jsonb_build_object('responsavel', coalesce(_nome_sala, _nome, ''), 'cpf', coalesce(_cpf, ''));\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid"
+    },
+    {
+      "nome": "data_br_segura",
+      "retorno": "date",
+      "definicao": "CREATE OR REPLACE FUNCTION public.data_br_segura(_t text)\n RETURNS date\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  IF _t !~ '^\\d{2}/\\d{2}/\\d{4}$' THEN RETURN NULL; END IF;\n  RETURN make_date(substr(_t,7,4)::int, substr(_t,4,2)::int, substr(_t,1,2)::int);\nEXCEPTION WHEN others THEN RETURN NULL;\nEND $function$\n",
+      "argumentos": "_t text"
+    },
+    {
+      "nome": "demonstrativo_bens_incorporados",
+      "retorno": "TABLE(tipo text, quantidade bigint, sem_codigo bigint, total numeric)",
+      "definicao": "CREATE OR REPLACE FUNCTION public.demonstrativo_bens_incorporados(_inicio date, _fim date)\n RETURNS TABLE(tipo text, quantidade bigint, sem_codigo bigint, total numeric)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  WITH salas_ok AS (\n    SELECT s.id FROM public.salas s WHERE auth.uid() IS NOT NULL AND public.pode_ver_sala(auth.uid(), s.id)\n  )\n  SELECT coalesce(nullif(trim(b.tipo), ''), 'Outras') AS tipo,\n         count(*) AS quantidade,\n         count(*) FILTER (WHERE coalesce(trim(b.codigo_red::text), '') = '') AS sem_codigo,\n         coalesce(sum(b.valor), 0)::numeric AS total\n  FROM public.bens b\n  JOIN salas_ok so ON so.id = b.sala_id\n  WHERE public.data_br_segura(b.incorporacao) BETWEEN _inicio AND _fim\n  GROUP BY 1\n$function$\n",
+      "argumentos": "_inicio date, _fim date"
+    },
+    {
+      "nome": "emitir_retirada_veiculo",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.emitir_retirada_veiculo(_bem_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE documento public.retiradas_veiculos%ROWTYPE; proximo bigint;\nBEGIN\n  IF auth.uid() IS NULL OR NOT EXISTS (\n    SELECT 1 FROM public.bens b WHERE b.id = _bem_id AND b.sala_id IS NOT NULL\n      AND public.pode_ver_sala(auth.uid(), b.sala_id)\n  ) THEN RAISE EXCEPTION 'Você não tem permissão para emitir a retirada deste veículo.'; END IF;\n  PERFORM 1 FROM public.recebimentos_veiculos WHERE bem_id = _bem_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Salve o recebimento do veículo antes de emitir a retirada.'; END IF;\n  SELECT * INTO documento FROM public.retiradas_veiculos WHERE bem_id = _bem_id;\n  IF FOUND THEN RETURN to_jsonb(documento); END IF;\n  UPDATE public.termos_numeracao_contador SET ultimo_numero = ultimo_numero + 1\n    WHERE id = true RETURNING ultimo_numero INTO proximo;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Numeração indisponível'; END IF;\n  INSERT INTO public.retiradas_veiculos (bem_id, numero, ano, criado_por)\n  VALUES (_bem_id, proximo, extract(year FROM now() AT TIME ZONE 'America/Sao_Paulo')::integer, auth.uid())\n  RETURNING * INTO documento;\n  RETURN to_jsonb(documento);\nEND;\n$function$\n",
+      "argumentos": "_bem_id uuid"
+    },
+    {
+      "nome": "estornar_bens_inserviveis",
+      "retorno": "integer",
+      "definicao": "CREATE OR REPLACE FUNCTION public.estornar_bens_inserviveis(_solicitacoes uuid[], _sala_id uuid)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  _quantidade integer;\n  _validos integer;\nBEGIN\n  IF auth.uid() IS NULL OR _sala_id IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala_id) THEN\n    RAISE EXCEPTION 'Você não tem permissão para estornar bens deste local.';\n  END IF;\n  _quantidade := cardinality(_solicitacoes);\n  IF _quantidade IS NULL OR _quantidade < 1 OR _quantidade > 1000 OR EXISTS (SELECT 1 FROM unnest(_solicitacoes) AS ids(id) WHERE id IS NULL) OR (SELECT count(DISTINCT id) FROM unnest(_solicitacoes) AS ids(id)) <> _quantidade THEN\n    RAISE EXCEPTION 'Selecione de 1 a 1000 bens distintos para estornar.';\n  END IF;\n  PERFORM b.id FROM public.bens b\n    WHERE b.id IN (SELECT s.bem_id FROM public.solicitacoes_bens s WHERE s.id = ANY(_solicitacoes))\n    ORDER BY b.id FOR UPDATE;\n  PERFORM s.id FROM public.solicitacoes_bens s WHERE s.id = ANY(_solicitacoes) ORDER BY s.id FOR UPDATE;\n  SELECT count(*) INTO _validos FROM public.solicitacoes_bens s\n    JOIN public.bens b ON b.id = s.bem_id\n    WHERE s.id = ANY(_solicitacoes) AND s.ativa AND s.tipo = 'inservivel'\n      AND s.sala_id = _sala_id AND b.sala_id = _sala_id;\n  IF _validos <> _quantidade THEN\n    RAISE EXCEPTION 'Algum bem não está mais pendente como inservível neste local. Feche e abra novamente o relatório antes de tentar de novo.';\n  END IF;\n  UPDATE public.solicitacoes_bens SET ativa = false, updated_at = clock_timestamp()\n    WHERE id = ANY(_solicitacoes) AND ativa AND tipo = 'inservivel' AND sala_id = _sala_id;\n  RETURN _quantidade;\nEND;\n$function$\n",
+      "argumentos": "_solicitacoes uuid[], _sala_id uuid"
+    },
+    {
+      "nome": "estornar_solicitacoes_transferencia",
+      "retorno": "integer",
+      "definicao": "CREATE OR REPLACE FUNCTION public.estornar_solicitacoes_transferencia(_solicitacoes uuid[], _sala_id uuid)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  _quantidade integer;\n  _validos integer;\nBEGIN\n  IF auth.uid() IS NULL OR _sala_id IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala_id) THEN\n    RAISE EXCEPTION 'Você não tem permissão para estornar solicitações deste local.';\n  END IF;\n  _quantidade := cardinality(_solicitacoes);\n  IF _quantidade IS NULL OR _quantidade < 1 OR _quantidade > 1000\n    OR EXISTS (SELECT 1 FROM unnest(_solicitacoes) AS ids(id) WHERE id IS NULL)\n    OR (SELECT count(DISTINCT id) FROM unnest(_solicitacoes) AS ids(id)) <> _quantidade THEN\n    RAISE EXCEPTION 'Selecione de 1 a 1000 bens distintos para estornar.';\n  END IF;\n  PERFORM b.id FROM public.bens b\n    WHERE b.id IN (SELECT s.bem_id FROM public.solicitacoes_bens s WHERE s.id = ANY(_solicitacoes))\n    ORDER BY b.id FOR UPDATE;\n  PERFORM s.id FROM public.solicitacoes_bens s\n    WHERE s.id = ANY(_solicitacoes) ORDER BY s.id FOR UPDATE;\n  SELECT count(*) INTO _validos FROM public.solicitacoes_bens s\n    JOIN public.bens b ON b.id = s.bem_id\n    WHERE s.id = ANY(_solicitacoes) AND s.ativa AND s.tipo = 'transferencia'\n      AND s.sala_id = _sala_id AND b.sala_id = _sala_id;\n  IF _validos <> _quantidade THEN\n    RAISE EXCEPTION 'Algum bem não está mais pendente para transferência neste local. Feche e abra novamente o relatório antes de tentar de novo.';\n  END IF;\n  UPDATE public.solicitacoes_bens SET ativa = false, updated_at = clock_timestamp()\n    WHERE id = ANY(_solicitacoes) AND ativa AND tipo = 'transferencia' AND sala_id = _sala_id;\n  RETURN _quantidade;\nEND;\n$function$\n",
+      "argumentos": "_solicitacoes uuid[], _sala_id uuid"
+    },
+    {
+      "nome": "estornar_transferencia",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.estornar_transferencia(_transferencia uuid, _itens uuid[], _pedido uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  quantidade integer;\n  ja_feitos integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para estornar transferências'; END IF;\n  IF _transferencia IS NULL OR _pedido IS NULL THEN RAISE EXCEPTION 'Pedido de estorno inválido'; END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 OR (SELECT count(DISTINCT x) FROM unnest(_itens) x) <> quantidade THEN RAISE EXCEPTION 'Selecione de 1 a 500 bens diferentes'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT count(*) INTO ja_feitos FROM public.transferencias_bens_itens WHERE estorno_pedido = _pedido;\n  IF ja_feitos > 0 THEN\n    IF ja_feitos <> quantidade OR EXISTS (SELECT 1 FROM public.transferencias_bens_itens WHERE estorno_pedido = _pedido AND (transferencia_id <> _transferencia OR estornado_por <> auth.uid() OR NOT (bem_id = ANY(_itens)))) THEN\n      RAISE EXCEPTION 'Este pedido pertence a outro estorno';\n    END IF;\n    RETURN jsonb_build_object('quantidade', ja_feitos);\n  END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id IN (\n    SELECT origem_sala_id FROM public.transferencias_bens_itens WHERE transferencia_id = _transferencia AND bem_id = ANY(_itens)\n    UNION SELECT destino_sala_id FROM public.transferencias_bens_itens WHERE transferencia_id = _transferencia AND bem_id = ANY(_itens)\n  ) ORDER BY s.id FOR UPDATE;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR UPDATE;\n  PERFORM t.id FROM public.transferencias_bens_itens t WHERE t.transferencia_id = _transferencia AND t.bem_id = ANY(_itens) ORDER BY t.id FOR UPDATE;\n  IF (SELECT count(*) FROM public.transferencias_bens_itens t JOIN public.bens b ON b.id = t.bem_id\n    WHERE t.transferencia_id = _transferencia AND t.bem_id = ANY(_itens) AND t.estornado_em IS NULL\n      AND b.sala_id = t.destino_sala_id AND b.importacao_id = t.transferencia_id\n      AND (t.origem_sala_id IS NULL OR EXISTS (SELECT 1 FROM public.salas s WHERE s.id = t.origem_sala_id))) <> quantidade THEN\n    RAISE EXCEPTION 'Um item já foi estornado, removido ou movimentado, ou sua sala de origem foi removida. Busque novamente antes de estornar';\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.transferencias_bens_itens t JOIN public.bens b\n    ON b.codigo_red = t.codigo_red AND b.sala_id IS NOT DISTINCT FROM t.origem_sala_id AND b.id <> t.bem_id\n    WHERE t.transferencia_id = _transferencia AND t.bem_id = ANY(_itens)) THEN\n    RAISE EXCEPTION 'A sala de origem já contém um dos códigos RED selecionados. Nenhum item foi estornado';\n  END IF;\n  UPDATE public.bens b SET sala_id = t.origem_sala_id,\n    importacao_id = (SELECT i.id FROM public.importacoes i WHERE i.id = t.origem_importacao_id AND i.sala_id IS NOT DISTINCT FROM t.origem_sala_id),\n    conferido = false, conferencia_finalizada = false\n  FROM public.transferencias_bens_itens t WHERE t.transferencia_id = _transferencia AND t.bem_id = ANY(_itens) AND b.id = t.bem_id;\n  UPDATE public.solicitacoes_bens SET ativa = false, updated_at = now() WHERE ativa AND bem_id = ANY(_itens);\n  UPDATE public.transferencias_bens_itens SET estornado_em = now(), estornado_por = auth.uid(), estorno_pedido = _pedido\n    WHERE transferencia_id = _transferencia AND bem_id = ANY(_itens);\n  RETURN jsonb_build_object('quantidade', quantidade);\nEND;\n$function$\n",
+      "argumentos": "_transferencia uuid, _itens uuid[], _pedido uuid"
+    },
+    {
+      "nome": "excluir_importacoes_sala",
+      "retorno": "void",
+      "definicao": "CREATE OR REPLACE FUNCTION public.excluir_importacoes_sala(_sala_id uuid, _modo text, _importacao_id uuid DEFAULT NULL::uuid)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  PERFORM id FROM public.salas WHERE id = _sala_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local não encontrado'; END IF;\n  IF _modo = 'todas' THEN\n    DELETE FROM public.bens WHERE sala_id = _sala_id;\n    DELETE FROM public.importacoes WHERE sala_id = _sala_id;\n  ELSIF _modo = 'anteriores' THEN\n    DELETE FROM public.bens WHERE sala_id = _sala_id AND importacao_id IS NULL;\n  ELSIF _modo = 'uma' AND _importacao_id IS NOT NULL THEN\n    DELETE FROM public.importacoes WHERE sala_id = _sala_id AND id = _importacao_id;\n    IF NOT FOUND THEN RAISE EXCEPTION 'Importação não encontrada neste local'; END IF;\n  ELSE\n    RAISE EXCEPTION 'Selecione uma importação';\n  END IF;\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid, _modo text, _importacao_id uuid DEFAULT NULL::uuid"
+    },
+    {
+      "nome": "excluir_sala_vazia",
+      "retorno": "void",
+      "definicao": "CREATE OR REPLACE FUNCTION public.excluir_sala_vazia(_sala_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  IF NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Apenas administradores e operadores podem excluir salas';\n  END IF;\n  PERFORM id FROM public.salas WHERE id = _sala_id FOR UPDATE;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'Sala não encontrada ou acesso não autorizado';\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.bens WHERE sala_id = _sala_id) THEN\n    RAISE EXCEPTION 'Esta sala possui bens e não pode ser excluída';\n  END IF;\n  DELETE FROM public.salas WHERE id = _sala_id;\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid"
+    },
+    {
+      "nome": "excluir_termo_sala",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.excluir_termo_sala(_termo uuid, _sala uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  documento jsonb;\n  devolvidos integer := 0;\n  desvinculados integer := 0;\n  pedido uuid := gen_random_uuid();\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Você não tem permissão para excluir termos';\n  END IF;\n  IF _termo IS NULL OR _sala IS NULL THEN RAISE EXCEPTION 'Informe o termo e a sala'; END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala OR s.id IN (\n    SELECT t.origem_sala_id FROM public.transferencias_bens_itens t\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL\n  ) ORDER BY s.id FOR UPDATE;\n  PERFORM b.id FROM public.bens b WHERE b.importacao_id = _termo OR b.id IN (\n    SELECT t.bem_id FROM public.transferencias_bens_itens t\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL\n  ) ORDER BY b.id FOR UPDATE;\n  SELECT i.termo_snapshot INTO documento FROM public.importacoes i\n    WHERE i.id = _termo AND i.sala_id = _sala FOR UPDATE;\n  IF NOT FOUND OR documento IS NULL THEN RAISE EXCEPTION 'Termo não encontrado nesta sala. Atualize a lista'; END IF;\n  PERFORM t.id FROM public.transferencias_bens_itens t\n    WHERE t.transferencia_id = _termo ORDER BY t.id FOR UPDATE;\n  IF EXISTS (\n    SELECT 1 FROM public.transferencias_bens_itens t LEFT JOIN public.bens b ON b.id = t.bem_id\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL AND (\n      b.id IS NULL OR b.sala_id IS DISTINCT FROM t.destino_sala_id\n      OR b.importacao_id IS DISTINCT FROM _termo\n      OR (t.origem_sala_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.salas s WHERE s.id = t.origem_sala_id))\n    )\n  ) THEN\n    RAISE EXCEPTION 'Não é possível excluir: um bem foi removido, movimentado para outro termo ou sua sala de origem não existe mais. Nenhum bem foi alterado';\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.bens b WHERE b.importacao_id = _termo AND b.sala_id IS DISTINCT FROM _sala) THEN\n    RAISE EXCEPTION 'Há bens vinculados a este termo em outra sala. Confira as movimentações antes de excluir';\n  END IF;\n  IF EXISTS (\n    SELECT 1 FROM public.transferencias_bens_itens t JOIN public.bens b\n      ON b.codigo_red = t.codigo_red AND b.sala_id IS NOT DISTINCT FROM t.origem_sala_id AND b.id <> t.bem_id\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL\n  ) THEN RAISE EXCEPTION 'A sala de origem já contém um dos códigos RED. Nenhum bem foi alterado'; END IF;\n  UPDATE public.bens b SET sala_id = t.origem_sala_id,\n    importacao_id = (SELECT i.id FROM public.importacoes i WHERE i.id = t.origem_importacao_id\n      AND i.id <> _termo AND i.sala_id IS NOT DISTINCT FROM t.origem_sala_id),\n    conferido = false, conferencia_finalizada = false\n  FROM public.transferencias_bens_itens t\n  WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL AND b.id = t.bem_id;\n  GET DIAGNOSTICS devolvidos = ROW_COUNT;\n  UPDATE public.solicitacoes_bens SET ativa = false, updated_at = now()\n    WHERE ativa AND bem_id IN (SELECT t.bem_id FROM public.transferencias_bens_itens t\n      WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL);\n  UPDATE public.transferencias_bens_itens SET estornado_em = now(), estornado_por = auth.uid(), estorno_pedido = pedido\n    WHERE transferencia_id = _termo AND estornado_em IS NULL;\n  UPDATE public.bens SET importacao_id = NULL WHERE importacao_id = _termo;\n  GET DIAGNOSTICS desvinculados = ROW_COUNT;\n  DELETE FROM public.importacoes WHERE id = _termo AND sala_id = _sala;\n  RETURN jsonb_build_object('devolvidos', devolvidos, 'desvinculados', desvinculados);\nEND;\n$function$\n",
+      "argumentos": "_termo uuid, _sala uuid"
+    },
+    {
+      "nome": "handle_new_user",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  insert into public.profiles (id, email) values (new.id, new.email) on conflict do nothing;\n  insert into public.user_roles (user_id, role)\n  values (new.id, case when exists (select 1 from public.user_roles) then 'visualizador'::public.app_role else 'admin'::public.app_role end)\n  on conflict do nothing;\n  return new;\nend $function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "has_any_role",
+      "retorno": "boolean",
+      "definicao": "CREATE OR REPLACE FUNCTION public.has_any_role(_user_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (select 1 from public.user_roles where user_id = _user_id)\n$function$\n",
+      "argumentos": "_user_id uuid"
+    },
+    {
+      "nome": "has_role",
+      "retorno": "boolean",
+      "definicao": "CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (select 1 from public.user_roles where user_id = _user_id and role = _role)\n$function$\n",
+      "argumentos": "_user_id uuid, _role app_role"
+    },
+    {
+      "nome": "impedir_codigo_red_duplicado",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.impedir_codigo_red_duplicado()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE chave text; local_existente text;\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    IF public.chave_codigo_red_importacao(NEW.codigo_red) = public.chave_codigo_red_importacao(OLD.codigo_red)\n      AND NEW.sala_id IS NOT DISTINCT FROM OLD.sala_id THEN RETURN NEW; END IF;\n  END IF;\n  chave := public.chave_codigo_red_importacao(NEW.codigo_red);\n  IF chave IS NULL OR chave = '' THEN RAISE EXCEPTION 'Informe o código RED do bem'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended('codigo-red:' || chave, 0));\n  SELECT coalesce(s.nome, 'Sem sala') INTO local_existente FROM public.bens b\n    LEFT JOIN public.salas s ON s.id = b.sala_id\n    WHERE public.chave_codigo_red_importacao(b.codigo_red) = chave AND b.id <> NEW.id LIMIT 1;\n  IF FOUND THEN\n    RAISE EXCEPTION 'O código RED % já existe no local %. Use a importação com confirmação para mover o bem, sem duplicá-lo.', NEW.codigo_red, local_existente;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "importar_bens_html",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.importar_bens_html(_sala_id uuid, _arquivo text, _bens jsonb, _cabecalho jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  resultado jsonb;\n  lote public.importacoes%ROWTYPE;\n  local_atual public.salas%ROWTYPE;\n  departamento_atual public.departamentos%ROWTYPE;\n  nome_responsavel text;\n  cpf_responsavel text;\n  itens jsonb;\n  ano integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para importar';\n  END IF;\n  IF jsonb_typeof(_cabecalho) IS DISTINCT FROM 'object' THEN\n    RAISE EXCEPTION 'Cabeçalho do termo inválido';\n  END IF;\n  SELECT * INTO local_atual FROM public.salas WHERE id = _sala_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local não encontrado'; END IF;\n  SELECT * INTO departamento_atual FROM public.departamentos WHERE id = local_atual.departamento_id;\n  SELECT p.nome, p.cpf INTO nome_responsavel, cpf_responsavel\n    FROM public.user_salas us JOIN public.profiles p ON p.id = us.user_id\n    WHERE us.sala_id = _sala_id ORDER BY p.created_at, p.id LIMIT 1;\n  IF jsonb_typeof(_bens) IS DISTINCT FROM 'array' OR jsonb_array_length(_bens) = 0 THEN\n    RAISE EXCEPTION 'Nenhum bem encontrado no HTML';\n  END IF;\n  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_bens) b\n    WHERE jsonb_typeof(b) IS DISTINCT FROM 'object'\n      OR NULLIF(trim(b->>'codigo_red'), '') IS NULL\n      OR NULLIF(trim(b->>'descricao'), '') IS NULL\n      OR jsonb_typeof(b->'valor') IS DISTINCT FROM 'number') THEN\n    RAISE EXCEPTION 'O HTML contém dados de bens inválidos';\n  END IF;\n  SELECT jsonb_agg(jsonb_build_object('codigo_red', b.codigo_red, 'descricao', b.descricao,\n      'valor', b.valor, 'incorporacao', b.incorporacao, 'tipo', b.tipo) ORDER BY b.codigo_red)\n    INTO itens FROM (\n      SELECT DISTINCT ON (x.codigo_red) x.* FROM jsonb_to_recordset(_bens)\n        AS x(codigo_red text, descricao text, valor numeric, incorporacao text, tipo text)\n      ORDER BY x.codigo_red\n    ) b;\n  resultado := public.importar_bens_pdf(_sala_id, _arquivo, itens);\n  SELECT * INTO STRICT lote FROM public.importacoes WHERE numero = (resultado->>'numero')::bigint;\n  ano := extract(year FROM lote.created_at AT TIME ZONE 'America/Sao_Paulo')::integer;\n  UPDATE public.importacoes SET termo_ano = ano,\n    termo_snapshot = jsonb_build_object(\n      'local', local_atual.nome,\n      'endereco', COALESCE(NULLIF(_cabecalho->>'endereco', ''), local_atual.endereco, ''),\n      'historico', COALESCE(_cabecalho->>'historico', ''),\n      'data_origem', COALESCE(_cabecalho->>'data', ''),\n      'departamento', COALESCE(departamento_atual.departamento, ''),\n      'diretor', COALESCE(departamento_atual.diretor, ''),\n      'almoxarifado', COALESCE(departamento_atual.almoxarifado, ''),\n      'endereco_departamento', COALESCE(departamento_atual.endereco, ''),\n      'responsavel', COALESCE(NULLIF(nome_responsavel, ''), local_atual.responsavel, ''),\n      'cpf', COALESCE(cpf_responsavel, ''),\n      'bens', itens)\n    WHERE id = lote.id;\n  RETURN resultado || jsonb_build_object('importacao_id', lote.id, 'termo_numero', lote.numero::text || '/' || ano::text);\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid, _arquivo text, _bens jsonb, _cabecalho jsonb"
+    },
+    {
+      "nome": "importar_bens_html_com_opcao",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.importar_bens_html_com_opcao(_sala_id uuid, _arquivo text, _bens jsonb, _cabecalho jsonb, _existentes jsonb, _gerar_termo boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  itens jsonb;\n  atuais jsonb;\n  esperados jsonb;\n  chave text;\n  novos integer := 0;\n  movidos integer := 0;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para importar';\n  END IF;\n  IF _gerar_termo IS NULL THEN RAISE EXCEPTION 'Escolha se deseja gerar um termo'; END IF;\n  IF _gerar_termo THEN\n    RETURN public.importar_bens_html_confirmado(_sala_id, _arquivo, _bens, _cabecalho, _existentes);\n  END IF;\n  IF jsonb_typeof(_bens) IS DISTINCT FROM 'array' OR jsonb_typeof(_existentes) IS DISTINCT FROM 'array'\n    OR jsonb_typeof(_cabecalho) IS DISTINCT FROM 'object' THEN\n    RAISE EXCEPTION 'Dados da confirmação inválidos';\n  END IF;\n  IF jsonb_array_length(_bens) = 0 OR EXISTS (\n    SELECT 1 FROM jsonb_array_elements(_bens) b WHERE jsonb_typeof(b) IS DISTINCT FROM 'object'\n      OR nullif(public.chave_codigo_red_importacao(b->>'codigo_red'), '') IS NULL\n      OR nullif(btrim(b->>'descricao'), '') IS NULL OR jsonb_typeof(b->'valor') IS DISTINCT FROM 'number'\n  ) THEN RAISE EXCEPTION 'O HTML contém dados de bens inválidos'; END IF;\n  SELECT jsonb_agg(item ORDER BY codigo) INTO itens FROM (\n    SELECT DISTINCT ON (public.chave_codigo_red_importacao(b->>'codigo_red'))\n      public.chave_codigo_red_importacao(b->>'codigo_red') AS codigo,\n      b || jsonb_build_object('codigo_red', public.chave_codigo_red_importacao(b->>'codigo_red')) AS item\n    FROM jsonb_array_elements(_bens) WITH ORDINALITY AS x(b, ordem)\n    ORDER BY public.chave_codigo_red_importacao(b->>'codigo_red'), ordem\n  ) t;\n  FOR chave IN SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x ORDER BY x->>'codigo_red' LOOP\n    PERFORM pg_advisory_xact_lock(hashtextextended('codigo-red:' || chave, 0));\n  END LOOP;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala_id OR s.id IN (\n    SELECT b.sala_id FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n      SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x\n    )\n  ) ORDER BY s.id FOR UPDATE;\n  IF NOT EXISTS (SELECT 1 FROM public.salas WHERE id = _sala_id) THEN RAISE EXCEPTION 'Local de destino não encontrado'; END IF;\n  PERFORM b.id FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n    SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x\n  ) ORDER BY b.id FOR UPDATE;\n  SELECT coalesce(jsonb_agg(jsonb_build_object('id', b.id, 'sala_id', b.sala_id,\n    'codigo_red', public.chave_codigo_red_importacao(b.codigo_red)) ORDER BY b.id), '[]'::jsonb)\n    INTO atuais FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n      SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x\n    );\n  SELECT coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'sala_id', x.sala_id,\n    'codigo_red', public.chave_codigo_red_importacao(x.codigo_red)) ORDER BY x.id), '[]'::jsonb)\n    INTO esperados FROM jsonb_to_recordset(_existentes) AS x(id uuid, sala_id uuid, codigo_red text);\n  IF atuais IS DISTINCT FROM esperados THEN\n    RAISE EXCEPTION 'A localização de um dos bens mudou. Nenhum bem foi importado. Importe o arquivo novamente para conferir o aviso atualizado.';\n  END IF;\n  UPDATE public.solicitacoes_bens SET ativa = false, updated_at = now()\n    WHERE ativa AND bem_id IN (\n      SELECT b.id FROM public.bens b WHERE b.sala_id IS DISTINCT FROM _sala_id\n        AND public.chave_codigo_red_importacao(b.codigo_red) IN (SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x)\n    );\n  UPDATE public.bens b SET sala_id = _sala_id, importacao_id = null, conferido = false, conferencia_finalizada = false\n    WHERE b.sala_id IS DISTINCT FROM _sala_id\n      AND public.chave_codigo_red_importacao(b.codigo_red) IN (SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x);\n  GET DIAGNOSTICS movidos = ROW_COUNT;\n  INSERT INTO public.bens(user_id, sala_id, codigo_red, descricao, valor, incorporacao, tipo)\n    SELECT auth.uid(), _sala_id, x.codigo_red, x.descricao, x.valor, x.incorporacao, x.tipo\n    FROM jsonb_to_recordset(itens) AS x(codigo_red text, descricao text, valor numeric, incorporacao text, tipo text)\n    WHERE NOT EXISTS (SELECT 1 FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) = x.codigo_red);\n  GET DIAGNOSTICS novos = ROW_COUNT;\n  RETURN jsonb_build_object('importacao_id', null, 'numero', null, 'termo_numero', null,\n    'novos', novos, 'repetidos', jsonb_array_length(itens) - novos, 'transferidos', movidos);\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid, _arquivo text, _bens jsonb, _cabecalho jsonb, _existentes jsonb, _gerar_termo boolean"
+    },
+    {
+      "nome": "importar_bens_html_confirmado",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.importar_bens_html_confirmado(_sala_id uuid, _arquivo text, _bens jsonb, _cabecalho jsonb, _existentes jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  itens jsonb; atuais jsonb; esperados jsonb; chave text; escolhido uuid;\n  lote_id uuid; resultado jsonb; movidos integer := 0; removidos integer := 0; qtd integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para importar'; END IF;\n  IF jsonb_typeof(_bens) IS DISTINCT FROM 'array' OR jsonb_typeof(_existentes) IS DISTINCT FROM 'array' THEN\n    RAISE EXCEPTION 'Dados da confirmação inválidos';\n  END IF;\n  IF jsonb_array_length(_bens) = 0 OR EXISTS (\n    SELECT 1 FROM jsonb_array_elements(_bens) b WHERE jsonb_typeof(b) IS DISTINCT FROM 'object'\n      OR nullif(public.chave_codigo_red_importacao(b->>'codigo_red'), '') IS NULL\n      OR nullif(btrim(b->>'descricao'), '') IS NULL OR jsonb_typeof(b->'valor') IS DISTINCT FROM 'number'\n  ) THEN RAISE EXCEPTION 'O HTML contém dados de bens inválidos'; END IF;\n  SELECT jsonb_agg(item ORDER BY codigo) INTO itens FROM (\n    SELECT DISTINCT ON (public.chave_codigo_red_importacao(b->>'codigo_red'))\n      public.chave_codigo_red_importacao(b->>'codigo_red') AS codigo,\n      b || jsonb_build_object('codigo_red', public.chave_codigo_red_importacao(b->>'codigo_red')) AS item\n    FROM jsonb_array_elements(_bens) WITH ORDINALITY AS x(b, ordem)\n    ORDER BY public.chave_codigo_red_importacao(b->>'codigo_red'), ordem\n  ) t;\n  FOR chave IN SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x ORDER BY x->>'codigo_red' LOOP\n    PERFORM pg_advisory_xact_lock(hashtextextended('codigo-red:' || chave, 0));\n  END LOOP;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala_id OR s.id IN (\n    SELECT b.sala_id FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n      SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x\n    )\n  ) ORDER BY s.id FOR UPDATE;\n  IF NOT EXISTS (SELECT 1 FROM public.salas WHERE id = _sala_id) THEN RAISE EXCEPTION 'Local de destino não encontrado'; END IF;\n  PERFORM b.id FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n    SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x\n  ) ORDER BY b.id FOR UPDATE;\n  SELECT coalesce(jsonb_agg(jsonb_build_object('id', b.id, 'sala_id', b.sala_id,\n    'codigo_red', public.chave_codigo_red_importacao(b.codigo_red)) ORDER BY b.id), '[]'::jsonb)\n    INTO atuais FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n      SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x\n    );\n  SELECT coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'sala_id', x.sala_id,\n    'codigo_red', public.chave_codigo_red_importacao(x.codigo_red)) ORDER BY x.id), '[]'::jsonb)\n    INTO esperados FROM jsonb_to_recordset(_existentes) AS x(id uuid, sala_id uuid, codigo_red text);\n  IF atuais IS DISTINCT FROM esperados THEN\n    RAISE EXCEPTION 'A localização de um dos bens mudou. Nenhum bem foi importado. Importe o arquivo novamente para conferir o aviso atualizado.';\n  END IF;\n  FOR chave IN SELECT x->>'codigo_red' FROM jsonb_array_elements(itens) x ORDER BY x->>'codigo_red' LOOP\n    SELECT b.id INTO escolhido FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) = chave\n      ORDER BY (b.sala_id IS NOT DISTINCT FROM _sala_id) DESC, b.created_at, b.id LIMIT 1;\n    IF escolhido IS NOT NULL THEN\n      IF EXISTS (SELECT 1 FROM public.bens WHERE id = escolhido AND sala_id IS DISTINCT FROM _sala_id)\n        OR EXISTS (SELECT 1 FROM public.bens WHERE public.chave_codigo_red_importacao(codigo_red) = chave AND sala_id IS DISTINCT FROM _sala_id) THEN\n        movidos := movidos + 1;\n      END IF;\n      UPDATE public.solicitacoes_bens SET ativa = false, updated_at = now()\n        WHERE ativa AND bem_id IN (SELECT b.id FROM public.bens b\n          WHERE public.chave_codigo_red_importacao(b.codigo_red) = chave AND (b.id <> escolhido OR b.sala_id IS DISTINCT FROM _sala_id));\n      DELETE FROM public.bens WHERE public.chave_codigo_red_importacao(codigo_red) = chave AND id <> escolhido;\n      GET DIAGNOSTICS qtd = ROW_COUNT;\n      removidos := removidos + qtd;\n      UPDATE public.bens SET sala_id = _sala_id, importacao_id = null, conferido = false, conferencia_finalizada = false\n        WHERE id = escolhido AND sala_id IS DISTINCT FROM _sala_id;\n    END IF;\n  END LOOP;\n  resultado := public.importar_bens_html(_sala_id, _arquivo, itens, _cabecalho);\n  lote_id := (resultado->>'importacao_id')::uuid;\n  UPDATE public.bens b SET importacao_id = lote_id WHERE b.sala_id = _sala_id AND b.id IN (\n    SELECT x.id FROM jsonb_to_recordset(_existentes) AS x(id uuid, sala_id uuid)\n    WHERE x.sala_id IS DISTINCT FROM _sala_id\n  );\n  RETURN resultado || jsonb_build_object('transferidos', movidos, 'duplicatas_removidas', removidos);\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid, _arquivo text, _bens jsonb, _cabecalho jsonb, _existentes jsonb"
+    },
+    {
+      "nome": "importar_bens_pdf",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.importar_bens_pdf(_sala_id uuid, _arquivo text, _bens jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para importar';\n  END IF;\n  PERFORM id FROM public.salas WHERE id = _sala_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local não encontrado'; END IF;\n  IF jsonb_typeof(_bens) IS DISTINCT FROM 'array' OR jsonb_array_length(_bens) = 0 THEN\n    RAISE EXCEPTION 'Nenhum bem encontrado no PDF';\n  END IF;\n  INSERT INTO public.importacoes(sala_id, user_id, arquivo)\n    VALUES (_sala_id, auth.uid(), _arquivo) RETURNING * INTO lote;\n  INSERT INTO public.bens(user_id, sala_id, importacao_id, codigo_red, descricao, valor, incorporacao, tipo)\n    SELECT auth.uid(), _sala_id, lote.id, public.chave_codigo_red_importacao(b.codigo_red), b.descricao, COALESCE(b.valor, 0), b.incorporacao, b.tipo\n    FROM (\n      SELECT DISTINCT ON (public.chave_codigo_red_importacao(x.codigo_red)) x.* FROM jsonb_to_recordset(_bens)\n        AS x(codigo_red text, descricao text, valor numeric, incorporacao text, tipo text)\n      WHERE x.codigo_red IS NOT NULL AND x.descricao IS NOT NULL\n      ORDER BY public.chave_codigo_red_importacao(x.codigo_red)\n    ) b\n    WHERE NOT EXISTS (SELECT 1 FROM public.bens e WHERE e.sala_id = _sala_id\n      AND public.chave_codigo_red_importacao(e.codigo_red) = public.chave_codigo_red_importacao(b.codigo_red));\n  GET DIAGNOSTICS quantidade = ROW_COUNT;\n  RETURN jsonb_build_object('numero', lote.numero, 'novos', quantidade, 'repetidos', jsonb_array_length(_bens) - quantidade);\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid, _arquivo text, _bens jsonb"
+    },
+    {
+      "nome": "incluir_bens_no_termo",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.incluir_bens_no_termo(_termo uuid, _sala uuid, _itens uuid[])\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  documento jsonb;\n  novos jsonb;\n  quantidade integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para incluir bens em termos';\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 OR (SELECT count(DISTINCT x) FROM unnest(_itens) x) <> quantidade THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens diferentes';\n  END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR UPDATE;\n  SELECT i.termo_snapshot INTO documento FROM public.importacoes i\n    WHERE i.id = _termo AND i.sala_id = _sala FOR UPDATE;\n  IF NOT FOUND OR documento IS NULL OR jsonb_typeof(documento) <> 'object'\n    OR jsonb_typeof(documento->'bens') IS DISTINCT FROM 'array' THEN\n    RAISE EXCEPTION 'O termo não possui documento válido nesta sala';\n  END IF;\n  IF jsonb_array_length(documento->'bens') = 0 THEN\n    RAISE EXCEPTION 'Os dados deste termo não estão disponíveis';\n  END IF;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um dos bens foi removido ou mudou de sala. Atualize a busca antes de incluir';\n  END IF;\n  SELECT coalesce(jsonb_agg(jsonb_build_object(\n    'codigo_red', b.codigo_red, 'descricao', b.descricao, 'valor', b.valor,\n    'incorporacao', b.incorporacao, 'tipo', b.tipo\n  ) ORDER BY b.codigo_red), '[]'::jsonb) INTO novos\n    FROM public.bens b WHERE b.id = ANY(_itens)\n    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(documento->'bens') item\n      WHERE item->>'codigo_red' = b.codigo_red);\n  UPDATE public.importacoes SET termo_snapshot = jsonb_set(documento, '{bens}', (documento->'bens') || novos)\n    WHERE id = _termo AND sala_id = _sala;\n  UPDATE public.bens SET importacao_id = _termo\n    WHERE id = ANY(_itens) AND sala_id = _sala AND importacao_id IS DISTINCT FROM _termo;\n  RETURN jsonb_build_object('quantidade', quantidade);\nEND;\n$function$\n",
+      "argumentos": "_termo uuid, _sala uuid, _itens uuid[]"
+    },
+    {
+      "nome": "marcar_conferido",
+      "retorno": "void",
+      "definicao": "CREATE OR REPLACE FUNCTION public.marcar_conferido(_bem_id uuid, _valor boolean)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  if not exists (select 1 from public.bens b where b.id = _bem_id and public.pode_ver_sala(auth.uid(), b.sala_id)) then\n    raise exception 'sem permissão';\n  end if;\n  update public.bens set conferido = _valor where id = _bem_id;\nend $function$\n",
+      "argumentos": "_bem_id uuid, _valor boolean"
+    },
+    {
+      "nome": "normalizar_texto_pesquisa_bens",
+      "retorno": "text",
+      "definicao": "CREATE OR REPLACE FUNCTION public.normalizar_texto_pesquisa_bens(_texto text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'pg_catalog'\nAS $function$\n  SELECT lower(btrim(regexp_replace(\n    regexp_replace(normalize(coalesce(_texto, ''), NFD), U&'[\\0300-\\036f]', '', 'g'),\n    '[[:space:]' || chr(160) || ']+', ' ', 'g'\n  )));\n$function$\n",
+      "argumentos": "_texto text"
+    },
+    {
+      "nome": "numerar_recebimento_veiculo",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.numerar_recebimento_veiculo()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE existente public.recebimentos_veiculos%ROWTYPE;\nBEGIN\n  IF TG_OP = 'UPDATE' THEN\n    NEW.numero := OLD.numero;\n    NEW.ano := OLD.ano;\n    NEW.criado_em := OLD.criado_em;\n    RETURN NEW;\n  END IF;\n  SELECT * INTO existente FROM public.recebimentos_veiculos WHERE bem_id = NEW.bem_id;\n  IF FOUND THEN\n    NEW.numero := existente.numero;\n    NEW.ano := existente.ano;\n    NEW.criado_em := existente.criado_em;\n    RETURN NEW;\n  END IF;\n  NEW.ano := extract(year FROM now() AT TIME ZONE 'America/Sao_Paulo')::integer;\n  NEW.criado_em := now();\n  UPDATE public.termos_numeracao_contador SET ultimo_numero = ultimo_numero + 1\n    WHERE id = true RETURNING ultimo_numero INTO NEW.numero;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Numeração indisponível'; END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "pesquisar_bens_salas",
+      "retorno": "TABLE(bem jsonb, local_nome text)",
+      "definicao": "CREATE OR REPLACE FUNCTION public.pesquisar_bens_salas(_termo text)\n RETURNS TABLE(bem jsonb, local_nome text)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'extensions'\nAS $function$\nDECLARE\n  uid uuid := auth.uid();\n  todas boolean;\n  permitidas uuid[];\n  termo text := public.normalizar_texto_pesquisa_bens(_termo);\n  numeros text := replace(regexp_replace(coalesce(_termo, ''), '[[:space:]' || chr(160) || ']+', '', 'g'), '.', '');\n  codigos text[];\n  palavras text[];\n  padroes text[];\nBEGIN\n  IF uid IS NULL OR termo = '' THEN RETURN; END IF;\n  -- Mesmas regras de acesso das salas, verificadas uma única vez por pesquisa.\n  todas := public.can_edit(uid);\n  IF NOT todas THEN\n    SELECT coalesce(array_agg(sala_id), ARRAY[]::uuid[]) INTO permitidas FROM public.user_salas WHERE user_id = uid;\n    IF cardinality(permitidas) = 0 THEN RETURN; END IF;\n  END IF;\n\n  IF numeros ~ '^[0-9]+(,[0-9]+)+,?$' THEN\n    codigos := string_to_array(rtrim(numeros, ','), ',');\n    RETURN QUERY SELECT to_jsonb(b), s.nome FROM public.bens b JOIN public.salas s ON s.id = b.sala_id\n      WHERE replace(b.codigo_red, '.', '') = ANY(codigos) AND (todas OR b.sala_id = ANY(permitidas))\n      ORDER BY b.codigo_red, b.id;\n    RETURN;\n  END IF;\n  IF numeros ~ '^[0-9]+$' THEN\n    RETURN QUERY SELECT to_jsonb(b), s.nome FROM public.bens b JOIN public.salas s ON s.id = b.sala_id\n      WHERE replace(b.codigo_red, '.', '') = numeros AND (todas OR b.sala_id = ANY(permitidas))\n      ORDER BY b.id;\n    IF FOUND THEN RETURN; END IF;\n    RETURN QUERY SELECT to_jsonb(b), s.nome FROM public.bens b JOIN public.salas s ON s.id = b.sala_id\n      WHERE replace(b.codigo_red, '.', '') LIKE '%' || numeros || '%' AND (todas OR b.sala_id = ANY(permitidas))\n      ORDER BY b.codigo_red, b.id;\n    RETURN;\n  END IF;\n\n  palavras := array_remove(regexp_split_to_array(btrim(regexp_replace(termo, '[^[:alnum:]]+', ' ', 'g')), ' +'), '');\n  IF termo ~ '[[:alpha:]]' AND cardinality(palavras) > 0 THEN\n    SELECT array_agg('%' || p || '%') INTO padroes FROM unnest(palavras) p;\n    RETURN QUERY SELECT to_jsonb(b), s.nome FROM public.bens b JOIN public.salas s ON s.id = b.sala_id\n      WHERE (todas OR b.sala_id = ANY(permitidas)) AND (\n        (public.normalizar_texto_pesquisa_bens(b.descricao) LIKE padroes[1]\n          AND public.normalizar_texto_pesquisa_bens(b.descricao) LIKE ALL (padroes))\n        OR replace(b.codigo_red, '.', '') LIKE '%' || upper(numeros) || '%'\n        OR replace(b.codigo_red, '.', '') LIKE '%' || numeros || '%')\n      ORDER BY b.codigo_red, b.id;\n    RETURN;\n  END IF;\n\n  -- Valores em reais (ex.: 1.250,75 ou R$ 1.250,75).\n  RETURN QUERY SELECT to_jsonb(b), s.nome FROM public.bens b JOIN public.salas s ON s.id = b.sala_id\n    WHERE (todas OR b.sala_id = ANY(permitidas)) AND (\n      strpos(replace(b.valor::text, '.', ','), termo) > 0\n      OR strpos(b.valor::text, termo) > 0\n      OR strpos('r$ ' || translate(to_char(b.valor, 'FM999,999,999,990.00'), ',.', '.,'), termo) > 0)\n    ORDER BY b.codigo_red, b.id;\nEND;\n$function$\n",
+      "argumentos": "_termo text"
+    },
+    {
+      "nome": "pode_ver_sala",
+      "retorno": "boolean",
+      "definicao": "CREATE OR REPLACE FUNCTION public.pode_ver_sala(_user_id uuid, _sala_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select public.can_edit(_user_id)\n    or exists (select 1 from public.user_salas where user_id = _user_id and sala_id = _sala_id)\n$function$\n",
+      "argumentos": "_user_id uuid, _sala_id uuid"
+    },
+    {
+      "nome": "registrar_item_transferido",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.registrar_item_transferido()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  lote public.importacoes%ROWTYPE;\nBEGIN\n  SELECT * INTO lote FROM public.importacoes WHERE id = NEW.importacao_id AND arquivo = 'Transferência de bens';\n  IF FOUND THEN\n    INSERT INTO public.transferencias_bens_itens (\n      transferencia_id, numero, termo_ano, bem_id, codigo_red, descricao, valor,\n      origem_sala_id, origem_nome, origem_importacao_id, destino_sala_id, destino_nome\n    ) VALUES (\n      lote.id, lote.numero, lote.termo_ano, NEW.id, NEW.codigo_red, NEW.descricao, NEW.valor,\n      OLD.sala_id, coalesce((SELECT nome FROM public.salas WHERE id = OLD.sala_id), 'Sem sala'), OLD.importacao_id,\n      NEW.sala_id, coalesce((SELECT nome FROM public.salas WHERE id = NEW.sala_id), 'Sala removida')\n    ) ON CONFLICT (transferencia_id, bem_id) DO NOTHING;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "reservar_numero_transferencia",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.reservar_numero_transferencia(_pedido uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  IF _pedido IS NULL THEN RAISE EXCEPTION 'Pedido inválido'; END IF;\n  -- Compatibilidade com telas já abertas: consultar não reserva nem consome números.\n  RETURN public.consultar_proximo_numero_transferencia();\nEND;\n$function$\n",
+      "argumentos": "_pedido uuid"
+    },
+    {
+      "nome": "salvar_conferencia",
+      "retorno": "void",
+      "definicao": "CREATE OR REPLACE FUNCTION public.salvar_conferencia(_sala_id uuid, _bens_ids uuid[], _localizados uuid[])\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala_id) THEN\n    RAISE EXCEPTION 'Sem permissão para salvar a conferência deste local.';\n  END IF;\n  IF _bens_ids IS NULL OR _localizados IS NULL OR cardinality(_bens_ids) = 0 THEN\n    RAISE EXCEPTION 'Nenhum bem informado para conferência.';\n  END IF;\n  IF EXISTS (\n    SELECT 1 FROM unnest(_bens_ids) AS item(id)\n    WHERE NOT EXISTS (SELECT 1 FROM public.bens b WHERE b.id = item.id AND b.sala_id = _sala_id)\n  ) OR EXISTS (\n    SELECT 1 FROM unnest(_localizados) AS item(id)\n    WHERE item.id IS NULL OR NOT (item.id = ANY(_bens_ids))\n  ) THEN\n    RAISE EXCEPTION 'A lista de bens mudou. Recarregue o local antes de salvar.';\n  END IF;\n  UPDATE public.bens\n  SET conferido = (id = ANY(_localizados)), conferencia_finalizada = true\n  WHERE sala_id = _sala_id AND id = ANY(_bens_ids);\nEND;\n$function$\n",
+      "argumentos": "_sala_id uuid, _bens_ids uuid[], _localizados uuid[]"
+    },
+    {
+      "nome": "salvar_observacao",
+      "retorno": "void",
+      "definicao": "CREATE OR REPLACE FUNCTION public.salvar_observacao(_bem_id uuid, _obs text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  if not exists (select 1 from public.bens b where b.id = _bem_id and public.pode_ver_sala(auth.uid(), b.sala_id)) then\n    raise exception 'sem permissão';\n  end if;\n  update public.bens set observacao = left(_obs, 2000) where id = _bem_id;\nend $function$\n",
+      "argumentos": "_bem_id uuid, _obs text"
+    },
+    {
+      "nome": "salvar_observacao_solicitacao",
+      "retorno": "void",
+      "definicao": "CREATE OR REPLACE FUNCTION public.salvar_observacao_solicitacao(_bem_id uuid, _obs text, _tipo text, _destino text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE _bem public.bens%ROWTYPE; _origem text;\nBEGIN\n SELECT * INTO _bem FROM public.bens WHERE id = _bem_id FOR UPDATE;\n IF NOT FOUND OR auth.uid() IS NULL OR NOT public.pode_ver_sala(auth.uid(), _bem.sala_id) THEN\n  RAISE EXCEPTION 'Você não tem permissão para editar este bem.';\n END IF;\n IF _tipo IS NOT NULL AND _tipo NOT IN ('transferencia', 'inservivel') THEN\n  RAISE EXCEPTION 'Opção inválida.';\n END IF;\n IF length(coalesce(_obs, '')) > 2000 THEN RAISE EXCEPTION 'Use até 2000 caracteres na observação.'; END IF;\n IF _tipo = 'transferencia' AND (length(btrim(coalesce(_destino, ''))) < 1 OR length(btrim(_destino)) > 300) THEN\n  RAISE EXCEPTION 'Informe o local de destino com até 300 caracteres.';\n END IF;\n UPDATE public.bens SET observacao = coalesce(_obs, '') WHERE id = _bem_id;\n IF _tipo IS NULL THEN\n  UPDATE public.solicitacoes_bens SET ativa = false, updated_at = clock_timestamp() WHERE bem_id = _bem_id AND ativa;\n  RETURN;\n END IF;\n SELECT nome INTO _origem FROM public.salas WHERE id = _bem.sala_id;\n INSERT INTO public.solicitacoes_bens (bem_id, sala_id, user_id, tipo, destino, observacao, codigo_red, descricao, valor, local_origem)\n VALUES (_bem.id, _bem.sala_id, auth.uid(), _tipo, CASE WHEN _tipo = 'transferencia' THEN btrim(_destino) ELSE NULL END, coalesce(_obs, ''), _bem.codigo_red, _bem.descricao, _bem.valor, coalesce(_origem, 'Local removido'))\n ON CONFLICT (bem_id) DO UPDATE SET sala_id = EXCLUDED.sala_id, user_id = EXCLUDED.user_id, tipo = EXCLUDED.tipo, destino = EXCLUDED.destino, observacao = EXCLUDED.observacao, codigo_red = EXCLUDED.codigo_red, descricao = EXCLUDED.descricao, valor = EXCLUDED.valor, local_origem = EXCLUDED.local_origem, ativa = true, updated_at = clock_timestamp()\n WHERE (solicitacoes_bens.tipo, solicitacoes_bens.destino, solicitacoes_bens.observacao, solicitacoes_bens.codigo_red, solicitacoes_bens.descricao, solicitacoes_bens.valor, solicitacoes_bens.local_origem, solicitacoes_bens.ativa)\n IS DISTINCT FROM (EXCLUDED.tipo, EXCLUDED.destino, EXCLUDED.observacao, EXCLUDED.codigo_red, EXCLUDED.descricao, EXCLUDED.valor, EXCLUDED.local_origem, true);\nEND;\n$function$\n",
+      "argumentos": "_bem_id uuid, _obs text, _tipo text, _destino text DEFAULT NULL::text"
+    },
+    {
+      "nome": "salvar_recebimento_termo",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.salvar_recebimento_termo(_importacao_id uuid, _recebedor text, _cpf text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  _entregador text;\n  _snapshot jsonb;\n  _sala_id uuid;\n  _responsavel jsonb;\n  _cpf_limpo text := regexp_replace(coalesce(_cpf, ''), '[^0-9]', '', 'g');\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Você não tem permissão para registrar o recebimento.';\n  END IF;\n  IF length(btrim(coalesce(_recebedor, ''))) < 2 OR length(btrim(_recebedor)) > 200 OR length(_cpf_limpo) <> 11 THEN\n    RAISE EXCEPTION 'Informe o responsável pelo recebimento e um CPF com 11 dígitos.';\n  END IF;\n  SELECT coalesce(nullif(btrim(nome), ''), nullif(btrim(login), ''), nullif(btrim(email), ''))\n    INTO _entregador FROM public.profiles WHERE id = auth.uid();\n  _entregador := coalesce(_entregador, nullif(auth.jwt()->'user_metadata'->>'nome', ''), nullif(auth.jwt()->'user_metadata'->>'full_name', ''), nullif(auth.jwt()->>'email', ''));\n  IF _entregador IS NULL THEN\n    RAISE EXCEPTION 'Complete o nome do seu usuário antes de imprimir o termo.';\n  END IF;\n  SELECT termo_snapshot, sala_id INTO _snapshot, _sala_id FROM public.importacoes WHERE id = _importacao_id FOR UPDATE;\n  IF _snapshot IS NULL OR jsonb_typeof(_snapshot) <> 'object' THEN\n    RAISE EXCEPTION 'Os dados desta importação não estão disponíveis.';\n  END IF;\n  _responsavel := public.dados_responsavel_sala_termo(_sala_id);\n  _snapshot := _snapshot || _responsavel || jsonb_build_object(\n    'responsavel_recebimento', btrim(_recebedor), 'cpf_recebimento', _cpf_limpo,\n    'entregador', _entregador, 'entregador_id', auth.uid(),\n    'data_termo', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'));\n  UPDATE public.importacoes SET termo_snapshot = _snapshot WHERE id = _importacao_id;\n  RETURN _snapshot;\nEND;\n$function$\n",
+      "argumentos": "_importacao_id uuid, _recebedor text, _cpf text"
+    },
+    {
+      "nome": "sincronizar_status_bem",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.sincronizar_status_bem()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  NEW.status := CASE WHEN NEW.conferido THEN 'LOCALIZADO' ELSE 'NÃO LOCALIZADO' END;\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
+      "nome": "transferir_bens",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.transferir_bens(_destino uuid, _itens jsonb, _pedido uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  destino public.salas%ROWTYPE;\n  dept public.departamentos%ROWTYPE;\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\n  nome_responsavel text;\n  cpf_responsavel text;\n  snapshot_itens jsonb;\n  origens text;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para transferir bens'; END IF;\n  IF _pedido IS NULL OR _destino IS NULL THEN RAISE EXCEPTION 'Informe o local de destino'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT * INTO lote FROM public.importacoes WHERE id = _pedido;\n  IF FOUND THEN\n    IF lote.user_id <> auth.uid() OR lote.sala_id <> _destino OR lote.arquivo NOT LIKE 'Transferência %' THEN RAISE EXCEPTION 'Pedido inválido'; END IF;\n    RETURN to_jsonb(lote);\n  END IF;\n  IF jsonb_typeof(_itens) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Selecione os bens para transferir'; END IF;\n  quantidade := jsonb_array_length(_itens);\n  IF quantidade < 1 OR quantidade > 500 THEN RAISE EXCEPTION 'Selecione de 1 a 500 bens por transferência'; END IF;\n  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_itens) x WHERE jsonb_typeof(x) IS DISTINCT FROM 'object' OR x->>'id' IS NULL OR NOT (x ? 'sala_id')) THEN RAISE EXCEPTION 'Lista de bens inválida'; END IF;\n  IF (SELECT count(DISTINCT x.id) FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid)) <> quantidade THEN RAISE EXCEPTION 'Existem bens repetidos na seleção'; END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _destino OR s.id IN (SELECT x.sala_id FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid)) ORDER BY s.id FOR UPDATE;\n  SELECT * INTO destino FROM public.salas WHERE id = _destino;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local de destino não encontrado'; END IF;\n  PERFORM b.id FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id ORDER BY b.id FOR UPDATE OF b;\n  IF (SELECT count(*) FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id AND b.sala_id IS NOT DISTINCT FROM x.sala_id WHERE b.sala_id IS DISTINCT FROM _destino) <> quantidade THEN\n    RAISE EXCEPTION 'Um bem foi removido, mudou de sala ou já está no destino. Filtre novamente antes de salvar';\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id GROUP BY b.codigo_red HAVING count(*) > 1) THEN RAISE EXCEPTION 'Há códigos RED repetidos na seleção. Confira os locais de origem'; END IF;\n  IF EXISTS (SELECT 1 FROM public.bens d JOIN public.bens b ON b.codigo_red=d.codigo_red JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id WHERE d.sala_id=_destino) THEN RAISE EXCEPTION 'O destino já contém um dos códigos RED selecionados'; END IF;\n  SELECT * INTO dept FROM public.departamentos WHERE id=destino.departamento_id;\n  SELECT p.nome,p.cpf INTO nome_responsavel,cpf_responsavel FROM public.user_salas us JOIN public.profiles p ON p.id=us.user_id WHERE us.sala_id=_destino AND p.nome IS NOT NULL ORDER BY p.created_at DESC,p.id LIMIT 1;\n  SELECT jsonb_agg(jsonb_build_object('codigo_red',b.codigo_red,'descricao',b.descricao,'valor',b.valor,'incorporacao',b.incorporacao,'tipo',b.tipo) ORDER BY b.codigo_red), string_agg(DISTINCT coalesce(s.nome,'Sem sala'),', ' ORDER BY coalesce(s.nome,'Sem sala')) INTO snapshot_itens,origens FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id LEFT JOIN public.salas s ON s.id=b.sala_id;\n  INSERT INTO public.importacoes(id,sala_id,user_id,arquivo,termo_ano,termo_snapshot) VALUES (_pedido,_destino,auth.uid(),'Transferência de bens',extract(year from timezone('America/Sao_Paulo',now()))::integer,\n    jsonb_build_object('local',destino.nome,'endereco',coalesce(destino.endereco,''),'historico','Transferência de '||quantidade||' bem(ns). Origem: '||origens||'. Destino: '||destino.nome||'.','data_origem',to_char(timezone('America/Sao_Paulo',now()),'DD/MM/YYYY'),'departamento',coalesce(dept.departamento,''),'diretor',coalesce(dept.diretor,''),'almoxarifado',coalesce(dept.almoxarifado,''),'endereco_departamento',coalesce(dept.endereco,''),'responsavel',coalesce(nome_responsavel,destino.responsavel,''),'cpf',coalesce(cpf_responsavel,''),'bens',snapshot_itens)) RETURNING * INTO lote;\n  UPDATE public.bens b SET sala_id=_destino,importacao_id=lote.id,conferido=false,conferencia_finalizada=false FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) WHERE b.id=x.id;\n  UPDATE public.solicitacoes_bens s SET ativa=false,updated_at=now() WHERE s.ativa AND s.bem_id IN (SELECT x.id FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid));\n  RETURN to_jsonb(lote);\nEND;\n$function$\n",
+      "argumentos": "_destino uuid, _itens jsonb, _pedido uuid"
+    },
+    {
+      "nome": "vincular_dados_fornecedor",
+      "retorno": "TABLE(codigo_red text, vinculados integer)",
+      "definicao": "CREATE OR REPLACE FUNCTION public.vincular_dados_fornecedor(_itens jsonb)\n RETURNS TABLE(codigo_red text, vinculados integer)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\n SET statement_timeout TO '120s'\nAS $function$\nBEGIN\n  IF NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para vincular dados';\n  END IF;\n  RETURN QUERY\n  WITH entrada AS (\n    SELECT DISTINCT ON (ltrim(x.codigo_red,'0')) x.*, ltrim(x.codigo_red,'0') AS chave\n    FROM jsonb_to_recordset(_itens) AS x(codigo_red text, ano_pedido text, pedido text, ano_empenho text, empenho text, nota_fiscal text, fornecedor text)\n    WHERE x.codigo_red IS NOT NULL\n  ), atualizados AS (\n    UPDATE public.bens b SET\n      ano_pedido = NULLIF(e.ano_pedido,''), pedido = NULLIF(e.pedido,''),\n      ano_empenho = NULLIF(e.ano_empenho,''), empenho = NULLIF(e.empenho,''),\n      nota_fiscal = NULLIF(e.nota_fiscal,''), fornecedor = NULLIF(e.fornecedor,'')\n    FROM entrada e\n    WHERE ltrim(b.codigo_red,'0') = e.chave\n    RETURNING e.chave\n  )\n  SELECT e.codigo_red, (SELECT count(*)::int FROM atualizados a WHERE a.chave = e.chave)\n  FROM entrada e;\nEND $function$\n",
+      "argumentos": "_itens jsonb"
+    }
+  ],
+  "tabelas": [
+    {
+      "tabela": "bens",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "sala_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "codigo_red",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "descricao",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "valor",
+          "nulo": "NO",
+          "tipo": "numeric",
+          "default": "0",
+          "tipo_udt": "numeric"
+        },
+        {
+          "nome": "created_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "conferido",
+          "nulo": "NO",
+          "tipo": "boolean",
+          "default": "false",
+          "tipo_udt": "bool"
+        },
+        {
+          "nome": "observacao",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "incorporacao",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "tipo",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "importacao_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "conferencia_finalizada",
+          "nulo": "NO",
+          "tipo": "boolean",
+          "default": "false",
+          "tipo_udt": "bool"
+        },
+        {
+          "nome": "ano_pedido",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "pedido",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "ano_empenho",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "empenho",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "nota_fiscal",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "fornecedor",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "status",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "'NÃO LOCALIZADO'::text",
+          "tipo_udt": "text"
+        }
+      ]
+    },
+    {
+      "tabela": "chat_conversas",
+      "colunas": [
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "nome",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "'Usuário'::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "chat_mensagens",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": null,
+          "tipo_udt": "int8"
+        },
+        {
+          "nome": "conversa_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "autor_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "conteudo",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "chat_push_assinaturas",
+      "colunas": [
+        {
+          "nome": "endpoint",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "p256dh",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "auth",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "chat_push_config",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "boolean",
+          "default": "true",
+          "tipo_udt": "bool"
+        },
+        {
+          "nome": "dispatch_token",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "encode(gen_random_bytes(32), 'hex'::text)",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "vapid_public_key",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "vapid_private_key",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        }
+      ]
+    },
+    {
+      "tabela": "checklists_veiculos",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "auth.uid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "dados",
+          "nulo": "NO",
+          "tipo": "jsonb",
+          "default": "'{}'::jsonb",
+          "tipo_udt": "jsonb"
+        },
+        {
+          "nome": "bem_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "atualizado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "comissao_recebimento_veiculos",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "boolean",
+          "default": "true",
+          "tipo_udt": "bool"
+        },
+        {
+          "nome": "dados",
+          "nulo": "NO",
+          "tipo": "jsonb",
+          "default": "'{}'::jsonb",
+          "tipo_udt": "jsonb"
+        },
+        {
+          "nome": "atualizado_por",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "atualizado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "departamentos",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "diretor",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "departamento",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "almoxarifado",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "local",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "''::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "cpd",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "''::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "endereco",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "created_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "entregas_termos",
+      "colunas": [
+        {
+          "nome": "importacao_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "entregue_por",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "''::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "recebido_por",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "''::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "cpf",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "''::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "data_entrega",
+          "nulo": "YES",
+          "tipo": "date",
+          "default": null,
+          "tipo_udt": "date"
+        },
+        {
+          "nome": "status",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "'Aguardando Entrega'::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "atualizado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "importacoes",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "numero",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": null,
+          "tipo_udt": "int8"
+        },
+        {
+          "nome": "sala_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "auth.uid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "arquivo",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "created_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "termo_snapshot",
+          "nulo": "YES",
+          "tipo": "jsonb",
+          "default": null,
+          "tipo_udt": "jsonb"
+        },
+        {
+          "nome": "termo_ano",
+          "nulo": "YES",
+          "tipo": "integer",
+          "default": null,
+          "tipo_udt": "int4"
+        }
+      ]
+    },
+    {
+      "tabela": "profiles",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "email",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "created_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "nome",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "cpf",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "matricula",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "login",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        }
+      ]
+    },
+    {
+      "tabela": "recebimentos_veiculos",
+      "colunas": [
+        {
+          "nome": "bem_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "dados",
+          "nulo": "NO",
+          "tipo": "jsonb",
+          "default": "'{}'::jsonb",
+          "tipo_udt": "jsonb"
+        },
+        {
+          "nome": "atualizado_por",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "auth.uid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "atualizado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "numero",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": null,
+          "tipo_udt": "int8"
+        },
+        {
+          "nome": "ano",
+          "nulo": "NO",
+          "tipo": "integer",
+          "default": null,
+          "tipo_udt": "int4"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "recebimentos_veiculos_contadores",
+      "colunas": [
+        {
+          "nome": "ano",
+          "nulo": "NO",
+          "tipo": "integer",
+          "default": null,
+          "tipo_udt": "int4"
+        },
+        {
+          "nome": "ultimo_numero",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": "0",
+          "tipo_udt": "int8"
+        }
+      ]
+    },
+    {
+      "tabela": "retiradas_veiculos",
+      "colunas": [
+        {
+          "nome": "bem_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "numero",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": null,
+          "tipo_udt": "int8"
+        },
+        {
+          "nome": "ano",
+          "nulo": "NO",
+          "tipo": "integer",
+          "default": null,
+          "tipo_udt": "int4"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "criado_por",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        }
+      ]
+    },
+    {
+      "tabela": "salas",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "departamento_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "nome",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "endereco",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "created_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "responsavel",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "data_termo",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "unidade",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        }
+      ]
+    },
+    {
+      "tabela": "solicitacoes_bens",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "bem_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "sala_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "auth.uid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "tipo",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "destino",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "observacao",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": "''::text",
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "codigo_red",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "descricao",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "valor",
+          "nulo": "NO",
+          "tipo": "numeric",
+          "default": "0",
+          "tipo_udt": "numeric"
+        },
+        {
+          "nome": "local_origem",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "ativa",
+          "nulo": "NO",
+          "tipo": "boolean",
+          "default": "true",
+          "tipo_udt": "bool"
+        },
+        {
+          "nome": "created_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "updated_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "solicitacoes_bens_leituras",
+      "colunas": [
+        {
+          "nome": "solicitacao_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "admin_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "auth.uid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "versao_lida",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": null,
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "termos_numeracao_contador",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "boolean",
+          "default": "true",
+          "tipo_udt": "bool"
+        },
+        {
+          "nome": "ultimo_numero",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": "0",
+          "tipo_udt": "int8"
+        }
+      ]
+    },
+    {
+      "tabela": "transferencias_bens_itens",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": null,
+          "tipo_udt": "int8"
+        },
+        {
+          "nome": "transferencia_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "numero",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": null,
+          "tipo_udt": "int8"
+        },
+        {
+          "nome": "termo_ano",
+          "nulo": "YES",
+          "tipo": "integer",
+          "default": null,
+          "tipo_udt": "int4"
+        },
+        {
+          "nome": "bem_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "codigo_red",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "descricao",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "valor",
+          "nulo": "NO",
+          "tipo": "numeric",
+          "default": null,
+          "tipo_udt": "numeric"
+        },
+        {
+          "nome": "origem_sala_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "origem_nome",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "origem_importacao_id",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "destino_sala_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "destino_nome",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "created_at",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "clock_timestamp()",
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "estornado_em",
+          "nulo": "YES",
+          "tipo": "timestamp with time zone",
+          "default": null,
+          "tipo_udt": "timestamptz"
+        },
+        {
+          "nome": "estornado_por",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "estorno_pedido",
+          "nulo": "YES",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        }
+      ]
+    },
+    {
+      "tabela": "transferencias_numeros_reservados",
+      "colunas": [
+        {
+          "nome": "pedido",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "numero",
+          "nulo": "NO",
+          "tipo": "bigint",
+          "default": null,
+          "tipo_udt": "int8"
+        },
+        {
+          "nome": "ano",
+          "nulo": "NO",
+          "tipo": "integer",
+          "default": null,
+          "tipo_udt": "int4"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "user_roles",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "role",
+          "nulo": "NO",
+          "tipo": "USER-DEFINED",
+          "default": null,
+          "tipo_udt": "app_role"
+        }
+      ]
+    },
+    {
+      "tabela": "user_salas",
+      "colunas": [
+        {
+          "nome": "user_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "sala_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editor write bens",
+      "tabela": "bens",
+      "comando": "ALL",
+      "permissiva": "PERMISSIVE",
+      "with_check": "can_edit(auth.uid())"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), sala_id))",
+      "policy": "role read bens",
+      "tabela": "bens",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "chat_conversas_criar",
+      "tabela": "chat_conversas",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((user_id = auth.uid()) AND (has_role(auth.uid(), 'operador'::app_role) OR has_role(auth.uid(), 'visualizador'::app_role)))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(has_role(auth.uid(), 'admin'::app_role) OR ((user_id = auth.uid()) AND (has_role(auth.uid(), 'operador'::app_role) OR has_role(auth.uid(), 'visualizador'::app_role))))",
+      "policy": "chat_conversas_ler",
+      "tabela": "chat_conversas",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "chat_mensagens_enviar",
+      "tabela": "chat_mensagens",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((autor_id = auth.uid()) AND (has_role(auth.uid(), 'admin'::app_role) OR ((conversa_id = auth.uid()) AND (has_role(auth.uid(), 'operador'::app_role) OR has_role(auth.uid(), 'visualizador'::app_role)))))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(has_role(auth.uid(), 'admin'::app_role) OR ((conversa_id = auth.uid()) AND (has_role(auth.uid(), 'operador'::app_role) OR has_role(auth.uid(), 'visualizador'::app_role))))",
+      "policy": "chat_mensagens_excluir",
+      "tabela": "chat_mensagens",
+      "comando": "DELETE",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(has_role(auth.uid(), 'admin'::app_role) OR ((conversa_id = auth.uid()) AND (has_role(auth.uid(), 'operador'::app_role) OR has_role(auth.uid(), 'visualizador'::app_role))))",
+      "policy": "chat_mensagens_ler",
+      "tabela": "chat_mensagens",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "service_role"
+      ],
+      "using": "true",
+      "policy": "chat_push_assinaturas_servico",
+      "tabela": "chat_push_assinaturas",
+      "comando": "ALL",
+      "permissiva": "PERMISSIVE",
+      "with_check": "true"
+    },
+    {
+      "roles": [
+        "service_role"
+      ],
+      "using": "true",
+      "policy": "chat_push_config_servico",
+      "tabela": "chat_push_config",
+      "comando": "ALL",
+      "permissiva": "PERMISSIVE",
+      "with_check": "true"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((user_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role) OR (EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.id = checklists_veiculos.bem_id) AND (b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id)))))",
+      "policy": "consulta checklists proprios ou do local",
+      "tabela": "checklists_veiculos",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "cria checklist sem patrimonio",
+      "tabela": "checklists_veiculos",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((user_id = auth.uid()) AND (bem_id IS NULL))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((bem_id IS NULL) AND ((user_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role)))",
+      "policy": "edita checklist pendente",
+      "tabela": "checklists_veiculos",
+      "comando": "UPDATE",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((bem_id IS NULL) AND ((user_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role)))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "cadastra comissao permanente",
+      "tabela": "comissao_recebimento_veiculos",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((atualizado_por = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id)))))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "true",
+      "policy": "consulta comissao permanente",
+      "tabela": "comissao_recebimento_veiculos",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id))))",
+      "policy": "edita comissao permanente",
+      "tabela": "comissao_recebimento_veiculos",
+      "comando": "UPDATE",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((atualizado_por = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id)))))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editor write departamentos",
+      "tabela": "departamentos",
+      "comando": "ALL",
+      "permissiva": "PERMISSIVE",
+      "with_check": "can_edit(auth.uid())"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "role read departamentos",
+      "tabela": "departamentos",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editores atualizam entregas dos termos",
+      "tabela": "entregas_termos",
+      "comando": "UPDATE",
+      "permissiva": "PERMISSIVE",
+      "with_check": "(can_edit(auth.uid()) AND (EXISTS ( SELECT 1\n   FROM importacoes i\n  WHERE ((i.id = entregas_termos.importacao_id) AND (i.termo_snapshot IS NOT NULL)))))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editores consultam entregas dos termos",
+      "tabela": "entregas_termos",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "editores registram entregas dos termos",
+      "tabela": "entregas_termos",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "(can_edit(auth.uid()) AND (EXISTS ( SELECT 1\n   FROM importacoes i\n  WHERE ((i.id = entregas_termos.importacao_id) AND (i.termo_snapshot IS NOT NULL)))))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "editores criam importacoes",
+      "tabela": "importacoes",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "(can_edit(auth.uid()) AND (user_id = auth.uid()))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editores leem importacoes",
+      "tabela": "importacoes",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role))",
+      "policy": "own or admin read profiles",
+      "tabela": "profiles",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "cadastra recebimento do local",
+      "tabela": "recebimentos_veiculos",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((atualizado_por = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.id = recebimentos_veiculos.bem_id) AND (b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id)))))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.id = recebimentos_veiculos.bem_id) AND (b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id))))",
+      "policy": "consulta recebimento do local",
+      "tabela": "recebimentos_veiculos",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.id = recebimentos_veiculos.bem_id) AND (b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id))))",
+      "policy": "edita recebimento do local",
+      "tabela": "recebimentos_veiculos",
+      "comando": "UPDATE",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((atualizado_por = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.id = recebimentos_veiculos.bem_id) AND (b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id)))))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(EXISTS ( SELECT 1\n   FROM bens b\n  WHERE ((b.id = retiradas_veiculos.bem_id) AND (b.sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), b.sala_id))))",
+      "policy": "consulta retirada do local",
+      "tabela": "retiradas_veiculos",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editor write salas",
+      "tabela": "salas",
+      "comando": "ALL",
+      "permissiva": "PERMISSIVE",
+      "with_check": "can_edit(auth.uid())"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "pode_ver_sala(auth.uid(), id)",
+      "policy": "role read salas",
+      "tabela": "salas",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "(has_role(auth.uid(), 'admin'::app_role) OR ((sala_id IS NOT NULL) AND pode_ver_sala(auth.uid(), sala_id)))",
+      "policy": "consulta solicitacoes autorizadas",
+      "tabela": "solicitacoes_bens",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((admin_id = auth.uid()) AND has_role(auth.uid(), 'admin'::app_role))",
+      "policy": "admin atualiza propria leitura",
+      "tabela": "solicitacoes_bens_leituras",
+      "comando": "UPDATE",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((admin_id = auth.uid()) AND has_role(auth.uid(), 'admin'::app_role))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((admin_id = auth.uid()) AND has_role(auth.uid(), 'admin'::app_role))",
+      "policy": "admin consulta proprias leituras",
+      "tabela": "solicitacoes_bens_leituras",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "admin registra propria leitura",
+      "tabela": "solicitacoes_bens_leituras",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "((admin_id = auth.uid()) AND has_role(auth.uid(), 'admin'::app_role))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "Editores consultam numeracao de termos",
+      "tabela": "termos_numeracao_contador",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "Editores consultam historico de transferencias",
+      "tabela": "transferencias_bens_itens",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((user_id = auth.uid()) AND can_edit(auth.uid()))",
+      "policy": "Usuarios consultam suas reservas",
+      "tabela": "transferencias_numeros_reservados",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "has_role(auth.uid(), 'admin'::app_role)",
+      "policy": "admin delete roles",
+      "tabela": "user_roles",
+      "comando": "DELETE",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "admin insert roles",
+      "tabela": "user_roles",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "has_role(auth.uid(), 'admin'::app_role)",
+      "policy": "admin update roles",
+      "tabela": "user_roles",
+      "comando": "UPDATE",
+      "permissiva": "PERMISSIVE",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((user_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role))",
+      "policy": "own or admin read roles",
+      "tabela": "user_roles",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "has_role(auth.uid(), 'admin'::app_role)",
+      "policy": "admin write user_salas",
+      "tabela": "user_salas",
+      "comando": "ALL",
+      "permissiva": "PERMISSIVE",
+      "with_check": "has_role(auth.uid(), 'admin'::app_role)"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "((user_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role))",
+      "policy": "own or admin read user_salas",
+      "tabela": "user_salas",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    }
+  ],
+  "triggers": [
+    {
+      "acao": "EXECUTE FUNCTION impedir_codigo_red_duplicado()",
+      "evento": "INSERT",
+      "quando": "BEFORE",
+      "tabela": "bens",
+      "trigger": "impedir_codigo_red_duplicado"
+    },
+    {
+      "acao": "EXECUTE FUNCTION impedir_codigo_red_duplicado()",
+      "evento": "UPDATE",
+      "quando": "BEFORE",
+      "tabela": "bens",
+      "trigger": "impedir_codigo_red_duplicado"
+    },
+    {
+      "acao": "EXECUTE FUNCTION registrar_item_transferido()",
+      "evento": "UPDATE",
+      "quando": "AFTER",
+      "tabela": "bens",
+      "trigger": "registrar_item_transferido"
+    },
+    {
+      "acao": "EXECUTE FUNCTION sincronizar_status_bem()",
+      "evento": "UPDATE",
+      "quando": "BEFORE",
+      "tabela": "bens",
+      "trigger": "sincronizar_status_bem"
+    },
+    {
+      "acao": "EXECUTE FUNCTION sincronizar_status_bem()",
+      "evento": "INSERT",
+      "quando": "BEFORE",
+      "tabela": "bens",
+      "trigger": "sincronizar_status_bem"
+    },
+    {
+      "acao": "EXECUTE FUNCTION chat_identificar_usuario()",
+      "evento": "INSERT",
+      "quando": "BEFORE",
+      "tabela": "chat_conversas",
+      "trigger": "chat_identificar_usuario"
+    },
+    {
+      "acao": "EXECUTE FUNCTION chat_notificar_push()",
+      "evento": "INSERT",
+      "quando": "AFTER",
+      "tabela": "chat_mensagens",
+      "trigger": "chat_mensagem_push"
+    },
+    {
+      "acao": "EXECUTE FUNCTION aplicar_numero_reservado_transferencia()",
+      "evento": "INSERT",
+      "quando": "BEFORE",
+      "tabela": "importacoes",
+      "trigger": "aplicar_numero_reservado_transferencia"
+    },
+    {
+      "acao": "EXECUTE FUNCTION numerar_recebimento_veiculo()",
+      "evento": "INSERT",
+      "quando": "BEFORE",
+      "tabela": "recebimentos_veiculos",
+      "trigger": "numerar_recebimento_veiculo_trigger"
+    },
+    {
+      "acao": "EXECUTE FUNCTION numerar_recebimento_veiculo()",
+      "evento": "UPDATE",
+      "quando": "BEFORE",
+      "tabela": "recebimentos_veiculos",
+      "trigger": "numerar_recebimento_veiculo_trigger"
+    }
+  ],
+  "gerado_em": "2026-10-21T15:48:03.272867+00:00",
+  "rls_ativo": {
+    "bens": true,
+    "salas": true,
+    "profiles": true,
+    "user_roles": true,
+    "user_salas": true,
+    "importacoes": true,
+    "departamentos": true,
+    "chat_conversas": true,
+    "chat_mensagens": true,
+    "entregas_termos": true,
+    "chat_push_config": true,
+    "solicitacoes_bens": true,
+    "retiradas_veiculos": true,
+    "checklists_veiculos": true,
+    "chat_push_assinaturas": true,
+    "recebimentos_veiculos": true,
+    "termos_numeracao_contador": true,
+    "transferencias_bens_itens": true,
+    "solicitacoes_bens_leituras": true,
+    "comissao_recebimento_veiculos": true,
+    "recebimentos_veiculos_contadores": true,
+    "transferencias_numeros_reservados": true
+  },
+  "contagem_linhas": {
+    "bens": 29520,
+    "salas": 79,
+    "profiles": 6,
+    "user_roles": 6,
+    "user_salas": 6,
+    "importacoes": 0,
+    "departamentos": 0,
+    "chat_conversas": 0,
+    "chat_mensagens": 0,
+    "entregas_termos": 1,
+    "chat_push_config": 0,
+    "solicitacoes_bens": 0,
+    "retiradas_veiculos": 1,
+    "checklists_veiculos": 0,
+    "chat_push_assinaturas": 0,
+    "recebimentos_veiculos": 3,
+    "termos_numeracao_contador": 0,
+    "transferencias_bens_itens": 1,
+    "solicitacoes_bens_leituras": 0,
+    "comissao_recebimento_veiculos": 1,
+    "recebimentos_veiculos_contadores": 0,
+    "transferencias_numeros_reservados": 0
+  },
+  "chaves_primarias": [
+    {
+      "coluna": "id",
+      "tabela": "bens"
+    },
+    {
+      "coluna": "user_id",
+      "tabela": "chat_conversas"
+    },
+    {
+      "coluna": "id",
+      "tabela": "chat_mensagens"
+    },
+    {
+      "coluna": "endpoint",
+      "tabela": "chat_push_assinaturas"
+    },
+    {
+      "coluna": "id",
+      "tabela": "chat_push_config"
+    },
+    {
+      "coluna": "id",
+      "tabela": "checklists_veiculos"
+    },
+    {
+      "coluna": "id",
+      "tabela": "comissao_recebimento_veiculos"
+    },
+    {
+      "coluna": "id",
+      "tabela": "departamentos"
+    },
+    {
+      "coluna": "importacao_id",
+      "tabela": "entregas_termos"
+    },
+    {
+      "coluna": "id",
+      "tabela": "importacoes"
+    },
+    {
+      "coluna": "id",
+      "tabela": "profiles"
+    },
+    {
+      "coluna": "bem_id",
+      "tabela": "recebimentos_veiculos"
+    },
+    {
+      "coluna": "ano",
+      "tabela": "recebimentos_veiculos_contadores"
+    },
+    {
+      "coluna": "bem_id",
+      "tabela": "retiradas_veiculos"
+    },
+    {
+      "coluna": "id",
+      "tabela": "salas"
+    },
+    {
+      "coluna": "id",
+      "tabela": "solicitacoes_bens"
+    },
+    {
+      "coluna": "solicitacao_id",
+      "tabela": "solicitacoes_bens_leituras"
+    },
+    {
+      "coluna": "admin_id",
+      "tabela": "solicitacoes_bens_leituras"
+    },
+    {
+      "coluna": "id",
+      "tabela": "termos_numeracao_contador"
+    },
+    {
+      "coluna": "id",
+      "tabela": "transferencias_bens_itens"
+    },
+    {
+      "coluna": "pedido",
+      "tabela": "transferencias_numeros_reservados"
+    },
+    {
+      "coluna": "id",
+      "tabela": "user_roles"
+    },
+    {
+      "coluna": "user_id",
+      "tabela": "user_salas"
+    },
+    {
+      "coluna": "sala_id",
+      "tabela": "user_salas"
+    }
+  ],
+  "chaves_estrangeiras": [
+    {
+      "coluna": "importacao_id",
+      "tabela": "bens",
+      "referencia": "importacoes.id"
+    },
+    {
+      "coluna": "sala_id",
+      "tabela": "bens",
+      "referencia": "salas.id"
+    },
+    {
+      "coluna": "conversa_id",
+      "tabela": "chat_mensagens",
+      "referencia": "chat_conversas.user_id"
+    },
+    {
+      "coluna": "bem_id",
+      "tabela": "checklists_veiculos",
+      "referencia": "bens.id"
+    },
+    {
+      "coluna": "importacao_id",
+      "tabela": "entregas_termos",
+      "referencia": "importacoes.id"
+    },
+    {
+      "coluna": "sala_id",
+      "tabela": "importacoes",
+      "referencia": "salas.id"
+    },
+    {
+      "coluna": "bem_id",
+      "tabela": "recebimentos_veiculos",
+      "referencia": "bens.id"
+    },
+    {
+      "coluna": "bem_id",
+      "tabela": "retiradas_veiculos",
+      "referencia": "recebimentos_veiculos.bem_id"
+    },
+    {
+      "coluna": "departamento_id",
+      "tabela": "salas",
+      "referencia": "departamentos.id"
+    },
+    {
+      "coluna": "sala_id",
+      "tabela": "solicitacoes_bens",
+      "referencia": "salas.id"
+    },
+    {
+      "coluna": "bem_id",
+      "tabela": "solicitacoes_bens",
+      "referencia": "bens.id"
+    },
+    {
+      "coluna": "solicitacao_id",
+      "tabela": "solicitacoes_bens_leituras",
+      "referencia": "solicitacoes_bens.id"
+    },
+    {
+      "coluna": "sala_id",
+      "tabela": "user_salas",
+      "referencia": "salas.id"
+    }
+  ],
+  "triggers_auth_users": [
+    {
+      "acao": "EXECUTE FUNCTION handle_new_user()",
+      "evento": "INSERT",
+      "quando": "AFTER",
+      "trigger": "on_auth_user_created"
+    }
+  ],
+  "geckoai_sincronizado_em": "2026-10-21T15:48:03.297Z"
+}
