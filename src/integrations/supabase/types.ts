@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      comissao_recebimento_veiculos: {
+        Row: {
+          id: boolean
+          dados: Json
+          atualizado_por: string
+          atualizado_em: string
+        }
+        Insert: {
+          id?: boolean
+          dados?: Json
+          atualizado_por: string
+          atualizado_em?: string
+        }
+        Update: {
+          id?: boolean
+          dados?: Json
+          atualizado_por?: string
+          atualizado_em?: string
+        }
+        Relationships: []
+      }
       retiradas_veiculos: {
         Row: {
           bem_id: string

@@ -57,8 +57,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
   const [erro, setErro] = useState(false);
   const [tentativa, setTentativa] = useState(0);
   const [salvando, setSalvando] = useState(false);
+  const [comissaoAlterada, setComissaoAlterada] = useState(false);
   const { emissaoRef, camposPreenchidos, registrarPreenchimento } = usePreenchimentoNfe();
-  const alterar = (chave: string, valor: string) => setDados((atuais) => ({ ...atuais, [chave]: valor }));
+  const alterar = (chave: string, valor: string) => {
+    if (/^(assinante|cargo)_[1-5]$/.test(chave)) setComissaoAlterada(true);
+    setDados((atuais) => ({ ...atuais, [chave]: valor }));
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -66,15 +70,17 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     setErro(false);
     void (async () => {
       try {
-        const [recebimento, local, historico] = await Promise.all([
+        const [recebimento, local, historico, comissao] = await Promise.all([
           supabase.from("recebimentos_veiculos").select("*").eq("bem_id", bem.id).maybeSingle(),
           bem.sala_id ? supabase.from("salas").select("nome").eq("id", bem.sala_id).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
           supabase.from("recebimentos_veiculos").select("secretaria:dados->>secretaria")
             .order("atualizado_em", { ascending: false }).limit(100),
+          supabase.from("comissao_recebimento_veiculos").select("dados").eq("id", true).maybeSingle(),
         ]);
         if (recebimento.error) throw recebimento.error;
         if (local.error) throw local.error;
+        if (comissao.error) throw comissao.error;
         if (cancelado) return;
         setTermo(recebimento.data ?? null);
         const salvos = lerDadosRecebimento(recebimento.data?.dados);
@@ -91,7 +97,11 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
           ...(historico.data ?? []).map((item) => typeof item.secretaria === "string" ? item.secretaria : ""),
         ].map((nome) => nome.trim()).filter(Boolean)));
         setSecretarias(nomesSecretarias);
+        const assinaturasPadrao = Object.fromEntries(Object.entries(lerDadosRecebimento(comissao.data?.dados))
+          .filter(([chave]) => /^(assinante|cargo)_[1-5]$/.test(chave)));
+        setComissaoAlterada(false);
         setDados({ assinante_5: "RODRIGO JESUÍNO TRINDADE", cargo_5: "AGENTE ADMINISTRATIVO",
+          ...(!recebimento.data ? assinaturasPadrao : {}),
           ...preenchidos, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
           modelo_veiculo: salvos.modelo_veiculo?.trim() || extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
           nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
@@ -103,6 +113,31 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     })();
     return () => { cancelado = true; };
   }, [bem.id, bem.sala_id, bem.descricao, tentativa]);
+
+  async function persistirComissao(userId: string) {
+    const assinaturas = Object.fromEntries([1, 2, 3, 4, 5].flatMap((i) => [
+      [`assinante_${i}`, dados[`assinante_${i}`] ?? ""],
+      [`cargo_${i}`, dados[`cargo_${i}`] ?? ""],
+    ]));
+    const { error } = await supabase.from("comissao_recebimento_veiculos").upsert({
+      id: true, dados: assinaturas, atualizado_por: userId, atualizado_em: new Date().toISOString(),
+    }, { onConflict: "id" });
+    if (error) throw error;
+    setComissaoAlterada(false);
+  }
+
+  async function salvarComissao() {
+    if (carregando || erro || salvando) return;
+    setSalvando(true);
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) throw error ?? new Error("Sessão indisponível");
+      await persistirComissao(user.id);
+      toast.success("Comissão permanente salva para os próximos veículos. Termos anteriores não foram alterados.");
+    } catch {
+      toast.error("Não foi possível salvar a comissão permanente. Seus dados foram mantidos; tente novamente.");
+    } finally { setSalvando(false); }
+  }
 
   async function salvar(imprimir: boolean | "retirada" = false) {
     if (carregando || erro || salvando || !bem.sala_id) return;
@@ -119,6 +154,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     try {
       const { data: { user }, error: erroUsuario } = await supabase.auth.getUser();
       if (erroUsuario || !user) throw new Error("Sessão indisponível");
+      if (comissaoAlterada) await persistirComissao(user.id);
       const { data: salvo, error } = await supabase.from("recebimentos_veiculos").upsert({
         bem_id: bem.id, dados: { ...dados, observacoes_gerais: conclusao, local_fisico: localOrigem }, atualizado_por: user.id, atualizado_em: new Date().toISOString(),
       } as unknown as TablesInsert<"recebimentos_veiculos">, { onConflict: "bem_id" }).select("*").single();
@@ -318,6 +354,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
             </section>
             <section className="overflow-hidden rounded-xl border border-border">
               <h3 className="bg-muted px-4 py-2 text-xs font-bold uppercase tracking-wide">Assinaturas da comissão</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3">
+                <p className="max-w-2xl text-xs text-muted-foreground">Comissão permanente: os nomes e cargos são reutilizados nos novos veículos. Você pode editar a qualquer momento. As alterações são gravadas ao salvar a comissão ou o recebimento, sem modificar termos anteriores.</p>
+                <Button type="button" variant="outline" size="sm" onClick={salvarComissao} disabled={carregando || erro || salvando}>
+                  <Save className="mr-2 h-4 w-4" />Salvar comissão permanente
+                </Button>
+              </div>
               <div className="grid gap-3 p-3 sm:grid-cols-2">
                 {[1, 2, 3, 4, 5].map((i) => <div key={i} className="space-y-2 rounded-lg bg-muted/30 p-3">
                   <p className="text-xs font-bold text-primary">{i === 5 ? "Assinatura adicional · Rodrigo Jesuíno Trindade" : i === 1 ? "Presidente" : `Membro ${i - 1}`}</p>

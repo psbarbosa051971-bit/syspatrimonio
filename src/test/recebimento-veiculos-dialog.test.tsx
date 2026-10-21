@@ -2,12 +2,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tables } from "@/integrations/supabase/types";
 
-const mocks = vi.hoisted(() => ({ carregar: vi.fn(), historico: vi.fn(), gravar: vi.fn(), upsert: vi.fn(), rpc: vi.fn(), erro: vi.fn(), sucesso: vi.fn() }));
+const mocks = vi.hoisted(() => ({ carregar: vi.fn(), historico: vi.fn(), gravar: vi.fn(), upsert: vi.fn(), rpc: vi.fn(), erro: vi.fn(), sucesso: vi.fn(), carregarComissao: vi.fn(), gravarComissao: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: { getUser: async () => ({ data: { user: { id: "usuario" } }, error: null }) },
     rpc: mocks.rpc,
-    from: (tabela: string) => tabela === "recebimentos_veiculos" ? {
+    from: (tabela: string) => tabela === "comissao_recebimento_veiculos" ? {
+      select: () => ({ eq: () => ({ maybeSingle: mocks.carregarComissao }) }),
+      upsert: mocks.gravarComissao,
+    } : tabela === "recebimentos_veiculos" ? {
       select: () => ({
         eq: () => ({ maybeSingle: mocks.carregar }),
         order: () => ({ limit: mocks.historico }),
@@ -39,6 +42,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.carregar.mockResolvedValue({ data: null, error: null });
   mocks.historico.mockResolvedValue({ data: [], error: null });
+  mocks.carregarComissao.mockResolvedValue({ data: null, error: null });
+  mocks.gravarComissao.mockResolvedValue({ error: null });
   mocks.rpc.mockResolvedValue({ data: { numero: 50, ano: 2026 }, error: null });
   mocks.gravar.mockResolvedValue({ data: {
     bem_id: bem.id, numero: 2, ano: 2026, criado_em: "2026-10-14T12:00:00Z",
@@ -51,6 +56,74 @@ async function aguardarCarga() {
 }
 
 describe("formulário de recebimento de veículos", () => {
+  it("reutiliza nomes e cargos da comissão permanente em um novo veículo", async () => {
+    mocks.carregarComissao.mockResolvedValue({ data: { dados: {
+      assinante_1: "Presidente cadastrado", cargo_1: "Diretor",
+      assinante_2: "Membro cadastrado", cargo_2: "Técnico",
+      assinante_5: "Assinante adicional", cargo_5: "Assistente",
+      placa: "NAO-COPIAR",
+    } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByLabelText("Placa")).toHaveValue("");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Nome / matrícula 1")).toHaveValue("Presidente cadastrado");
+    expect(screen.getByLabelText("Cargo / função 1")).toHaveValue("Diretor");
+    expect(screen.getByLabelText("Nome / matrícula 2")).toHaveValue("Membro cadastrado");
+    expect(screen.getByLabelText("Cargo / função 2")).toHaveValue("Técnico");
+    expect(screen.getByLabelText("Nome / matrícula 5")).toHaveValue("Assinante adicional");
+  });
+
+  it("salva a comissão separadamente sem emitir nem fechar o recebimento", async () => {
+    const onClose = vi.fn();
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={onClose} />);
+    await aguardarCarga();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    fireEvent.change(await screen.findByLabelText("Nome / matrícula 1"), { target: { value: "Nova presidente" } });
+    fireEvent.change(screen.getByLabelText("Cargo / função 1"), { target: { value: "Engenheira" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar comissão permanente" }));
+    await waitFor(() => expect(mocks.gravarComissao).toHaveBeenCalledWith(expect.objectContaining({
+      id: true, atualizado_por: "usuario", dados: expect.objectContaining({
+        assinante_1: "Nova presidente", cargo_1: "Engenheira", assinante_2: "", cargo_2: "",
+      }),
+    }), { onConflict: "id" }));
+    await waitFor(() => expect(mocks.sucesso).toHaveBeenCalled());
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("mantém assinaturas de termos antigos mesmo quando a comissão permanente muda", async () => {
+    mocks.carregarComissao.mockResolvedValue({ data: { dados: {
+      assinante_1: "Presidente atual", cargo_1: "Cargo atual", assinante_2: "Membro atual",
+    } }, error: null });
+    mocks.carregar.mockResolvedValue({ data: { dados: {
+      assinante_1: "Presidente anterior", cargo_1: "Cargo anterior", assinante_2: "",
+    } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Nome / matrícula 1")).toHaveValue("Presidente anterior");
+    expect(screen.getByLabelText("Cargo / função 1")).toHaveValue("Cargo anterior");
+    expect(screen.getByLabelText("Nome / matrícula 2")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.upsert).toHaveBeenCalled());
+    expect(mocks.gravarComissao).not.toHaveBeenCalled();
+  });
+
+  it("mantém as alterações na tela se não conseguir gravar a comissão", async () => {
+    mocks.gravarComissao.mockResolvedValue({ error: { message: "Indisponível" } });
+    const onClose = vi.fn();
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={onClose} />);
+    await aguardarCarga();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    fireEvent.change(await screen.findByLabelText("Nome / matrícula 1"), { target: { value: "Novo nome" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar recebimento e check-list" }));
+    await waitFor(() => expect(mocks.erro).toHaveBeenCalled());
+    expect(screen.getByLabelText("Nome / matrícula 1")).toHaveValue("Novo nome");
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("acrescenta o nome e cargo de Rodrigo e salva alterações na quinta assinatura", async () => {
     render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
     await aguardarCarga();
