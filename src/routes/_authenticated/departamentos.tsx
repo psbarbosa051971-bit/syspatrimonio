@@ -1594,6 +1594,7 @@ function DepartamentosPage() {
           </Card>
         </div>
         <TermosDaSala salaId={salaSel?.id ?? null} atualizar={tentativaBens}
+          bensDaSala={bens} carregandoBens={carregandoBens} erroBens={!!erroBens}
           selecionado={termoSelecionado?.id ?? null}
           quantidadeBens={bens.length} valorSala={bens.reduce((total, bem) => total + Number(bem.valor), 0)}
           onSelecionar={selecionarTermoDaSala}

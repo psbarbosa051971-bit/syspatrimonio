@@ -161,6 +161,23 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(screen.queryByText(/Vermelho: Aguardando Entrega/)).not.toBeInTheDocument();
   });
 
+  it("oculta termos sem bens na sala mesmo com bens no documento salvo", async () => {
+    mocks.termos = [
+      { id: "termo-vazio", numero: 34, termo_ano: 2026, created_at: "2026-10-17T12:00:00Z", arquivo: "termo34.html",
+        termo_snapshot: { local: "Sala existente", bens: [
+          { codigo_red: "123", descricao: "Mesa cadastrada", valor: 10 },
+          { codigo_red: "456", descricao: "Cadeira azul", valor: 20 },
+        ] } },
+      { id: "termo-atual", numero: 49, termo_ano: 2026, created_at: "2026-10-18T12:00:00Z", arquivo: "termo49.html",
+        termo_snapshot: { local: "Sala existente", bens: [{ codigo_red: "123", descricao: "Mesa cadastrada", valor: 10 }] } },
+    ];
+    mocks.bens = [{ ...bem, importacao_id: "termo-atual" }];
+    render(<Page />);
+    await screen.findByRole("button", { name: "Mostrar bens do termo 49/2026" });
+    expect(screen.queryByRole("button", { name: "Mostrar bens do termo 34/2026" })).not.toBeInTheDocument();
+    expect(screen.getByText("Quantidade de termos").parentElement).toHaveTextContent("1");
+  });
+
   it("mostra os bens do termo clicado e permite voltar à sala inteira", async () => {
     mocks.termos = [{
       id: "termo-1", numero: 29, termo_ano: 2026, created_at: "2026-10-17T12:00:00Z", arquivo: "termo.html",

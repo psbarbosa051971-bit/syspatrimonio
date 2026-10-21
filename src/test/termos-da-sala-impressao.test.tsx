@@ -15,6 +15,7 @@ vi.mock("@/components/TermosResponsabilidadeDialog", () => ({
 }));
 
 import { TermosDaSala } from "@/components/TermosDaSala";
+import type { Tables } from "@/integrations/supabase/types";
 
 const termos = [
   { id: "novo", numero: 20, termo_ano: 2026, created_at: "2026-10-10T12:00:00Z", arquivo: "novo.html",
@@ -27,6 +28,12 @@ const termos = [
 
 const props = {
   salaId: "sala", atualizar: 0, selecionado: null, quantidadeBens: 2, valorSala: 30,
+  bensDaSala: [
+    { id: "mesa", sala_id: "sala", importacao_id: "novo" },
+    { id: "cadeira", sala_id: "sala", importacao_id: "antigo" },
+    { id: "outro", sala_id: "sala", importacao_id: "invalido" },
+  ] as Tables<"bens">[],
+  carregandoBens: false, erroBens: false,
   onSelecionar: vi.fn(), onLimpar: vi.fn(), onAtualizar: vi.fn(),
 };
 
@@ -52,6 +59,45 @@ beforeEach(() => {
 });
 
 describe("impressão em Termos criados da sala", () => {
+  it("oculta termos sem bens atuais mesmo quando o documento salvo contém bens", async () => {
+    const { rerender } = render(<TermosDaSala {...props} />);
+    await screen.findByRole("button", { name: "Mostrar bens do termo 15/2026" });
+    rerender(<TermosDaSala {...props} bensDaSala={[props.bensDaSala[0]]} quantidadeBens={1} />);
+    expect(screen.getByRole("button", { name: "Mostrar bens do termo 20/2026" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mostrar bens do termo 15/2026" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Imprimir termo 15/2026" })).not.toBeInTheDocument();
+    expect(screen.getByText("Quantidade de termos").parentElement).toHaveTextContent("1");
+    rerender(<TermosDaSala {...props} />);
+    expect(screen.getByRole("button", { name: "Mostrar bens do termo 15/2026" })).toBeInTheDocument();
+  });
+
+  it("mostra em Bens a quantidade atual que será aberta, não a quantidade do documento salvo", async () => {
+    render(<TermosDaSala {...props} bensDaSala={[
+      props.bensDaSala[0], { ...props.bensDaSala[0], id: "segunda-mesa" },
+    ]} />);
+    const botao = await screen.findByRole("button", { name: "Mostrar bens do termo 20/2026" });
+    expect(within(botao.closest("tr")!).getAllByRole("cell")[1]).toHaveTextContent("002");
+  });
+
+  it("informa quando nenhum termo tem bens atuais e não confunde carregamento com lista vazia", async () => {
+    const { rerender } = render(<TermosDaSala {...props} bensDaSala={[]} carregandoBens />);
+    await waitFor(() => expect(mocks.from).toHaveBeenCalledWith("entregas_termos"));
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando termos");
+    expect(screen.queryByText("Nenhum termo com bens atualmente nesta sala.")).not.toBeInTheDocument();
+    rerender(<TermosDaSala {...props} bensDaSala={[]} />);
+    expect(screen.getByText("Nenhum termo com bens atualmente nesta sala.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Mostrar bens do termo/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Quantidade de termos").parentElement).toHaveTextContent("0");
+  });
+
+  it("permite tentar novamente se os bens da sala não puderem ser carregados", async () => {
+    render(<TermosDaSala {...props} bensDaSala={[]} erroBens />);
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(props.onAtualizar).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Nenhum termo com bens atualmente nesta sala.")).not.toBeInTheDocument();
+  });
+
   it("coloca a impressão à direita do tipo de bem e abre o termo da linha clicada", async () => {
     render(<TermosDaSala {...props} />);
     const imprimir = await screen.findByRole("button", { name: "Imprimir termo 15/2026" });

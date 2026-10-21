@@ -9,6 +9,7 @@ vi.mock("@/components/EntregaTermoDialog", () => ({ EntregaTermoDialog: () => nu
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({ TermosResponsabilidadeDialog: () => null }));
 
 import { TermosDaSala } from "@/components/TermosDaSala";
+import type { Tables } from "@/integrations/supabase/types";
 import { ExcluirTermoDialog } from "@/components/ExcluirTermoDialog";
 
 const termo = {
@@ -17,6 +18,8 @@ const termo = {
 };
 const props = {
   salaId: "sala", atualizar: 0, selecionado: "termo", quantidadeBens: 1, valorSala: 10,
+  bensDaSala: [{ id: "mesa", sala_id: "sala", importacao_id: "termo" }] as Tables<"bens">[],
+  carregandoBens: false, erroBens: false,
   onSelecionar: vi.fn(), onLimpar: vi.fn(), onAtualizar: vi.fn(),
 };
 

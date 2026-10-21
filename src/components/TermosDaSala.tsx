@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { numeroDoTermo } from "@/lib/termo-responsabilidade";
-import { resumoTermoDaSala, termoSemMovimentacao, type TermoDaSala } from "@/lib/termos-da-sala";
+import { bensAtuaisDoTermo, resumoTermoDaSala, termoSemMovimentacao, type TermoDaSala } from "@/lib/termos-da-sala";
 import { Button } from "@/components/ui/button";
 import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
 import { EntregaTermoDialog } from "@/components/EntregaTermoDialog";
@@ -14,11 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type Props = {
   salaId: string | null; atualizar: number; selecionado: string | null;
   quantidadeBens: number; valorSala: number;
+  bensDaSala: Tables<"bens">[]; carregandoBens: boolean; erroBens: boolean;
   onSelecionar: (termo: TermoDaSala) => void; onLimpar: () => void;
   onAtualizar: () => void;
 };
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, valorSala, onSelecionar, onLimpar, onAtualizar }: Props) {
+export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, valorSala, bensDaSala, carregandoBens, erroBens, onSelecionar, onLimpar, onAtualizar }: Props) {
   const [termos, setTermos] = useState<TermoDaSala[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(false);
@@ -55,6 +56,10 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
       .finally(() => { if (ativo) setCarregando(false); });
     return () => { ativo = false; };
   }, [salaId, atualizar, tentativa]);
+  const termosComBens = termos.map((termo) => ({ termo, quantidade: bensAtuaisDoTermo(bensDaSala, termo).length }))
+    .filter(({ quantidade }) => quantidade > 0);
+  const aguardandoDados = carregando || carregandoBens;
+  const falhaCarga = erro || erroBens;
   return <Card className="min-w-0 lg:col-span-2">
     <CardHeader className="pb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -75,16 +80,16 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
             </tr>
           </thead>
           <tbody>
-            {carregando ? <tr><td colSpan={9} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
-              : erro ? <tr><td colSpan={9} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => setTentativa((n) => n + 1)}>Tentar novamente</Button></td></tr>
-              : termos.length === 0 ? <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo numerado com documento salvo nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
-              : termos.map((termo) => {
+            {aguardandoDados ? <tr><td colSpan={9} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
+              : falhaCarga ? <tr><td colSpan={9} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => { setTentativa((n) => n + 1); if (erroBens) onAtualizar(); }}>Tentar novamente</Button></td></tr>
+              : termosComBens.length === 0 ? <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo com bens atualmente nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
+              : termosComBens.map(({ termo, quantidade }) => {
                 const resumo = resumoTermoDaSala(termo);
                 const entrega = entregas[termo.id];
                 const status = entrega?.status ?? "Aguardando Entrega";
                 return <tr key={termo.id} aria-selected={selecionado === termo.id} className={`border-b last:border-0 [&_td]:px-3 [&_td]:py-1.5 ${status === "Entregue" ? "termo-entregue" : "termo-aguardando"} ${selecionado === termo.id ? "bg-accent" : "hover:bg-muted/50"}`}>
                   <td><button type="button" className="font-bold text-inherit underline" aria-label={`Mostrar bens do termo ${numeroDoTermo(termo)}`} onClick={() => onSelecionar(termo)}>{String(termo.numero).padStart(5, "0")}</button></td>
-                  <td>{resumo.dados ? String(resumo.quantidade).padStart(3, "0") : "—"}</td>
+                  <td>{String(quantidade).padStart(3, "0")}</td>
                   <td className="whitespace-nowrap font-semibold">{status}</td>
                   <td>{entrega?.recebido_por || resumo.dados?.responsavel_recebimento || "Não informado"}</td>
                   <td className="whitespace-nowrap">{entrega?.data_entrega ? entrega.data_entrega.split("-").reverse().join("/") : "Não registrado"}</td>
@@ -103,7 +108,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         </table>
       </div>
       <div className="grid gap-3 rounded-md border-2 border-primary/30 bg-accent p-3 text-center sm:grid-cols-3">
-        <div><p className="text-xs font-bold uppercase">Quantidade de termos</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{carregando || erro ? "—" : termos.length}</p></div>
+        <div><p className="text-xs font-bold uppercase">Quantidade de termos</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{aguardandoDados || falhaCarga ? "—" : termosComBens.length}</p></div>
         <div><p className="text-xs font-bold uppercase">Quantidade de bens na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{quantidadeBens}</p></div>
         <div><p className="text-xs font-bold uppercase">Valor total na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{moeda(valorSala)}</p></div>
       </div>
