@@ -32,14 +32,15 @@ export function htmlPesquisaDinamica(
       <td>${escapar(statusBem(bem))}</td>
       <td class="valor">${escapar(moeda(Number(bem.valor)))}</td>
     </tr>`).join("");
-    return `<section class="sala"><h3>${escapar(nome)}</h3>
+    return `<section class="sala">
       <table aria-label="Bens da sala: ${escapar(nome)}"><colgroup>
         <col style="width:9%"><col style="width:41%"><col style="width:11%">
         <col style="width:9%"><col style="width:15%"><col style="width:15%">
-      </colgroup><thead><tr><th>PATRIMÔNIO</th><th>DESCRIÇÃO DO BEM</th>
+      </colgroup><thead><tr class="titulo-sala"><th colspan="6"><h3>${escapar(nome)}</h3></th></tr>
+        <tr><th>PATRIMÔNIO</th><th class="descricao">DESCRIÇÃO DO BEM</th>
         <th>INCORPORAÇÃO</th><th>TIPO</th><th>STATUS</th><th class="valor">VALOR</th></tr></thead>
       <tbody>${linhas}</tbody></table>
-      <div class="totais subtotal"><span>${String(bens.length).padStart(2, "0")} ITEM(NS)</span>
+      <div class="totais subtotal" aria-label="Total da sala: ${escapar(nome)}"><span>${String(bens.length).padStart(2, "0")} ITEM(NS)</span>
         <span>VALOR TOTAL DA SALA: ${escapar(moeda(subtotal))}</span></div>
     </section>`;
   }).join("");
@@ -55,16 +56,22 @@ export function htmlPesquisaDinamica(
       p { margin: 4px 0; overflow-wrap: anywhere; }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 12px; }
       thead { display: table-header-group; }
-      th, td { border: 1px solid oklch(0.6 0 0); padding: 5px; vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
-      th { background: oklch(0.92 0 0); text-align: left; font-size: 9px; }
+      th, td { border: 1px solid oklch(0 0 0); padding: 5px; vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
+      th { background: oklch(1 0 0); text-align: center; font-size: 9px; }
+      td { text-align: center; }
+      td:nth-child(2), th.descricao { text-align: left; }
       tr { break-inside: avoid; page-break-inside: avoid; }
       .codigo { font-weight: bold; }
       .valor { text-align: right; white-space: nowrap; }
-      .sala { margin-top: 28px; margin-bottom: 30px; }
-      .sala h3 { margin: 0 0 10px; font-size: 12px; break-after: avoid; page-break-after: avoid; }
+      .sala { margin-top: 24px; margin-bottom: 22mm; break-inside: avoid; page-break-inside: avoid; }
+      .titulo-sala th { border: 0; padding: 0 0 16px; text-align: left; }
+      .sala h3 { margin: 0; font-size: 12px; break-after: avoid; page-break-after: avoid; }
       .sala table { margin-top: 0; }
-      .totais { margin-top: 10px; padding: 4px 8px; border: 1px solid oklch(0.6 0 0); display: flex; justify-content: space-between; gap: 12px; font-weight: bold; break-inside: avoid; }
-      .total-geral { margin-top: 30px; }
+      .subtotal { break-before: avoid; page-break-before: avoid; }
+      .totais { margin-top: 6mm; border: 1px solid oklch(0 0 0); display: flex; justify-content: space-between; font-weight: bold; break-inside: avoid; page-break-inside: avoid; }
+      .totais span { padding: 2px 8px; }
+      .totais span:last-child { border-left: 1px solid oklch(0 0 0); min-width: 25%; text-align: right; }
+      .total-geral { margin-top: 12mm; }
       .acoes { text-align: center; padding: 12px; }
       button { padding: 10px 18px; cursor: pointer; }
       @media print {

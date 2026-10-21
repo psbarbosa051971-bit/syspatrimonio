@@ -61,6 +61,37 @@ describe("Relatório A4 da pesquisa dinâmica", () => {
     expect(html).toContain("1.600,75");
   });
 
+  it("repete o nome da sala no cabeçalho e mantém cada bloco junto na impressão", () => {
+    const html = htmlPesquisaDinamica({ ...resultado,
+      bens: [
+        { ...bem, codigo_red: "76743", sala_id: "educacao", valor: 3341.73 },
+        { ...bem, id: "bem-2", codigo_red: "76267", sala_id: "social", valor: 3341.73 },
+      ],
+      locais: {
+        educacao: "12 SECRETARIA MUNICIPAL DE EDUCAÇÃO - SEMED",
+        social: "9 SECRETARIA MUNICIPAL DE DESENVOLVIMENTO SOCIAL - SEMDES",
+      },
+    });
+    const documento = new DOMParser().parseFromString(html, "text/html");
+    const grupos = [...documento.querySelectorAll("section.sala")];
+    expect(grupos).toHaveLength(2);
+    expect(grupos[0].querySelector("thead h3")?.textContent)
+      .toBe("12 SECRETARIA MUNICIPAL DE EDUCAÇÃO - SEMED");
+    expect(grupos[1].querySelector("thead h3")?.textContent)
+      .toBe("9 SECRETARIA MUNICIPAL DE DESENVOLVIMENTO SOCIAL - SEMDES");
+    expect(grupos[0].querySelector("tbody")?.textContent).toContain("76.743");
+    expect(grupos[0].querySelector("tbody")?.textContent).not.toContain("76.267");
+    expect(grupos[1].querySelector("tbody")?.textContent).toContain("76.267");
+    for (const grupo of grupos) {
+      expect(grupo.querySelectorAll("thead th")).toHaveLength(7);
+      expect(grupo.querySelector(".subtotal")?.textContent).toContain("01 ITEM(NS)");
+      expect(grupo.querySelector(".subtotal")?.textContent).toContain("3.341,73");
+    }
+    expect(documento.querySelector(".total-geral")?.textContent).toContain("6.683,46");
+    expect(html).toContain(".sala { margin-top: 24px; margin-bottom: 22mm; break-inside: avoid; page-break-inside: avoid;");
+    expect(html).toContain(".subtotal { break-before: avoid; page-break-before: avoid;");
+  });
+
   it("mantém salas distintas separadas mesmo com o mesmo nome", () => {
     const html = htmlPesquisaDinamica({ ...resultado,
       bens: [bem, { ...bem, id: "bem-2", sala_id: "sala-2" }],
