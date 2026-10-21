@@ -170,6 +170,7 @@ function DepartamentosPage() {
   const [busca, setBusca] = useState("");
   const [filtroUnidade, setFiltroUnidade] = useState("");
   const [cadastroAberto, setCadastroAberto] = useState(false);
+  const [fornecedorImportado, setFornecedorImportado] = useState("");
   const [salvandoUnidade, setSalvandoUnidade] = useState(false);
   const [unidadeLiberadaSalaId, setUnidadeLiberadaSalaId] = useState<string | null>(null);
   const unidadeRef = useRef<HTMLSelectElement>(null);
@@ -891,7 +892,7 @@ function DepartamentosPage() {
               <span>Sonner</span>
             </a>
             <RecebimentosVeiculos />
-            <NotasFiscais />
+            <NotasFiscais fornecedorImportado={fornecedorImportado} />
             <Button
               variant="ghost"
               size="sm"
@@ -1102,7 +1103,7 @@ function DepartamentosPage() {
               <Upload className="mr-1 h-4 w-4" />
               {importando ? "Lendo HTML..." : "Importar HTML do Sonner"}
             </Button>
-            <ImportarFornecedorDialog />
+            <ImportarFornecedorDialog onFornecedorChange={setFornecedorImportado} />
             <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
               Gerar transferência
             </Button>

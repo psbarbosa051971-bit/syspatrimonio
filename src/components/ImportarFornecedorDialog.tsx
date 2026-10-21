@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Truck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export function ImportarFornecedorDialog() {
+export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorChange?: (fornecedor: string) => void }) {
   const [aberto, setAberto] = useState(false);
   const [itens, setItens] = useState<ItemFornecedor[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -39,6 +39,10 @@ export function ImportarFornecedorDialog() {
   };
 
   const atual = itens[sel];
+  useEffect(() => {
+    const fornecedor = atual?.fornecedor.trim();
+    if (fornecedor) onFornecedorChange?.(fornecedor);
+  }, [atual?.fornecedor, onFornecedorChange]);
   const campos: [keyof ItemFornecedor, string][] = [
     ["ano_pedido", "Ano pedido"], ["pedido", "Pedido"], ["ano_empenho", "Ano empenho"],
     ["empenho", "Empenho"], ["nota_fiscal", "Nota fiscal (Doc. Entrada)"], ["fornecedor", "Fornecedor"],

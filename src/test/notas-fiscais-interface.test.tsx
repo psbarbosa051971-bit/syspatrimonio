@@ -40,6 +40,32 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Formulário Notas Fiscais", () => {
+  it("preenche o fornecedor recebido de Importar por fornecedor mesmo antes da vinculação", async () => {
+    render(<NotasFiscais fornecedorImportado="Fornecedor importado" />);
+    fireEvent.click(screen.getByRole("button", { name: "Notas Fiscais" }));
+    await screen.findByRole("option", { name: "Fornecedor A" });
+    expect(screen.getByLabelText("Fornecedor")).toHaveValue("Fornecedor importado");
+    fireEvent.change(screen.getByLabelText("Número da nota fiscal"), { target: { value: "614" } });
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("bens_da_nota_fiscal", { _fornecedor: "Fornecedor importado", _numero: "614" }));
+  });
+  it("atualiza o fornecedor quando ele muda na importação e limpa o número da consulta anterior", async () => {
+    const { rerender } = render(<NotasFiscais fornecedorImportado="Fornecedor A" />);
+    fireEvent.click(screen.getByRole("button", { name: "Notas Fiscais" }));
+    await screen.findByRole("option", { name: "Fornecedor A" });
+    fireEvent.change(screen.getByLabelText("Número da nota fiscal"), { target: { value: "614" } });
+    rerender(<NotasFiscais fornecedorImportado="Fornecedor B" />);
+    expect(screen.getByLabelText("Fornecedor")).toHaveValue("Fornecedor B");
+    expect(screen.getByLabelText("Número da nota fiscal")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Fornecedor"), { target: { value: "Fornecedor A" } });
+    expect(screen.getByLabelText("Fornecedor")).toHaveValue("Fornecedor A");
+  });
+  it("não duplica o fornecedor importado que já consta na lista", async () => {
+    render(<NotasFiscais fornecedorImportado="Fornecedor A" />);
+    fireEvent.click(screen.getByRole("button", { name: "Notas Fiscais" }));
+    await waitFor(() => expect(screen.getByLabelText("Fornecedor")).not.toBeDisabled());
+    expect(screen.getAllByRole("option", { name: "Fornecedor A" })).toHaveLength(1);
+    expect(screen.getByLabelText("Fornecedor")).toHaveValue("Fornecedor A");
+  });
   it("consulta automaticamente pelo fornecedor e número sem zeros e lista os bens", async () => {
     await consultar();
     expect(mocks.rpc).toHaveBeenCalledWith("bens_da_nota_fiscal", { _fornecedor: "Fornecedor A", _numero: "614" });

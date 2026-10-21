@@ -16,7 +16,7 @@ type Registro = Pick<Tables<"notas_fiscais">, "id" | "serie" | "chave" | "arquiv
 const mensagem = (erro: unknown) => erro && typeof erro === "object" && "message" in erro ? String(erro.message) : "Não foi possível concluir. Tente novamente.";
 const selectClass = "h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground";
 
-export function NotasFiscais() {
+export function NotasFiscais({ fornecedorImportado = "" }: { fornecedorImportado?: string }) {
   const [aberto, setAberto] = useState(false);
   const [fornecedores, setFornecedores] = useState<string[]>([]);
   const [fornecedor, setFornecedor] = useState("");
@@ -24,6 +24,13 @@ export function NotasFiscais() {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const [versao, setVersao] = useState(0);
+  useEffect(() => {
+    if (!fornecedorImportado) return;
+    setFornecedor(fornecedorImportado);
+    setNumero("");
+  }, [fornecedorImportado]);
+  const opcoesFornecedores = [...new Set([...fornecedores, fornecedorImportado].filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
   useEffect(() => {
     if (!aberto) return;
     let ativo = true;
@@ -50,11 +57,11 @@ export function NotasFiscais() {
       <DialogContent className="flex max-h-[94dvh] w-[calc(100%_-_1rem)] max-w-6xl flex-col gap-4 overflow-hidden p-4 sm:p-6">
         <DialogHeader className="shrink-0 pr-6"><DialogTitle>Notas Fiscais</DialogTitle><DialogDescription>Selecione o fornecedor e digite o número da nota para consultar o XML anexado e os bens já cadastrados, em todas as salas disponíveis para sua conta.</DialogDescription></DialogHeader>
         <div className="grid shrink-0 gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-[2fr_1fr]">
-          <div className="min-w-0 space-y-1"><Label htmlFor="nf-fornecedor">Fornecedor</Label><select id="nf-fornecedor" className={selectClass} value={fornecedor} disabled={carregando || !!erro} onChange={(e) => setFornecedor(e.target.value)}><option value="">{carregando ? "Carregando fornecedores…" : "Selecione o fornecedor"}</option>{fornecedores.map((f) => <option key={f} value={f}>{f}</option>)}</select></div>
+          <div className="min-w-0 space-y-1"><Label htmlFor="nf-fornecedor">Fornecedor</Label><select id="nf-fornecedor" className={selectClass} value={fornecedor} disabled={carregando || !!erro} onChange={(e) => setFornecedor(e.target.value)}><option value="">{carregando ? "Carregando fornecedores…" : "Selecione o fornecedor"}</option>{opcoesFornecedores.map((f) => <option key={f} value={f}>{f}</option>)}</select></div>
           <div className="space-y-1"><Label htmlFor="nf-numero">Número da nota fiscal</Label><Input id="nf-numero" inputMode="numeric" autoComplete="off" placeholder="Ex.: 614 ou 000000614" value={numero} onChange={(e) => setNumero(e.target.value)} /></div>
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-          {erro ? <div role="alert"><p>{erro}</p><Button variant="outline" onClick={() => setVersao((v) => v + 1)}>Tentar novamente</Button></div> : !carregando && !fornecedores.length ? <p className="p-4 text-muted-foreground">Nenhum fornecedor disponível. Primeiro cadastre os dados dos fornecedores dos bens em Importar por fornecedor.</p> : !fornecedor || !valido ? <p className="p-4 text-muted-foreground">{numero.trim() && !valido ? "Digite apenas números no campo da nota fiscal." : "Informe o fornecedor e o número da nota fiscal para começar."}</p> : <ConsultaNota key={`${fornecedor}:${normalizarNumeroNota(numero)}`} fornecedor={fornecedor} numero={normalizarNumeroNota(numero)} />}
+          {erro ? <div role="alert"><p>{erro}</p><Button variant="outline" onClick={() => setVersao((v) => v + 1)}>Tentar novamente</Button></div> : !carregando && !opcoesFornecedores.length ? <p className="p-4 text-muted-foreground">Nenhum fornecedor disponível. Primeiro cadastre os dados dos fornecedores dos bens em Importar por fornecedor.</p> : !fornecedor || !valido ? <p className="p-4 text-muted-foreground">{numero.trim() && !valido ? "Digite apenas números no campo da nota fiscal." : "Informe o fornecedor e o número da nota fiscal para começar."}</p> : <ConsultaNota key={`${fornecedor}:${normalizarNumeroNota(numero)}`} fornecedor={fornecedor} numero={normalizarNumeroNota(numero)} />}
         </div>
       </DialogContent>
     </Dialog>
