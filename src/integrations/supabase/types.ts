@@ -64,6 +64,7 @@ export type Database = {
           observacao: string | null
           pedido: string | null
           sala_id: string | null
+          status: string
           tipo: string | null
           user_id: string
           valor: number
@@ -85,6 +86,7 @@ export type Database = {
           observacao?: string | null
           pedido?: string | null
           sala_id?: string | null
+          status?: string
           tipo?: string | null
           user_id: string
           valor?: number
@@ -106,6 +108,7 @@ export type Database = {
           observacao?: string | null
           pedido?: string | null
           sala_id?: string | null
+          status?: string
           tipo?: string | null
           user_id?: string
           valor?: number

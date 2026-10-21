@@ -15,6 +15,7 @@ import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
 import { useRole } from "@/hooks/use-role";
 import { Input } from "@/components/ui/input";
 import { correspondePesquisaDinamica } from "@/lib/pesquisa-dinamica";
+import { statusBem, classeStatusBem } from "@/lib/status-bem";
 
 export const Route = createFileRoute("/_authenticated/conferencia")({
   head: () => ({
@@ -35,7 +36,7 @@ type Bem = Tables<"bens">;
 type CampoOrdenacao = "conferido" | "codigo_red" | "descricao" | "situacao" | "valor";
 type Ordenacao = { campo: CampoOrdenacao; crescente: boolean };
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const situacaoBem = (bem: Bem) => bem.conferido ? "LOCALIZADO" : bem.conferencia_finalizada ? "NÃO LOCALIZADO" : "A CONFERIR";
+const situacaoBem = statusBem;
 
 function CabecalhoOrdenavel({ campo, titulo, ordenacao, onOrdenar, className = "" }: {
   campo: CampoOrdenacao;
@@ -136,10 +137,10 @@ function ConferenciaPage() {
     if (carregando || salvando || pendentes.length) return;
     const alterados = itens.filter((b) => b.conferido !== v);
     if (!alterados.length) return;
-    const anteriores = new Map(alterados.map((b) => [b.id, b.conferido]));
+    const anteriores = new Map(alterados.map((b) => [b.id, { conferido: b.conferido, status: b.status }]));
     const falhas = new Set<string>();
     setPendentes(alterados.map((b) => b.id));
-    setBens((p) => p.map((b) => anteriores.has(b.id) ? { ...b, conferido: v } : b));
+    setBens((p) => p.map((b) => anteriores.has(b.id) ? { ...b, conferido: v, status: v ? "LOCALIZADO" : "NÃO LOCALIZADO" } : b));
     try {
       // Limita as requisições simultâneas sem mudar a forma de salvar cada bem.
       for (let inicio = 0; inicio < alterados.length; inicio += 10) {
@@ -154,7 +155,7 @@ function ConferenciaPage() {
       }
     } finally {
       if (falhas.size) {
-        setBens((p) => p.map((b) => falhas.has(b.id) ? { ...b, conferido: anteriores.get(b.id)! } : b));
+        setBens((p) => p.map((b) => falhas.has(b.id) ? { ...b, ...anteriores.get(b.id)! } : b));
         toast.error(alterados.length === 1
           ? "Erro ao salvar a marcação. Tente novamente."
           : `Não foi possível salvar a marcação de ${falhas.size} bem(ns). As demais foram salvas. Tente novamente.`);
@@ -173,7 +174,7 @@ function ConferenciaPage() {
         _localizados: bens.filter((b) => b.conferido).map((b) => b.id),
       });
       if (error) throw error;
-      setBens((p) => p.map((b) => ({ ...b, conferencia_finalizada: true })));
+      setBens((p) => p.map((b) => ({ ...b, conferencia_finalizada: true, status: b.conferido ? "LOCALIZADO" : "NÃO LOCALIZADO" })));
       toast.success("Conferência salva. Os itens não marcados foram identificados como NÃO LOCALIZADO.");
     } catch {
       toast.error("Não foi possível salvar a conferência. Tente novamente.");
@@ -184,7 +185,7 @@ function ConferenciaPage() {
 
   const localizados = bens.filter((b) => b.conferido).length;
   const valorTotal = bens.reduce((total, b) => total + Number(b.valor), 0);
-  const naoLocalizados = bens.filter((b) => !b.conferido && b.conferencia_finalizada).length;
+  const naoLocalizados = bens.filter((b) => !b.conferido).length;
 
   return (
     <div className="min-h-screen bg-muted/40">
@@ -239,7 +240,7 @@ function ConferenciaPage() {
                 <p className="break-words text-xl font-bold tabular-nums">{carregando ? "—" : moeda(valorTotal)}</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">Marque “Sim” nos bens encontrados, individualmente ou pela opção “Selecionar todos”, e clique em Salvar conferência para identificar os demais como NÃO LOCALIZADO.</p>
+            <p className="text-sm text-muted-foreground">Os bens começam como NÃO LOCALIZADO, em vermelho. Marque “Localizado” para mudar o status para LOCALIZADO, em azul; ao desmarcar, voltam para NÃO LOCALIZADO. As marcações são salvas automaticamente. Use Salvar conferência para finalizar.</p>
             <div className="space-y-1">
               <label htmlFor="pesquisa-bens-conferencia" className="text-sm font-semibold">Pesquisar bens da sala</label>
               <Input id="pesquisa-bens-conferencia" type="search" aria-label="Pesquisar bens da sala"
@@ -266,27 +267,28 @@ function ConferenciaPage() {
                   <CabecalhoOrdenavel campo="conferido" titulo="LOCALIZADO" ordenacao={ordenacao} onOrdenar={ordenar} className="w-36" />
                   <CabecalhoOrdenavel campo="codigo_red" titulo="CÓDIGO RED." ordenacao={ordenacao} onOrdenar={ordenar} className="w-40" />
                   <CabecalhoOrdenavel campo="descricao" titulo="DESCRIÇÃO DO BEM" ordenacao={ordenacao} onOrdenar={ordenar} />
-                  <CabecalhoOrdenavel campo="situacao" titulo="SITUAÇÃO" ordenacao={ordenacao} onOrdenar={ordenar} className="w-40" />
+                  <CabecalhoOrdenavel campo="situacao" titulo="STATUS" ordenacao={ordenacao} onOrdenar={ordenar} className="w-40" />
+                  <TableHead className="font-bold text-conference-header-foreground">TIPO</TableHead>
                   <CabecalhoOrdenavel campo="valor" titulo="VALOR" ordenacao={ordenacao} onOrdenar={ordenar} className="w-36" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {bensOrdenados.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                       {carregando ? "Carregando bens..." : bens.length > 0 ? "Nenhum bem corresponde à pesquisa." : sala ? "Nenhum bem nesta sala." : "Nenhum local disponível para conferência."}
                     </TableCell>
                   </TableRow>
                 )}
                 {bensOrdenados.map((b) => (
-                  <TableRow key={b.id}>
+                  <TableRow key={b.id} className={classeStatusBem(b)}>
                     <TableCell className="py-2">
                       <label className="inline-flex items-center gap-2">
                         <input type="checkbox" className="h-5 w-5 accent-primary disabled:opacity-50"
                           aria-label={`Bem ${b.codigo_red} localizado`}
                           disabled={carregando || salvando || pendentes.length > 0}
                           checked={b.conferido} onChange={(e) => void marcar([b], e.target.checked)} />
-                        <span className="text-sm">Sim</span>
+                        <span className="text-sm">Localizado</span>
                       </label>
                     </TableCell>
                     <TableCell className="py-1 font-mono text-sm">
@@ -305,14 +307,9 @@ function ConferenciaPage() {
                       <BotaoRecebimentoVeiculo bem={b} />
                     </TableCell>
                     <TableCell className="py-2" aria-live="polite">
-                      {b.conferido ? (
-                        <span className="inline-flex whitespace-nowrap rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">LOCALIZADO</span>
-                      ) : b.conferencia_finalizada ? (
-                        <span className="inline-flex whitespace-nowrap rounded-md bg-destructive/10 px-2 py-1 text-xs font-bold text-destructive">NÃO LOCALIZADO</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">A conferir</span>
-                      )}
+                      <span className="inline-flex whitespace-nowrap rounded-md px-2 py-1 text-xs font-bold">{statusBem(b)}</span>
                     </TableCell>
+                    <TableCell className="py-1">{b.tipo ?? "—"}</TableCell>
                     <TableCell className="py-1 text-right">{moeda(Number(b.valor))}</TableCell>
                   </TableRow>
                 ))}

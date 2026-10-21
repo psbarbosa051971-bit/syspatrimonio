@@ -429,7 +429,7 @@ describe("Carregamento dos registros em Departamentos", () => {
   });
 
   it.each(["admin", "operador"])(
-    "mostra os não localizados em vermelho e substitui o tipo apenas após salvar a conferência para %s",
+    "mostra status em vermelho ou azul sem substituir o tipo importado para %s",
     async (role) => {
       mocks.papel = { role, loading: false };
       mocks.bens = [
@@ -440,23 +440,24 @@ describe("Carregamento dos registros em Departamentos", () => {
       render(<Page />);
       const descricao = await screen.findByText("Mesa cadastrada");
       const linhaNaoLocalizada = descricao.closest("tr")!;
-      expect(linhaNaoLocalizada).toHaveClass("text-destructive");
-      expect(within(linhaNaoLocalizada).getByText("123")).toHaveClass("text-destructive");
-      expect(within(linhaNaoLocalizada).getByText("Não localizado")).toBeInTheDocument();
-      expect(within(linhaNaoLocalizada).queryByText("Aquisição")).not.toBeInTheDocument();
-      for (const texto of ["Cadeira azul", "Armário a conferir"]) {
-        const linha = screen.getByText(texto).closest("tr")!;
-        expect(linha).not.toHaveClass("text-destructive");
-        expect(within(linha).getByText("Aquisição")).toBeInTheDocument();
-        expect(within(linha).queryByText("Não localizado")).not.toBeInTheDocument();
-      }
+      expect(linhaNaoLocalizada).toHaveClass("bem-nao-localizado");
+      expect(within(linhaNaoLocalizada).getByText("NÃO LOCALIZADO")).toBeInTheDocument();
+      expect(within(linhaNaoLocalizada).getByText("Aquisição")).toBeInTheDocument();
+      const linhaLocalizada = screen.getByText("Cadeira azul").closest("tr")!;
+      expect(linhaLocalizada).toHaveClass("bem-localizado");
+      expect(within(linhaLocalizada).getByText("LOCALIZADO")).toBeInTheDocument();
+      expect(within(linhaLocalizada).getByText("Aquisição")).toBeInTheDocument();
+      const linhaPendente = screen.getByText("Armário a conferir").closest("tr")!;
+      expect(linhaPendente).toHaveClass("bem-nao-localizado");
+      expect(within(linhaPendente).getByText("NÃO LOCALIZADO")).toBeInTheDocument();
+      expect(within(linhaPendente).getByText("Aquisição")).toBeInTheDocument();
       fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), {
         target: { value: "nao localizado" },
       });
       expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
       expect(screen.queryByText("Cadeira azul")).not.toBeInTheDocument();
-      expect(screen.queryByText("Armário a conferir")).not.toBeInTheDocument();
-      expect(screen.getByText("Quantidade de bens: 1 de 3")).toBeInTheDocument();
+      expect(screen.getByText("Armário a conferir")).toBeInTheDocument();
+      expect(screen.getByText("Quantidade de bens: 2 de 3")).toBeInTheDocument();
     },
   );
 

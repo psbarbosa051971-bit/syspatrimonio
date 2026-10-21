@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { responsavelDoLocal } from "@/lib/usuarios.functions";
 import { formatarCpf } from "@/lib/cpf";
 import { formatarCodigoRed } from "@/lib/codigo-red";
+import { statusBem, classeStatusBem } from "@/lib/status-bem";
 import {
   Building2,
   CheckSquare,
@@ -100,8 +101,7 @@ type Bem = Tables<"bens">;
 const formataMoeda = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const bemNaoLocalizado = (bem: Bem) => bem.conferencia_finalizada && !bem.conferido;
-const tipoExibido = (bem: Bem) => bemNaoLocalizado(bem) ? "Não localizado" : bem.tipo ?? "";
+// O tipo importado permanece independente do status de localização.
 const anoIncorporacao = (bem: Bem) => bem.incorporacao?.match(/(?:^|\D)(\d{4})(?=\D|$)/)?.[1] ?? "";
 
 async function carregarBensDaSala(salaId: string): Promise<Bem[]> {
@@ -226,7 +226,7 @@ function DepartamentosPage() {
       if (filtroAnoIncorporacao && anoIncorporacao(bem) !== filtroAnoIncorporacao) return false;
       if (!termos.length) return true;
       const campos = normalizar([
-        bem.codigo_red, formatarCodigoRed(bem.codigo_red), limparDescricao(bem.descricao), bem.incorporacao, tipoExibido(bem),
+        bem.codigo_red, formatarCodigoRed(bem.codigo_red), limparDescricao(bem.descricao), bem.incorporacao, bem.tipo, statusBem(bem),
         bem.valor, formataMoeda(Number(bem.valor)), Number(bem.valor).toFixed(2).replace(".", ","),
         bem.observacao,
       ].filter((campo) => campo != null).join(" "));
@@ -1259,6 +1259,7 @@ function DepartamentosPage() {
                     <TableHead className="h-8 py-1">DESCRIÇÃO DO BEM</TableHead>
                     <TableHead className="h-8 w-36 py-1">INCORPORAÇÃO</TableHead>
                     <TableHead className="h-8 w-28 py-1">TIPO</TableHead>
+                    <TableHead className="h-8 w-36 py-1">STATUS</TableHead>
                     <TableHead className="h-8 w-32 py-1 text-right">VALOR</TableHead>
                     <TableHead className="h-8 w-12 py-1" />
                   </TableRow>
@@ -1267,7 +1268,7 @@ function DepartamentosPage() {
                   {bensExibidos.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={9}
                         className="text-center text-sm text-muted-foreground"
                       >
                         {resultadoPesquisa ? "Nenhum bem encontrado para esta pesquisa em todas as salas."
@@ -1290,13 +1291,13 @@ function DepartamentosPage() {
                   )}
                   {bensExibidos.length > 0 && bensFiltrados.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-4 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={9} className="py-4 text-center text-sm text-muted-foreground">
                         Nenhum bem encontrado para esta pesquisa.
                       </TableCell>
                     </TableRow>
                   )}
                   {bensFiltrados.map((b) => (
-                    <TableRow key={b.id} className={bemNaoLocalizado(b) ? "text-destructive" : undefined}>
+                    <TableRow key={b.id} className={classeStatusBem(b)}>
                       <TableCell className="py-1 text-center">
                         <input
                           type="checkbox"
@@ -1321,7 +1322,7 @@ function DepartamentosPage() {
                       <TableCell className="py-1">
                         <button
                           type="button"
-                          className={`font-mono text-sm font-medium underline ${bemNaoLocalizado(b) ? "text-destructive" : "text-primary"}`}
+                          className="font-mono text-sm font-medium underline"
                           onClick={() => setTermoBem(b)}
                         >
                           {formatarCodigoRed(b.codigo_red)}
@@ -1338,7 +1339,8 @@ function DepartamentosPage() {
                         </span>}
                       </TableCell>
                       <TableCell className="py-1 whitespace-nowrap">{b.incorporacao ?? ""}</TableCell>
-                      <TableCell className="py-1">{tipoExibido(b)}</TableCell>
+                      <TableCell className="py-1">{b.tipo ?? ""}</TableCell>
+                      <TableCell className="py-1 font-semibold" aria-live="polite">{statusBem(b)}</TableCell>
                       <TableCell className="py-1 text-right">
                         {formataMoeda(Number(b.valor))}
                       </TableCell>

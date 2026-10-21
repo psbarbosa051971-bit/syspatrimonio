@@ -153,6 +153,14 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+/* A cor de cada campo acompanha a localização, inclusive botões e ícones. */
+.bem-localizado { color: var(--entrega-concluida); }
+.bem-nao-localizado { color: var(--entrega-pendente); }
+.bem-localizado :is(td, span, button, svg, label),
+.bem-nao-localizado :is(td, span, button, svg, label) { color: inherit; }
+.bem-localizado input[type="checkbox"] { accent-color: var(--entrega-concluida); }
+.bem-nao-localizado input[type="checkbox"] { accent-color: var(--entrega-pendente); }
+
 /* Situação da entrega dos termos, com contraste nos dois temas. */
 .termo-aguardando { color: var(--entrega-pendente); }
 .termo-entregue { color: var(--entrega-concluida); }

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,7 +20,8 @@ import { Route } from "@/routes/_authenticated/conferencia";
 const Page = Route.options.component as ComponentType;
 const bem = (id: string, conferido = false) => ({
   id, codigo_red: id, descricao: `Bem ${id}`, valor: 10, conferido,
-  sala_id: "sala", conferencia_finalizada: false,
+  sala_id: "sala", conferencia_finalizada: false, tipo: "Aquisição",
+  status: conferido ? "LOCALIZADO" : "NÃO LOCALIZADO",
 });
 
 afterEach(cleanup);
@@ -48,6 +49,26 @@ async function aguardarMarcacoes() {
 }
 
 describe("seleção na conferência de bens", () => {
+  it("inicia em não localizado e alterna status e cor sem alterar o tipo", async () => {
+    await abrir();
+    const caixa = screen.getByRole("checkbox", { name: "Bem 1 localizado" });
+    const linha = caixa.closest("tr")!;
+    expect(screen.getByRole("columnheader", { name: /STATUS/ })).toBeInTheDocument();
+    expect(linha).toHaveClass("bem-nao-localizado");
+    expect(within(linha).getByText("NÃO LOCALIZADO")).toBeInTheDocument();
+    expect(within(linha).getByText("Aquisição")).toBeInTheDocument();
+    fireEvent.click(caixa);
+    await aguardarMarcacoes();
+    expect(linha).toHaveClass("bem-localizado");
+    expect(within(linha).getByText("LOCALIZADO")).toBeInTheDocument();
+    expect(within(linha).getByText("Aquisição")).toBeInTheDocument();
+    fireEvent.click(caixa);
+    await aguardarMarcacoes();
+    expect(linha).toHaveClass("bem-nao-localizado");
+    expect(within(linha).getByText("NÃO LOCALIZADO")).toBeInTheDocument();
+    expect(within(linha).getByText("Aquisição")).toBeInTheDocument();
+  });
+
   it("marca e desmarca todos os bens sem finalizar a conferência", async () => {
     const todos = await abrir();
     fireEvent.click(todos);
