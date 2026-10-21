@@ -7,7 +7,7 @@ const bem: Tables<"bens"> = {
   descricao: "VEÍCULO TOYOTA HILUX ANO/MOD 2024/2024 PLACA TCS3H06 KM 0",
   valor: 269990, created_at: "2026-10-17T12:00:00Z", conferido: true,
   observacao: null, incorporacao: "02/10/2024", tipo: "Aquisição",
-  importacao_id: null, conferencia_finalizada: false,
+  importacao_id: null, conferencia_finalizada: false, ano_pedido: null, pedido: null, ano_empenho: null, empenho: null, nota_fiscal: null, fornecedor: null,
 };
 const termo: Tables<"recebimentos_veiculos"> = {
   bem_id: bem.id, numero: 3, ano: 2026, criado_em: "2026-10-17T12:00:00Z",
