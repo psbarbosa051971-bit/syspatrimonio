@@ -24,9 +24,11 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
   const editar = (campo: keyof ItemFornecedor, v: string) =>
     setItens((a) => a.map((it, i) => (i === sel ? { ...it, [campo]: v } : it)));
 
+  const [faltantes, setFaltantes] = useState<ItemFornecedor[]>([]);
+
   const vincular = async () => {
     setSalvando(true);
-    const data: { vinculados: number }[] = [];
+    const data: { codigo_red: string; vinculados: number }[] = [];
     for (let i = 0; i < itens.length; i += 200) {
       const r = await supabase.rpc("vincular_dados_fornecedor", { _itens: itens.slice(i, i + 200) });
       if (r.error) { setSalvando(false); toast.error(`Não foi possível vincular os dados: ${r.error.message}`); return; }
@@ -34,8 +36,19 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
     }
     setSalvando(false);
     const ok = data.filter((r) => r.vinculados > 0).length;
-    const faltam = itens.length - ok;
-    toast.success(`${ok} bem(ns) vinculado(s).${faltam ? ` ${faltam} código(s) não existem no sistema.` : ""}`);
+    const semVinculo = new Set(data.filter((r) => r.vinculados === 0).map((r) => r.codigo_red));
+    const falta = itens.filter((it) => semVinculo.has(it.codigo_red));
+    toast.success(`${ok} bem(ns) vinculado(s).`);
+    if (falta.length) setFaltantes(falta);
+  };
+
+  const incluirFaltantes = async () => {
+    setSalvando(true);
+    const r = await supabase.rpc("incluir_bens_fornecedor", { _itens: faltantes });
+    setSalvando(false);
+    if (r.error) { toast.error(`Não foi possível incluir: ${r.error.message}`); return; }
+    toast.success(`${r.data ?? 0} bem(ns) incluído(s) no sistema.`);
+    setFaltantes([]);
   };
 
   const atual = itens[sel];
@@ -90,6 +103,19 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
               <Button onClick={vincular} disabled={salvando}>{salvando ? "Vinculando..." : "Vincular aos patrimônios"}</Button>
             </div>
           </>}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={faltantes.length > 0} onOpenChange={(o) => { if (!o) setFaltantes([]); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Números não encontrados no sistema</DialogTitle></DialogHeader>
+          <p className="text-sm">{faltantes.length} número(s) do HTML não existem no sistema. Deseja incluí-los?</p>
+          <div className="max-h-60 overflow-auto rounded border p-2 text-xs">
+            {faltantes.map((f) => <div key={f.codigo_red}>{f.codigo_red} — {f.descricao}</div>)}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setFaltantes([]); toast.info("Importados apenas os números já existentes."); }}>Não</Button>
+            <Button onClick={incluirFaltantes} disabled={salvando}>{salvando ? "Incluindo..." : "Sim"}</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

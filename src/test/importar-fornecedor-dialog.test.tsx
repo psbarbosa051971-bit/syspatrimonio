@@ -5,7 +5,7 @@ import { ImportarFornecedorDialog } from "@/components/ImportarFornecedorDialog"
 const mocks = vi.hoisted(() => ({ parsear: vi.fn(), rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mocks.rpc } }));
 vi.mock("@/lib/html-fornecedor", () => ({ parsearFornecedorHtml: mocks.parsear }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 
 beforeEach(() => {
   vi.clearAllMocks();

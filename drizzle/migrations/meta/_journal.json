@@ -120,6 +120,13 @@
       "when": 1792612968088,
       "tag": "0016_restringe_leitura_comissao_veiculos",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792683989588,
+      "tag": "0017_incluir_bens_fornecedor",
+      "breakpoints": true
     }
   ]
 }
