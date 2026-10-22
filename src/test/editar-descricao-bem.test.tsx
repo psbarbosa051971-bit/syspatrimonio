@@ -37,7 +37,7 @@ describe("edição da descrição do bem", () => {
     fireEvent.change(campo, { target: { value: " VEÍCULO FIAT " } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar descrição" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ descricao: "VEÍCULO FIAT" })));
-    expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "VEÍCULO FIAT" });
+    expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "VEÍCULO FIAT", valor: null });
     expect(mocks.eq).toHaveBeenCalledWith("id", "bem-1");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
@@ -59,5 +59,14 @@ describe("edição da descrição do bem", () => {
     fireEvent.change(campo, { target: { value: "   " } });
     expect(screen.getByRole("button", { name: "Salvar descrição" })).toBeDisabled();
     expect(mocks.atualizar).not.toHaveBeenCalled();
+  });
+});
+
+describe("edição do valor do bem", () => {
+  it("salva o valor digitado em reais", async () => {
+    await abrir();
+    fireEvent.change(screen.getByLabelText("Valor"), { target: { value: "R$ 3.459,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar descrição" }));
+    await waitFor(() => expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "MESA", valor: 3459 }));
   });
 });
