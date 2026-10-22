@@ -61,3 +61,12 @@ describe("edição da descrição do bem", () => {
     expect(mocks.atualizar).not.toHaveBeenCalled();
   });
 });
+
+describe("edição do valor do bem", () => {
+  it("salva o valor digitado em reais", async () => {
+    await abrir();
+    fireEvent.change(screen.getByLabelText("Valor"), { target: { value: "R$ 3.459,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar descrição" }));
+    await waitFor(() => expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "MESA", valor: 3459 }));
+  });
+});
