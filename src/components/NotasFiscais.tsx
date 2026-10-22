@@ -158,6 +158,12 @@ function ConsultaNota({ fornecedor, numero }: { fornecedor: string; numero: stri
   if (carregando) return <p role="status" className="p-6 text-center text-muted-foreground">Consultando nota e bens cadastrados…</p>;
   if (erro) return <div role="alert" className="space-y-2 rounded-lg border border-destructive p-4"><p>{erro}</p><Button variant="outline" onClick={() => setVersao((v) => v + 1)}>Tentar novamente</Button></div>;
   const exibida = pendente?.nota ?? nota;
+  const secaoBens = <>
+    <section className="space-y-3 rounded-xl border border-border bg-card p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-semibold">Bens cadastrados referentes à nota</h3><p className="text-sm text-muted-foreground">{bens.length} bem(ns) · Fornecedor e nota nº {numero}, desconsiderando zeros à esquerda.</p></div><p className="font-semibold text-primary">Total dos bens: {moedaNota(bens.reduce((soma, bem) => soma + Number(bem.valor), 0))}</p></div>
+      {!bens.length ? <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">Nenhum bem cadastrado com este fornecedor e número de nota. Confira os dados importados em Importar por fornecedor.</p> : <div className="max-h-80 overflow-auto rounded-lg border border-border"><table className="w-full min-w-0 text-sm"><thead className="sticky top-0 bg-muted text-left"><tr><th className="p-3">Patrimônio</th><th className="p-3">Descrição do bem</th><th className="p-3">Incorporação</th><th className="p-3 text-right">Valor</th></tr></thead><tbody>{bens.map((bem) => <tr key={bem.id} className="border-t border-border"><td className="whitespace-nowrap p-3 font-medium">{formatarCodigoRed(bem.codigo_red)}</td><td className="whitespace-pre-wrap break-words p-2">{bem.descricao}</td><td className="p-3">{bem.incorporacao || "—"}</td><td className="whitespace-nowrap p-3 text-right">{moedaNota(bem.valor)}</td></tr>)}</tbody></table></div>}
+    </section>
+  </>;
   return <>
     <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Arquivo XML da nota</h3><p className="mt-1 text-sm text-muted-foreground">{registros.length ? `${registros.length} XML(s) salvo(s).` : "Nenhum XML anexado para esta nota. Anexe o arquivo para visualizar o documento."} O XML não cadastra novos bens.</p></div>
@@ -172,12 +178,9 @@ function ConsultaNota({ fornecedor, numero }: { fornecedor: string; numero: stri
       {erroXml && !pendente && <div role="alert" className="flex flex-wrap items-center gap-2"><p>{erroXml}</p><Button variant="outline" onClick={() => setVersao((v) => v + 1)}>Tentar abrir novamente</Button></div>}
     </section>
     {lendo && !pendente ? <p role="status" className="p-4 text-muted-foreground">Abrindo XML da nota…</p> : exibida && <div className="grid items-start gap-4 lg:grid-cols-2">
-      <div className="min-w-0 space-y-2"><h3 className="font-semibold">Dados do XML</h3><DocumentoNotaFiscal nota={exibida} /></div>
+      <div className="min-w-0 space-y-2"><h3 className="font-semibold">Dados do XML</h3><DocumentoNotaFiscal nota={exibida} />{secaoBens}</div>
       <DanfeOriginalNotaFiscal key={pendente ? `previa:${pendente.nota.chave}` : id} nota={exibida} notaId={pendente ? "" : id} />
     </div>}
-    <section className="space-y-3 rounded-xl border border-border bg-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-semibold">Bens cadastrados referentes à nota</h3><p className="text-sm text-muted-foreground">{bens.length} bem(ns) · Fornecedor e nota nº {numero}, desconsiderando zeros à esquerda.</p></div><p className="font-semibold text-primary">Total dos bens: {moedaNota(bens.reduce((soma, bem) => soma + Number(bem.valor), 0))}</p></div>
-      {!bens.length ? <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">Nenhum bem cadastrado com este fornecedor e número de nota. Confira os dados importados em Importar por fornecedor.</p> : <div className="max-h-80 overflow-auto rounded-lg border border-border"><table className="w-full min-w-[600px] text-sm"><thead className="sticky top-0 bg-muted text-left"><tr><th className="p-3">Patrimônio</th><th className="p-3">Descrição do bem</th><th className="p-3">Incorporação</th><th className="p-3 text-right">Valor</th></tr></thead><tbody>{bens.map((bem) => <tr key={bem.id} className="border-t border-border"><td className="whitespace-nowrap p-3 font-medium">{formatarCodigoRed(bem.codigo_red)}</td><td className="whitespace-pre-wrap p-3">{bem.descricao}</td><td className="p-3">{bem.incorporacao || "—"}</td><td className="whitespace-nowrap p-3 text-right">{moedaNota(bem.valor)}</td></tr>)}</tbody></table></div>}
-    </section>
+    {!(exibida && !(lendo && !pendente)) && secaoBens}
   </>;
 }
