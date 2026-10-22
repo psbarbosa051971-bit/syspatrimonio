@@ -14,72 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      notas_fiscais_danfes: {
-        Row: {
-          nota_fiscal_id: string
-          arquivo_path: string
-          arquivo_nome: string
-          criado_por: string
-          criado_em: string
-        }
-        Insert: {
-          nota_fiscal_id: string
-          arquivo_path: string
-          arquivo_nome: string
-          criado_por: string
-          criado_em?: string
-        }
-        Update: {
-          nota_fiscal_id?: string
-          arquivo_path?: string
-          arquivo_nome?: string
-          criado_por?: string
-          criado_em?: string
-        }
-        Relationships: [{
-          foreignKeyName: "notas_fiscais_danfes_nota_fiscal_id_fkey"
-          columns: ["nota_fiscal_id"]
-          isOneToOne: true
-          referencedRelation: "notas_fiscais"
-          referencedColumns: ["id"]
-        }]
-      }
-      notas_fiscais: {
-        Row: {
-          id: string
-          fornecedor: string
-          numero: string
-          serie: string
-          chave: string
-          xml: string
-          arquivo: string
-          criado_por: string
-          criado_em: string
-        }
-        Insert: {
-          id?: string
-          fornecedor: string
-          numero: string
-          serie: string
-          chave: string
-          xml: string
-          arquivo: string
-          criado_por: string
-          criado_em?: string
-        }
-        Update: {
-          id?: string
-          fornecedor?: string
-          numero?: string
-          serie?: string
-          chave?: string
-          xml?: string
-          arquivo?: string
-          criado_por?: string
-          criado_em?: string
-        }
-        Relationships: []
-      }
       bens: {
         Row: {
           ano_empenho: string | null
@@ -426,6 +360,74 @@ export type Database = {
             columns: ["sala_id"]
             isOneToOne: false
             referencedRelation: "salas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notas_fiscais: {
+        Row: {
+          arquivo: string
+          chave: string
+          criado_em: string
+          criado_por: string
+          fornecedor: string
+          id: string
+          numero: string
+          serie: string
+          xml: string
+        }
+        Insert: {
+          arquivo: string
+          chave: string
+          criado_em?: string
+          criado_por: string
+          fornecedor: string
+          id?: string
+          numero: string
+          serie: string
+          xml: string
+        }
+        Update: {
+          arquivo?: string
+          chave?: string
+          criado_em?: string
+          criado_por?: string
+          fornecedor?: string
+          id?: string
+          numero?: string
+          serie?: string
+          xml?: string
+        }
+        Relationships: []
+      }
+      notas_fiscais_danfes: {
+        Row: {
+          arquivo_nome: string
+          arquivo_path: string
+          criado_em: string
+          criado_por: string
+          nota_fiscal_id: string
+        }
+        Insert: {
+          arquivo_nome: string
+          arquivo_path: string
+          criado_em?: string
+          criado_por: string
+          nota_fiscal_id: string
+        }
+        Update: {
+          arquivo_nome?: string
+          arquivo_path?: string
+          criado_em?: string
+          criado_por?: string
+          nota_fiscal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_fiscais_danfes_nota_fiscal_id_fkey"
+            columns: ["nota_fiscal_id"]
+            isOneToOne: true
+            referencedRelation: "notas_fiscais"
             referencedColumns: ["id"]
           },
         ]
@@ -826,14 +828,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      fornecedores_notas_fiscais: {
-        Args: Record<PropertyKey, never>
-        Returns: { fornecedor: string }[]
-      }
-      bens_da_nota_fiscal: {
-        Args: { _fornecedor: string; _numero: string }
-        Returns: Database["public"]["Tables"]["bens"]["Row"][]
-      }
       associar_checklist_veiculo: {
         Args: { _bem_id: string; _checklist_id: string }
         Returns: Json
@@ -841,6 +835,37 @@ export type Database = {
       associar_checklist_veiculo_por_red: {
         Args: { _checklist_id: string; _codigo_red: string; _sala_id?: string }
         Returns: Json
+      }
+      bens_da_nota_fiscal: {
+        Args: { _fornecedor: string; _numero: string }
+        Returns: {
+          ano_empenho: string | null
+          ano_pedido: string | null
+          codigo_red: string
+          conferencia_finalizada: boolean
+          conferido: boolean
+          created_at: string
+          descricao: string
+          empenho: string | null
+          fornecedor: string | null
+          id: string
+          importacao_id: string | null
+          incorporacao: string | null
+          nota_fiscal: string | null
+          observacao: string | null
+          pedido: string | null
+          sala_id: string | null
+          status: string
+          tipo: string | null
+          user_id: string
+          valor: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "bens"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       buscar_ultima_transferencia: { Args: { _codigo: string }; Returns: Json }
       can_edit: { Args: { _user_id: string }; Returns: boolean }
@@ -898,6 +923,12 @@ export type Database = {
         Args: { _sala: string; _termo: string }
         Returns: Json
       }
+      fornecedores_notas_fiscais: {
+        Args: never
+        Returns: {
+          fornecedor: string
+        }[]
+      }
       has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -912,15 +943,6 @@ export type Database = {
           _bens: Json
           _cabecalho: Json
           _sala_id: string
-        }
-        Returns: Json
-      }
-      importar_bens_html_multiplos_locais: {
-        Args: {
-          _departamento_id: string
-          _arquivo: string
-          _locais: Json
-          _gerar_termo: boolean
         }
         Returns: Json
       }
@@ -942,6 +964,15 @@ export type Database = {
           _cabecalho: Json
           _existentes: Json
           _sala_id: string
+        }
+        Returns: Json
+      }
+      importar_bens_html_multiplos_locais: {
+        Args: {
+          _arquivo: string
+          _departamento_id: string
+          _gerar_termo: boolean
+          _locais: Json
         }
         Returns: Json
       }
