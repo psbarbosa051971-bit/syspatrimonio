@@ -18,31 +18,35 @@ function nomeLocal(valor: string): string {
 }
 
 /** O título em negrito junto às colunas identifica o local, não os filtros do relatório. */
-function locaisEmNegrito(doc: Document): string[] {
-  const cabecalhos = Array.from(doc.querySelectorAll("td,th"))
-    .filter((el) => /^descricao(?:\s+do\s+bem)?$/.test(chave(el.textContent ?? "")));
+type MarcadorLocal = { elemento: Element; local: string };
+export type TermoHtmlExtraido = TermoExtraido & { locais: TermoExtraido[] };
+
+function locaisEmNegrito(doc: Document): MarcadorLocal[] {
   const negritos = Array.from(doc.querySelectorAll("b,strong,[style]"))
     .filter((el) => /^(B|STRONG)$/.test(el.tagName) || /font-weight\s*:\s*(?:bold|[6-9]00)/i.test(el.getAttribute("style") ?? ""));
-  const locais: string[] = [];
-  for (const cab of cabecalhos) {
-    const anteriores = negritos.filter((el) => Boolean(el.compareDocumentPosition(cab) & 4) && !el.contains(cab));
-    for (const el of anteriores.reverse()) {
-      const proprio = nomeLocal(el.textContent ?? "");
-      const contexto = el.closest("tr,p,div");
-      const conteudo = contexto?.tagName === "TR"
-        ? Array.from(contexto.children).map((celula) => celula.textContent ?? "").join(" ")
-        : contexto?.textContent ?? "";
-      const conjunto = contexto && !contexto.querySelector("table") ? nomeLocal(conteudo) : "";
-      const candidatos = [proprio, conjunto];
-      const local = candidatos.find((s) => /^\d+\s+[A-Za-zÀ-ÿ]/.test(s) && s.length < 400);
-      if (local) { locais.push(local); break; }
-    }
+  const locais: MarcadorLocal[] = [];
+  const vistos = new Set<Element>();
+  for (const el of negritos) {
+    if (el.querySelector("table,tr")) continue;
+    const contexto = el.closest("tr,p,div");
+    const elemento = contexto && !contexto.querySelector("table") ? contexto : el;
+    if (vistos.has(elemento)) continue;
+    const conteudo = elemento.tagName === "TR"
+      ? Array.from(elemento.children).map((celula) => celula.textContent ?? "").join(" ")
+      : elemento.textContent ?? "";
+    // Filtros do relatório e linhas de patrimônio não são títulos de local.
+    if (/Situa[çc][ãa]o\s+do\s+Bem|Par[âa]metro\s+de\s+Ordena[çc][ãa]o/i.test(conteudo)) continue;
+    if (elemento.tagName === "TR" && Array.from(elemento.children).some((celula) => moeda(celula.textContent ?? "") !== null)) continue;
+    if (/\d[.,]\d{2}(?:\s|$)|\d{2}[/.-]\d{2}[/.-]\d{4}/.test(conteudo)) continue;
+    const local = [nomeLocal(conteudo), nomeLocal(el.textContent ?? "")]
+      .find((s) => /^\d+\s+[A-Za-zÀ-ÿ]/.test(s) && s.length < 400);
+    if (local) { locais.push({ elemento, local }); vistos.add(elemento); }
   }
-  return [...new Set(locais)];
+  return locais;
 }
 
-/** Lê o documento sem executar scripts nem inserir o HTML na página. */
-export function parsearTermoHtml(html: string): TermoExtraido {
+/** Lê uma seção sem executar scripts nem inserir o HTML na página. */
+function parsearSecaoHtml(html: string, validarTotal = true): TermoExtraido {
   const doc = new DOMParser().parseFromString(html, "text/html");
   doc.querySelectorAll("script,style,noscript,template").forEach((el) => el.remove());
   const linhas = Array.from(doc.querySelectorAll("tr,p,div"))
@@ -77,17 +81,7 @@ export function parsearTermoHtml(html: string): TermoExtraido {
     }
     return "";
   }
-  const titulosLocais = locaisEmNegrito(doc);
-  const local = titulosLocais[0] || nomeLocal(campo(/^Local\s+F[ií]sico\s*:?/i) || campo(/^Local\s*:/i));
-  const codigosLocais = new Set<string>(titulosLocais.map((s) => s.match(/^\d+/)![0]));
-  for (const el of celulas) {
-    const s = texto(el.textContent ?? "");
-    if (!/^Local\s+F[ií]sico\s*:?/i.test(s)) continue;
-    const restante = s.replace(/^Local\s+F[ií]sico\s*:?\s*/i, "");
-    const codigo = (restante || texto(el.nextElementSibling?.textContent ?? "")).match(/^\d+/)?.[0];
-    if (codigo) codigosLocais.add(codigo);
-  }
-  if (codigosLocais.size > 1) throw new Error("O HTML contém mais de um Local Físico. Exporte e importe um local por arquivo para não misturar os bens.");
+  const local = locaisEmNegrito(doc)[0]?.local || nomeLocal(campo(/^Local\s+F[ií]sico\s*:?/i) || campo(/^Local\s*:/i));
   const bens: BemExtraido[] = [];
   let suspeitos = 0;
   const codigosEncontrados = new Set<string>();
@@ -133,7 +127,7 @@ export function parsearTermoHtml(html: string): TermoExtraido {
     throw new Error("O HTML contém linhas de bens que não puderam ser lidas por completo. Nada foi importado; envie o arquivo para ajustar a leitura.");
   }
   const total = completo.match(/(?:quantidade\s+(?:total\s+)?(?:de\s+)?(?:bens|itens)|total\s+(?:de\s+)?(?:bens|itens))\s*:?\s*([\d.]+)/i);
-  if (total && Number(total[1]!.replace(/\./g, "")) !== unicos.size) {
+  if (validarTotal && total && Number(total[1]!.replace(/\./g, "")) !== unicos.size) {
     throw new Error(`O relatório informa ${total[1]} bens, mas foram reconhecidos ${unicos.size} códigos únicos. Nada foi importado; confira o arquivo completo.`);
   }
   return { cabecalho: { local,
@@ -169,7 +163,84 @@ function extrairSemColunas(doc: Document, bens: BemExtraido[], codigos: Set<stri
   }
 }
 
-export async function extrairTermoDeHtml(file: File): Promise<TermoExtraido> {
+/** Separa o relatório na ordem do documento, nunca pela lista de filtros. */
+export function parsearTermoHtml(html: string): TermoHtmlExtraido {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("script,style,noscript,template").forEach((el) => el.remove());
+  const marcadores = locaisEmNegrito(doc);
+  const temTitulos = marcadores.length > 0;
+  for (const el of Array.from(doc.querySelectorAll("td,th,p,div"))) {
+    if (el.querySelector("table,tr,p,div")) continue;
+    const conteudo = texto(el.textContent ?? "");
+    if (!/^Local\s+F[ií]sico\s*:?/i.test(conteudo)) continue;
+    if (temTitulos && /Situa[çc][ãa]o\s+do\s+Bem|Par[âa]metro/i.test(conteudo)) continue;
+    const linha = el.closest("tr");
+    const partes = [conteudo];
+    let seguinte = el.nextElementSibling;
+    while (linha && seguinte && !rotulos.test(chave(seguinte.textContent ?? ""))) {
+      partes.push(texto(seguinte.textContent ?? "")); seguinte = seguinte.nextElementSibling;
+    }
+    const local = nomeLocal(partes.join(" "));
+    if (local && local.length < 400 && !rotulos.test(chave(local))) marcadores.push({ elemento: linha ?? el, local });
+  }
+  marcadores.sort((a, b) => a.elemento === b.elemento ? 0 : a.elemento.compareDocumentPosition(b.elemento) & 4 ? -1 : 1);
+  const limites: MarcadorLocal[] = [];
+  const identidade = (local: string) => local.match(/^\d+/)?.[0].replace(/^0+(?=\d)/, "") ?? chave(local);
+  for (const marcador of marcadores) {
+    if (identidade(limites.at(-1)?.local ?? "") !== identidade(marcador.local)) limites.push(marcador);
+  }
+  if (limites.length <= 1) {
+    const termo = parsearSecaoHtml(html);
+    return { ...termo, locais: [termo] };
+  }
+  const grupos = new Map<string, TermoExtraido>();
+  const destinoPorCodigo = new Map<string, string>();
+  for (let i = 0; i < limites.length; i++) {
+    const marcador = limites[i]!;
+    const intervalo = doc.createRange();
+    intervalo.setStartBefore(marcador.elemento);
+    const proximo = limites[i + 1];
+    if (proximo) intervalo.setEndBefore(proximo.elemento);
+    else intervalo.setEnd(doc.body, doc.body.childNodes.length);
+    const fragmento = intervalo.cloneContents();
+    const recipiente = doc.createElement("div");
+    const raiz = fragmento.firstElementChild?.tagName;
+    if (raiz === "TR" || raiz === "TBODY" || raiz === "THEAD") {
+      const tabela = doc.createElement("table"); tabela.append(fragmento); recipiente.append(tabela);
+    } else recipiente.append(fragmento);
+    // A última seção pode conter o total geral; ele é conferido após reunir os locais.
+    const termo = parsearSecaoHtml(recipiente.innerHTML, false);
+    termo.cabecalho.local = marcador.local;
+    const idLocal = identidade(marcador.local);
+    for (const bem of termo.bens) {
+      const codigo = bem.codigo_red.replace(/^0+(?=\d)/, "");
+      const anterior = destinoPorCodigo.get(codigo);
+      if (anterior && anterior !== idLocal) throw new Error(`O patrimônio ${bem.codigo_red} aparece em mais de um Local Físico no HTML. Nada foi importado; confira o arquivo.`);
+      destinoPorCodigo.set(codigo, idLocal);
+    }
+    const anterior = grupos.get(idLocal);
+    if (anterior) anterior.bens = [...new Map([...anterior.bens, ...termo.bens].map((bem) => [bem.codigo_red, bem])).values()];
+    else grupos.set(idLocal, termo);
+  }
+  const locais = [...grupos.values()];
+  const bens = locais.flatMap((local) => local.bens);
+  // Confere também o documento inteiro: nenhuma linha pode ficar fora das seções.
+  const completo = parsearSecaoHtml(html, false);
+  const lidos = new Set(bens.map((b) => b.codigo_red));
+  if (completo.bens.some((b) => !lidos.has(b.codigo_red))) {
+    throw new Error("Há patrimônios sem Local Físico identificado no HTML. Nada foi importado; confira os títulos dos locais.");
+  }
+  const totais = Array.from(doc.querySelectorAll("tr,p,div"))
+    .filter((el) => !el.querySelector("tr,p,div"))
+    .map((el) => texto(el.textContent ?? ""))
+    .map((linha) => linha.match(/(?:quantidade\s+(?:total\s+)?(?:de\s+)?(?:bens|itens)|total\s+(?:geral\s+)?(?:de\s+)?(?:bens|itens))\s*:?\s*([\d.]+)/i))
+    .filter((m) => m !== null);
+  const geral = totais.length === 1 ? totais[0] : totais.find((m) => /geral/i.test(m[0]));
+  if (geral && Number(geral[1]!.replace(/\./g, "")) !== bens.length) throw new Error(`O total do relatório não corresponde aos ${bens.length} patrimônios reconhecidos. Nada foi importado; confira o arquivo completo.`);
+  return { cabecalho: locais[0]!.cabecalho, bens, locais };
+}
+
+export async function extrairTermoDeHtml(file: File): Promise<TermoHtmlExtraido> {
   if (!/\.html?$/i.test(file.name)) throw new Error("Selecione um arquivo HTML (.html ou .htm) exportado pelo Sonner.");
   const bytes = await file.arrayBuffer();
   const utf8 = new TextDecoder("utf-8").decode(bytes);

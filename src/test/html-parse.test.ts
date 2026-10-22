@@ -39,10 +39,53 @@ describe("importação HTML", () => {
     expect(termo.cabecalho.local).toBe("58195 Escola");
   });
 
-  it("não mistura dois locais identificados nos títulos", () => {
-    expect(() => parsearTermoHtml(`<table><tr><td><b>58195 Escola A</b></td></tr>${colunas}${bem(100001)}</table>
-      <table><tr><td><b>58196 Escola B</b></td></tr>${colunas}${bem(100002)}</table>`))
-      .toThrow("mais de um Local Físico");
+  it("separa os patrimônios de cada local identificado nos títulos", () => {
+    const termo = parsearTermoHtml(`<table><tr><td><b>58195 Escola A</b></td></tr>${colunas}${bem(100001)}</table>
+      <table><tr><td><b>58196 Escola B</b></td></tr>${colunas}${bem(100002)}</table>`);
+    expect(termo.locais.map((local) => [local.cabecalho.local, local.bens.map((b) => b.codigo_red)]))
+      .toEqual([["58195 Escola A", ["100001"]], ["58196 Escola B", ["100002"]]]);
+    expect(termo.bens).toHaveLength(2);
+  });
+
+  it("separa locais dentro da mesma tabela e reúne páginas do mesmo local", () => {
+    const titulo = (local: string) => `<tr><td colspan="5"><b>${local}</b></td></tr>`;
+    const termo = parsearTermoHtml(`<table>${titulo("58195 Escola A")}${colunas}${bem(100001)}
+      ${titulo("58196 Escola B")}${colunas}${bem(100002)}
+      ${titulo("58195 Escola A")}${colunas}${bem(100003)}</table><p>Total de bens: 3</p>`);
+    expect(termo.locais).toHaveLength(2);
+    expect(termo.locais[0]?.bens.map((b) => b.codigo_red)).toEqual(["100001", "100003"]);
+    expect(termo.locais[1]?.bens.map((b) => b.codigo_red)).toEqual(["100002"]);
+  });
+
+  it("recusa um patrimônio atribuído a dois locais diferentes", () => {
+    expect(() => parsearTermoHtml(`<table><tr><td><b>58195 Escola A</b></td></tr>${colunas}${bem(100001)}
+      <tr><td><b>58196 Escola B</b></td></tr>${colunas}${bem(100001)}</table>`))
+      .toThrow("patrimônio 100001 aparece em mais de um Local Físico");
+  });
+
+  it("separa locais rotulados sem negrito e preserva seus endereços", () => {
+    const termo = parsearTermoHtml(`${cabecalho}<table>${colunas}${bem(100001)}</table>
+      <table><tr><td>Local Físico:</td><td>58196</td><td>Escola B</td></tr>
+      <tr><td>Endereço:</td><td>Rua B, 20</td></tr>${colunas}${bem(100002)}</table>`);
+    expect(termo.locais.map((l) => [l.cabecalho.local, l.cabecalho.endereco, l.bens[0]?.codigo_red]))
+      .toEqual([["58195 C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES", "Rua da Escola, 10", "100001"],
+        ["58196 Escola B", "Rua B, 20", "100002"]]);
+  });
+
+  it("separa locais indicados em parágrafos sem negrito", () => {
+    const termo = parsearTermoHtml(`<p>Local Físico: 58195 Escola A; Situação do Bem: Ativo;</p>
+      <table>${colunas}${bem(100001)}</table>
+      <p>Local Físico: 58196 Escola B; Situação do Bem: Ativo;</p>
+      <table>${colunas}${bem(100002)}</table>`);
+    expect(termo.locais.map((l) => l.cabecalho.local)).toEqual(["58195 Escola A", "58196 Escola B"]);
+    expect(termo.locais[1]?.bens[0]?.codigo_red).toBe("100002");
+  });
+
+  it("não ignora bens que estejam antes do primeiro local identificado", () => {
+    expect(() => parsearTermoHtml(`<table>${colunas}${bem(100000)}
+      <tr><td><b>58195 Escola A</b></td></tr>${colunas}${bem(100001)}
+      <tr><td><b>58196 Escola B</b></td></tr>${colunas}${bem(100002)}</table>`))
+      .toThrow("patrimônios sem Local Físico identificado");
   });
 
   it("lê a continuação sem repetir o cabeçalho das colunas", () => {

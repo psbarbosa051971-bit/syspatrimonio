@@ -765,6 +765,56 @@ function DepartamentosPage() {
         .split(/\s*;\s*|\s*(?:SITUA[ÇC][ÃA]O\s+DO\s+BEM|PAR[ÂA]METRO\s+DE\s+ORDENA[ÇC][ÃA]O)\s*:/)[0]!.trim()
         .replace(/^(\d+)\s*[-–—]?\s*(?=[A-ZÀ-Ú])/, "$1-");
       const semCodigo = (s: string) => norm(s).replace(/^\d+\s*[-–—]?\s*/, "");
+      const locais = termo.locais ?? [termo];
+      if (locais.length > 1) {
+        const planos = [];
+        const destinos = new Set<string>();
+        for (const [indice, local] of locais.entries()) {
+          const nome = local.cabecalho.local.trim();
+          if (!nome) throw new Error("Um dos locais físicos não foi identificado. Nada foi importado.");
+          const codigo = nome.match(/^\d+/)?.[0];
+          let candidatas = salas.filter((s) => codigo
+            ? s.nome.match(/^\d+/)?.[0] === codigo : norm(s.nome) === norm(nome));
+          if (!candidatas.length) candidatas = salas.filter((s) =>
+            !/^\d+[-–—]/.test(norm(s.nome)) && semCodigo(s.nome) === semCodigo(nome));
+          if (candidatas.length > 1) throw new Error(`Há mais de um cadastro para ${nome}. Corrija os locais antes de importar.`);
+          const alvo = candidatas[0] ?? null;
+          if (alvo && destinos.has(alvo.id)) throw new Error("Dois locais do HTML apontam para a mesma sala. Corrija os cadastros; nada foi importado.");
+          if (alvo) destinos.add(alvo.id);
+          const { data: existentes, error } = await supabase.rpc("consultar_bens_importacao", {
+            _bens: local.bens.map((b) => ({ ...b })),
+          });
+          if (error) throw error;
+          const conflitos = (existentes ?? []).filter((b) => b.sala_id !== alvo?.id && b.sala_id !== null);
+          if (!await confirmarImportacao(`${indice + 1}/${locais.length} — ${nome}`, local.bens.length, conflitos)) return;
+          planos.push({ sala_id: alvo?.id ?? null, cabecalho: { ...local.cabecalho },
+            bens: local.bens.map((b) => ({ ...b })), existentes: (existentes ?? []).map((b) => ({ ...b })) });
+        }
+        const gerarTermo = await escolherGeracaoTermo();
+        if (gerarTermo === null) return;
+        const { data, error } = await supabase.rpc("importar_bens_html_multiplos_locais", {
+          _departamento_id: departamentoSel.id, _arquivo: file.name, _locais: planos, _gerar_termo: gerarTermo,
+        });
+        if (error) throw error;
+        if (!Array.isArray(data) || data.length !== locais.length) throw new Error("Não foi possível confirmar o resultado da importação. Atualize a página antes de tentar novamente.");
+        const resultados = data as { sala: Sala; importacao_id: string | null; novos: number; transferidos: number; termo_numero: string | number | null }[];
+        const atualizadas = resultados.map((r) => r.sala);
+        setSalas((prev) => [...prev.filter((s) => !atualizadas.some((a) => a.id === s.id)), ...atualizadas]);
+        const primeiro = resultados[0]!;
+        setNovaSala({ nome: primeiro.sala.nome, endereco: primeiro.sala.endereco ?? "" });
+        cabecalhoPendente.current = { ...locais[0]!.cabecalho, local: primeiro.sala.nome,
+          endereco: primeiro.sala.endereco ?? "" };
+        setSalaSel(primeiro.sala);
+        setUnidadeLiberadaSalaId(primeiro.sala.id);
+        setUltimaImportacao(primeiro.importacao_id ?? "");
+        setResultadoPesquisa(null);
+        setTermoSelecionado(null);
+        setTentativaBens((v) => v + 1);
+        setBensParaTransferir([]);
+        toast.success(`${termo.bens.length} patrimônios importados em ${locais.length} locais físicos, cada um no seu destino. ` +
+          (gerarTermo ? `${resultados.length} termos criados, um por local. Selecione o local para imprimir seu termo.` : "Sem gerar números de termo."));
+        return;
+      }
       let sala = salas.find((s) => norm(s.nome) === norm(nomeLocal)) ?? null;
       if (!sala && /^\d+(?:\s|[-–—])/.test(nomeLocal)) {
         // Reaproveita o cadastro antigo sem código e sem os filtros do relatório.
@@ -974,7 +1024,7 @@ function DepartamentosPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Deseja gerar um número de termo?</AlertDialogTitle>
             <AlertDialogDescription>
-              Sim: importa os bens e cria um termo numerado. Não: importa os bens sem criar termo e sem consumir um número da sequência.
+              Sim: importa os bens e cria um termo numerado para cada local físico do HTML. Não: importa os bens em seus respectivos locais, sem criar termos nem consumir números da sequência.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

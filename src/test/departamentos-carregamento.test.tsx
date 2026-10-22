@@ -143,6 +143,56 @@ async function importarParaLiberarUnidade() {
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("envia vários locais separados em uma única importação após todas as confirmações", async () => {
+    const locais = [
+      { cabecalho: { local: "58195 Escola A", endereco: "Rua A", data: "", historico: "" },
+        bens: [{ codigo_red: "100001", descricao: "Mesa A", valor: 10 }] },
+      { cabecalho: { local: "58196 Escola B", endereco: "Rua B", data: "", historico: "" },
+        bens: [{ codigo_red: "100002", descricao: "Mesa B", valor: 20 }] },
+    ];
+    mocks.extrairHtml.mockResolvedValue({ ...locais[0], bens: locais.flatMap((l) => l.bens), locais });
+    mocks.rpc.mockResolvedValue({ data: locais.map((l, i) => ({
+      sala: { ...sala, id: `nova-${i}`, nome: l.cabecalho.local, endereco: l.cabecalho.endereco },
+      importacao_id: null, novos: 1, transferidos: 0,
+    })), error: null });
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["html"], "locais.html", { type: "text/html" })] },
+    });
+    const primeira = await screen.findByRole("alertdialog", { name: /1\/2 — 58195 Escola A/ });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    fireEvent.click(within(primeira).getByRole("button", { name: "Sim" }));
+    const segunda = await screen.findByRole("alertdialog", { name: /2\/2 — 58196 Escola B/ });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    fireEvent.click(within(segunda).getByRole("button", { name: "Sim" }));
+    const numeracao = await screen.findByRole("alertdialog", { name: "Deseja gerar um número de termo?" });
+    fireEvent.click(within(numeracao).getByRole("button", { name: "Não" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_multiplos_locais", {
+      _departamento_id: "dep", _arquivo: "locais.html", _gerar_termo: false,
+      _locais: locais.map((l) => ({ ...l, sala_id: null, existentes: [] })),
+    }));
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
+  });
+
+  it("cancelar a confirmação de qualquer local não grava nenhum deles", async () => {
+    const locais = ["58195 Escola A", "58196 Escola B"].map((local, i) => ({
+      cabecalho: { local, endereco: "", data: "", historico: "" },
+      bens: [{ codigo_red: `10000${i}`, descricao: "Mesa", valor: 10 }],
+    }));
+    mocks.extrairHtml.mockResolvedValue({ ...locais[0], bens: locais.flatMap((l) => l.bens), locais });
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["html"], "locais.html", { type: "text/html" })] },
+    });
+    fireEvent.click(within(await screen.findByRole("alertdialog", { name: /1\/2 —/ })).getByRole("button", { name: "Sim" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog", { name: /2\/2 —/ })).getByRole("button", { name: "Não" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.atualizarSala).not.toHaveBeenCalled();
+  });
+
   it("reúne as ações acima dos painéis e reserva mais espaço para os termos", async () => {
     const { container } = render(<Page />);
     await screen.findByText("Mesa cadastrada");

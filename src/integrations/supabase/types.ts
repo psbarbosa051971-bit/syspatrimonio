@@ -915,6 +915,15 @@ export type Database = {
         }
         Returns: Json
       }
+      importar_bens_html_multiplos_locais: {
+        Args: {
+          _departamento_id: string
+          _arquivo: string
+          _locais: Json
+          _gerar_termo: boolean
+        }
+        Returns: Json
+      }
       importar_bens_html_com_opcao: {
         Args: {
           _arquivo: string
