@@ -75,9 +75,9 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(html).toContain("DATA DE RECEBIMENTO ____/____/________");
   });
 
-  it("gera duas vias completas na mesma folha por termo", () => {
+  it("gera duas vias em folhas separadas, em paisagem", () => {
     const html = htmlDoTermo(registro());
-    expect(html.match(/class="folha"/g)).toHaveLength(1);
+    expect(html.match(/class="folha"/g)).toHaveLength(2);
     expect(html.match(/class="via"/g)).toHaveLength(2);
     expect(html.match(/TERMO DE RESPONSABILIDADE Nº 2561\/2026/g)).toHaveLength(2);
     expect(html.match(/LISTADO\(S\) GERAL: 3/g)).toHaveLength(2);

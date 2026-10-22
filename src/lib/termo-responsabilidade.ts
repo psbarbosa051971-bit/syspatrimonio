@@ -162,7 +162,7 @@ function htmlViasPaisagem(termos: TermoResponsabilidade[]): string {
 }
 
 export function htmlDoTermo(termo: TermoResponsabilidade): string {
-  return htmlDosTermos([termo]);
+  return htmlDosTermos([termo], "vias-paisagem");
 }
 
 /** Executar após o iframe carregar: ajusta todo o conteúdo sem cortar bens ou assinaturas. */
