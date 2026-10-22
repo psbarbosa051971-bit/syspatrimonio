@@ -48,7 +48,7 @@ describe("termos por lote", () => {
     expect(mocks.gte).toHaveBeenCalledWith("created_at", "2026-10-10T00:00:00-03:00");
     expect(mocks.lt).toHaveBeenCalledWith("created_at", "2026-10-12T00:00:00-03:00");
     expect(mocks.range).toHaveBeenCalledWith(0, 499);
-    expect(screen.getByRole("button", { name: "Imprimir", exact: true })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Imprimir$/ })).toBeDisabled();
   });
 
   it("recusa datas invertidas sem consultar", () => {
@@ -61,7 +61,7 @@ describe("termos por lote", () => {
     abrir(); datas();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Selecionar termo 11/2026" }));
     expect(screen.getByText("1 termo(s) selecionado(s) · 2 folha(s) · 2 vias")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Imprimir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Imprimir$/ }));
     const iframe = await screen.findByTitle("Termos de responsabilidade por lote — duas vias") as HTMLIFrameElement;
     expect(mocks.ids).toHaveBeenCalledWith(["dois"]);
     const html = iframe.getAttribute("srcdoc")!;
@@ -86,6 +86,6 @@ describe("termos por lote", () => {
     expect(screen.getByRole("checkbox", { name: "Selecionar termo 11/2026" })).toBeChecked();
     fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-10-12" } });
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "Selecionar todos os termos" })).not.toBeChecked());
-    expect(screen.getByRole("button", { name: "Imprimir", exact: true })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Imprimir$/ })).toBeDisabled();
   });
 });
