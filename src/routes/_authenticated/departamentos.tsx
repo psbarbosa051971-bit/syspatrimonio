@@ -1710,6 +1710,8 @@ function DepartamentosPage() {
                 ["Empenho", termoBem.empenho],
                 ["Ano Empenho", termoBem.ano_empenho],
                 ["Ano Pedido", termoBem.ano_pedido],
+                ["Valor", termoBem.valor != null && String(termoBem.valor) !== "" && Number.isFinite(Number(termoBem.valor))
+                  ? Number(termoBem.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : null],
               ] as [string, string | null, boolean?][]).map(([rotulo, valor, largo]) => (
                 <div key={rotulo} className={largo ? "col-span-2" : ""}>
                   <Label className="text-xs text-muted-foreground">{rotulo}</Label>
