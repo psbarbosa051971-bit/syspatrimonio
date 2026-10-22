@@ -105,7 +105,8 @@ function htmlViaDoTermo(termo: TermoResponsabilidade): string {
 }
 
 /** Duas vias por termo: lado a lado por padrão ou em folhas A4 separadas. */
-export function htmlDosTermos(termos: TermoResponsabilidade[], layout: "lado-a-lado" | "vias-separadas" = "lado-a-lado"): string {
+export function htmlDosTermos(termos: TermoResponsabilidade[], layout: "lado-a-lado" | "vias-separadas" | "vias-paisagem" = "lado-a-lado"): string {
+  if (layout === "vias-paisagem") return htmlViasPaisagem(termos);
   if (!termos.length) throw new Error("Selecione pelo menos um termo para imprimir.");
   const separadas = layout === "vias-separadas";
   const documentos = termos.map(htmlViaDoTermo);
@@ -129,6 +130,32 @@ export function htmlDosTermos(termos: TermoResponsabilidade[], layout: "lado-a-l
     th, td { padding: 3px; } th { font-size: 9px; }
     .assinaturas { gap: 8px; margin-top: 12px; font-size: 9px; }
     .assinatura { min-height: 160px; padding: 6px; } .linha { margin-top: 28px; }`}
+    .numero-via { text-align: right; font-weight: bold; margin: 0 0 4px; }
+    @media screen { .folha { margin: 12px auto; background: oklch(1 0 0); } }
+  </style></head><body>${folhas}</body></html>`;
+}
+
+/**
+ * Lote em paisagem: cada via começa sempre em uma folha física nova (página ímpar),
+ * então mesmo com frente e verso a 2ª via nunca fica no verso da 1ª. Uma via longa
+ * continua no verso da própria folha.
+ */
+function htmlViasPaisagem(termos: TermoResponsabilidade[]): string {
+  const documentos = termos.map(htmlViaDoTermo);
+  const primeiro = documentos[0]!;
+  const estilos = primeiro.slice(primeiro.indexOf("<style>") + 7, primeiro.indexOf("</style>")).replace(/@page\s*\{[^}]*\}/g, "");
+  const folhas = documentos.flatMap((html) => {
+    const conteudo = html.slice(html.indexOf('<main class="documento">'), html.indexOf("</body>"));
+    return [1, 2].map((via) => `<section class="folha"><div class="via"><p class="numero-via">${via}ª VIA</p>${conteudo}</div></section>`);
+  }).join("");
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termos de responsabilidade por lote</title><style>${estilos}
+    @page { size: A4 landscape; margin: 10mm; }
+    .folha { width: 277mm; margin: 0 auto; break-before: right; page-break-before: right; break-after: page; page-break-after: always; }
+    .folha:first-child { break-before: auto; page-break-before: auto; }
+    .folha:last-child { break-after: auto; page-break-after: auto; }
+    .via { width: 277mm; }
+    .documento { width: 100%; max-width: none; margin: 0; }
+    tr, .assinatura { break-inside: avoid; }
     .numero-via { text-align: right; font-weight: bold; margin: 0 0 4px; }
     @media screen { .folha { margin: 12px auto; background: oklch(1 0 0); } }
   </style></head><body>${folhas}</body></html>`;
