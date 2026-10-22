@@ -8,6 +8,7 @@ vi.mock("@/hooks/use-auth", () => ({ useAuth: () => ({ user: { id: "usuario" } }
 vi.mock("sonner", () => ({ toast: { error: mocks.erro, success: mocks.sucesso } }));
 vi.mock("@/lib/notas-fiscais", async (original) => ({ ...await original<typeof import("@/lib/notas-fiscais")>(), lerArquivoNota: mocks.lerArquivo }));
 vi.mock("@/components/DocumentoNotaFiscal", () => ({ DocumentoNotaFiscal: () => <article>Documento da nota</article> }));
+vi.mock("@/components/DanfeNotaFiscal", () => ({ DanfeNotaFiscal: () => <section aria-label="DANFE da nota">Prévia do DANFE</section> }));
 
 const nota = { numero: "614", serie: "1", chave: "1".repeat(44), emitente: { nome: "Fornecedor A", documento: "12345678000123" } };
 const file = () => new File(["<NFe />"], "nota.xml", { type: "application/xml" });
@@ -86,6 +87,10 @@ describe("Formulário Notas Fiscais", () => {
     fireEvent.change(screen.getByLabelText(/Anexar XML/), { target: { files: [file()] } });
     await screen.findByText("Prévia do XML — ainda não salvo");
     expect(screen.getByText("Documento da nota")).toBeInTheDocument();
+    const dadosXml = screen.getByText("Dados do XML").parentElement!;
+    const danfe = screen.getByRole("region", { name: "DANFE da nota" });
+    expect(dadosXml.parentElement).toHaveClass("lg:grid-cols-2");
+    expect(dadosXml.nextElementSibling).toBe(danfe);
     expect(screen.getByRole("button", { name: "Salvar XML da nota" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Salvar XML da nota" }));
