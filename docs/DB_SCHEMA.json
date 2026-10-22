@@ -2116,7 +2116,7 @@
       "trigger": "numerar_recebimento_veiculo_trigger"
     }
   ],
-  "gerado_em": "2026-10-22T11:27:27.038881+00:00",
+  "gerado_em": "2026-10-22T11:27:33.745935+00:00",
   "rls_ativo": {
     "bens": true,
     "salas": true,
@@ -2355,5 +2355,5 @@
       "trigger": "on_auth_user_created"
     }
   ],
-  "geckoai_sincronizado_em": "2026-10-22T11:27:28.329Z"
+  "geckoai_sincronizado_em": "2026-10-22T11:27:34.865Z"
 }
