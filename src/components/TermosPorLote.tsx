@@ -78,7 +78,7 @@ export function TermosPorLote() {
       }
       if (termos.length !== ids.length) throw new Error("Algum termo não está mais disponível. Atualize a listagem e selecione novamente.");
       const porId = new Map(termos.map((t) => [t.id, t]));
-      const documento = htmlDosTermos(ids.map((id) => porId.get(id)!), "vias-separadas");
+      const documento = htmlDosTermos(ids.map((id) => porId.get(id)!), "vias-paisagem");
       if (atual === versao.current) { imprimirAoAbrir.current = true; setHtml(documento); }
     } catch (e) { if (atual === versao.current) setErro(e instanceof Error ? e.message : "Não foi possível preparar a impressão."); }
     finally { setPreparando(false); }
@@ -95,7 +95,7 @@ export function TermosPorLote() {
       <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-5xl flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Termos por lote</DialogTitle>
-          <DialogDescription>Selecione o período de criação dos termos, incluindo as duas datas (horário de Brasília). A lista inclui todos os locais físicos que você pode consultar. Cada termo será impresso em duas vias, cada uma em uma folha A4 separada, em retrato.</DialogDescription>
+          <DialogDescription>Selecione o período de criação dos termos, incluindo as duas datas (horário de Brasília). A lista inclui todos os locais físicos que você pode consultar. Cada termo será impresso em duas vias, em A4 paisagem. Cada via começa em uma folha nova, mesmo com frente e verso ligado; se uma via não couber em uma página, continua no verso da própria folha.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5"><Label htmlFor="lote-data-inicial">Data inicial</Label><Input id="lote-data-inicial" type="date" value={inicial} disabled={preparando} onChange={(e) => setInicial(e.target.value)} /></div>

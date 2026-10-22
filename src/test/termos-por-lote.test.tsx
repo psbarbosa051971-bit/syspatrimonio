@@ -67,8 +67,8 @@ describe("termos por lote", () => {
     const html = iframe.getAttribute("srcdoc")!;
     expect(html.match(/class="folha"/g)).toHaveLength(2);
     expect(html.match(/class="via"/g)).toHaveLength(2);
-    expect(html).toContain("size: A4 portrait");
-    expect(html).not.toContain("size: A4 landscape");
+    expect(html).toContain("size: A4 landscape");
+    expect(html).toContain("break-before: right");
     expect(html).toContain("Nº 11/2026");
     expect(html).not.toContain("Nº 10/2026");
     const print = vi.spyOn(iframe.contentWindow!, "print").mockImplementation(() => {});
