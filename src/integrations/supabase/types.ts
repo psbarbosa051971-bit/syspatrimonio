@@ -980,6 +980,7 @@ export type Database = {
         Args: { _arquivo: string; _bens: Json; _sala_id: string }
         Returns: Json
       }
+      incluir_bens_fornecedor: { Args: { _itens: Json }; Returns: number }
       incluir_bens_no_termo: {
         Args: { _itens: string[]; _sala: string; _termo: string }
         Returns: Json
