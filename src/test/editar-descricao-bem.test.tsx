@@ -37,7 +37,7 @@ describe("edição da descrição do bem", () => {
     fireEvent.change(campo, { target: { value: " VEÍCULO FIAT " } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar descrição" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ descricao: "VEÍCULO FIAT" })));
-    expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "VEÍCULO FIAT", valor: null });
+    expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "VEÍCULO FIAT" });
     expect(mocks.eq).toHaveBeenCalledWith("id", "bem-1");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });

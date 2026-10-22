@@ -22,7 +22,7 @@ export function EditarDescricaoBem({ bem, onSaved }: { bem: Bem; onSaved: (bem: 
     if (salvando || !descricao.trim()) return;
     setSalvando(true);
     try {
-      const { data, error } = await supabase.from("bens").update({ descricao: descricao.trim(), valor: valor ? Number(valor) : null })
+      const { data, error } = await supabase.from("bens").update({ descricao: descricao.trim(), ...(valor ? { valor: Number(valor) } : {}) })
         .eq("id", bem.id).select("*").single();
       if (error || !data) throw error ?? new Error("Bem não atualizado");
       onSaved(data);
