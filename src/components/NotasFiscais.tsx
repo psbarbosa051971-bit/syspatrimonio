@@ -8,7 +8,7 @@ import { formatarCodigoRed } from "@/lib/codigo-red";
 import { carregarFornecedoresNotas } from "@/lib/fornecedores-notas-fiscais";
 import { lerArquivoNota, lerNotaFiscalXml, moedaNota, normalizarNumeroNota, type NotaFiscalXml } from "@/lib/notas-fiscais";
 import { DocumentoNotaFiscal } from "@/components/DocumentoNotaFiscal";
-import { DanfeNotaFiscal } from "@/components/DanfeNotaFiscal";
+import { DanfeOriginalNotaFiscal } from "@/components/DanfeOriginalNotaFiscal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +51,7 @@ export function NotasFiscais({ fornecedorImportado = "" }: { fornecedorImportado
     <Button variant="ghost" size="sm" onClick={() => setAberto(true)} className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"><FileText className="mr-2 h-4 w-4" />Notas Fiscais</Button>
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogContent className="flex max-h-[94dvh] w-[calc(100%_-_1rem)] max-w-[1600px] flex-col gap-4 overflow-hidden p-4 sm:p-6">
-        <DialogHeader className="shrink-0 pr-6"><DialogTitle>Notas Fiscais</DialogTitle><DialogDescription>Selecione o fornecedor e digite o número da nota para consultar os dados do XML, a prévia do DANFE ao lado e os bens já cadastrados, em todas as salas disponíveis para sua conta.</DialogDescription></DialogHeader>
+        <DialogHeader className="shrink-0 pr-6"><DialogTitle>Notas Fiscais</DialogTitle><DialogDescription>Selecione o fornecedor e digite o número da nota para consultar os dados do XML, anexar ou visualizar o DANFE original em PDF ao lado e consultar os bens já cadastrados nas salas disponíveis para sua conta.</DialogDescription></DialogHeader>
         <div className="grid shrink-0 gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-[2fr_1fr]">
           <div className="min-w-0 space-y-1"><Label htmlFor="nf-fornecedor">Fornecedor</Label><select id="nf-fornecedor" className={selectClass} value={fornecedor} disabled={carregando && !opcoesFornecedores.length} onChange={(e) => setFornecedor(e.target.value)}><option value="">{carregando ? "Carregando fornecedores…" : "Selecione o fornecedor"}</option>{opcoesFornecedores.map((f) => <option key={f} value={f}>{f}</option>)}</select></div>
           <div className="space-y-1"><Label htmlFor="nf-numero">Número da nota fiscal</Label><Input id="nf-numero" inputMode="numeric" autoComplete="off" placeholder="Ex.: 614 ou 000000614" value={numero} onChange={(e) => setNumero(e.target.value)} /></div>
@@ -173,7 +173,7 @@ function ConsultaNota({ fornecedor, numero }: { fornecedor: string; numero: stri
     </section>
     {lendo && !pendente ? <p role="status" className="p-4 text-muted-foreground">Abrindo XML da nota…</p> : exibida && <div className="grid items-start gap-4 lg:grid-cols-2">
       <div className="min-w-0 space-y-2"><h3 className="font-semibold">Dados do XML</h3><DocumentoNotaFiscal nota={exibida} /></div>
-      <DanfeNotaFiscal nota={exibida} />
+      <DanfeOriginalNotaFiscal key={pendente ? `previa:${pendente.nota.chave}` : id} nota={exibida} notaId={pendente ? "" : id} />
     </div>}
     <section className="space-y-3 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-semibold">Bens cadastrados referentes à nota</h3><p className="text-sm text-muted-foreground">{bens.length} bem(ns) · Fornecedor e nota nº {numero}, desconsiderando zeros à esquerda.</p></div><p className="font-semibold text-primary">Total dos bens: {moedaNota(bens.reduce((soma, bem) => soma + Number(bem.valor), 0))}</p></div>

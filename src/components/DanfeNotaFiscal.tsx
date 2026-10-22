@@ -26,7 +26,7 @@ export function DanfeNotaFiscal({ nota }: { nota: NotaFiscalXml }) {
   const url = documento?.nota === nota ? documento.url : "";
   return <section aria-label="DANFE da nota" className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-4 text-card-foreground">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-lg font-semibold">DANFE da nota</h3>
+      <h3 className="text-lg font-semibold">Prévia simplificada do XML</h3>
       {url && <div className="flex flex-wrap gap-3 text-sm">
         <a className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4" href={url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" />Abrir PDF</a>
         <a className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4" href={url} download={`DANFE-previa-${nota.numero}-serie-${nota.serie}.pdf`}><Download className="h-4 w-4" />Baixar PDF</a>

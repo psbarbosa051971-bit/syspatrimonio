@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      notas_fiscais_danfes: {
+        Row: {
+          nota_fiscal_id: string
+          arquivo_path: string
+          arquivo_nome: string
+          criado_por: string
+          criado_em: string
+        }
+        Insert: {
+          nota_fiscal_id: string
+          arquivo_path: string
+          arquivo_nome: string
+          criado_por: string
+          criado_em?: string
+        }
+        Update: {
+          nota_fiscal_id?: string
+          arquivo_path?: string
+          arquivo_nome?: string
+          criado_por?: string
+          criado_em?: string
+        }
+        Relationships: [{
+          foreignKeyName: "notas_fiscais_danfes_nota_fiscal_id_fkey"
+          columns: ["nota_fiscal_id"]
+          isOneToOne: true
+          referencedRelation: "notas_fiscais"
+          referencedColumns: ["id"]
+        }]
+      }
       notas_fiscais: {
         Row: {
           id: string

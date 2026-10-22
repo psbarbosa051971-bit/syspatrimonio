@@ -72,6 +72,13 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
     }
   }
 
+  function imprimirSemPreencher() {
+    if (!termo || salvando) return;
+    setErro("");
+    setHtml(htmlDoTermo(termo));
+    setPronto(false); imprimirAoAbrir.current = true; setEtapa("documento");
+  }
+
   async function salvarEImprimir(e: React.FormEvent) {
     e.preventDefault();
     if (!termo || salvando) return;
@@ -98,7 +105,7 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{transferencia ? "Deseja preencher o formulário Dados do recebimento?" : "Deseja imprimir o termo de Responsabilidade dessa importação?"}</AlertDialogTitle>
-          <AlertDialogDescription>{transferencia ? "A transferência foi concluída. Sim abre o formulário para informar o recebedor e imprimir o termo. Não fecha esta janela sem desfazer a transferência." : "A importação foi concluída. Ao clicar em OK, informe o recebedor e o CPF antes de imprimir. Cancelar mantém a importação sem abrir o formulário."}</AlertDialogDescription>
+          <AlertDialogDescription>{transferencia ? "A transferência foi concluída. Sim abre o formulário, onde você pode preencher o recebimento ou imprimir sem preencher. Não fecha esta janela sem desfazer a transferência." : "A importação foi concluída. Ao clicar em OK, você pode preencher o recebimento ou imprimir sem preencher. Cancelar mantém a importação sem abrir o formulário."}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>{transferencia ? "Não" : "Cancelar"}</AlertDialogCancel>
@@ -110,7 +117,7 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
       <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${etapa === "documento" ? "max-w-5xl" : "max-w-xl"}`}>
         <DialogHeader>
           <DialogTitle>{etapa === "documento" ? `Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}` : "Dados do recebimento"}</DialogTitle>
-          <DialogDescription>{etapa === "documento" ? "Os dados foram gravados neste termo. Imprima ou salve uma cópia em PDF." : "O responsável pela sala e seu CPF são preenchidos automaticamente pelo cadastro do local físico. Informe separadamente quem receberá os bens e seu CPF. Quem entrega é o usuário logado. A data do termo é a atual; a data de recebimento fica em branco para assinatura."}</DialogDescription>
+          <DialogDescription>{etapa === "documento" ? "Imprima ou salve uma cópia em PDF. A opção sem preencher usa os dados já registrados no termo, sem alterar o recebimento." : "Você pode imprimir sem preencher os campos abaixo. Para registrar o recebimento, informe o recebedor e seu CPF e clique em Imprimir. O responsável pela sala vem do cadastro do local físico. A data de recebimento fica em branco para assinatura."}</DialogDescription>
         </DialogHeader>
         {etapa === "formulario" && (carregando ? <p className="text-sm text-muted-foreground">Carregando dados {transferencia ? "da transferência" : "da importação"}...</p> : termo ? <form onSubmit={salvarEImprimir} className="space-y-4">
           <div className="space-y-1.5"><Label htmlFor="recebimento-responsavel-sala">Responsável pela Sala</Label>
@@ -133,8 +140,9 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
             <Input id="recebimento-data-termo" value={dataTermo} readOnly />
           </div>
           <p className="text-sm text-muted-foreground">Data de recebimento: ____/____/________ (preencher posteriormente no termo).</p>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="outline" disabled={salvando} onClick={onClose}>Cancelar</Button>
+            <Button type="button" variant="outline" disabled={salvando} onClick={imprimirSemPreencher}><Printer className="mr-2 h-4 w-4" />Imprimir sem preencher</Button>
             <Button type="submit" disabled={salvando || !entregador}><Printer className="mr-2 h-4 w-4" />{salvando ? "Gravando..." : "Imprimir"}</Button>
           </div>
         </form> : <Button variant="outline" onClick={() => setTentativa((valor) => valor + 1)}>Tentar novamente</Button>)}

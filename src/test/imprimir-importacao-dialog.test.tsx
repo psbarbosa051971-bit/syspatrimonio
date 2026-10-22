@@ -93,6 +93,22 @@ describe("impressão após a importação", () => {
     expect(mocks.imprimir).toHaveBeenCalled();
   });
 
+  it.each(["importacao", "transferencia", "novo-termo"] as const)("imprime sem preencher o recebimento na origem %s e sem gravar alterações", async (origem) => {
+    render(<ImprimirImportacaoDialog importacaoId="importacao" salaId="sala" usuarioId="usuario" origem={origem} onClose={vi.fn()} />);
+    if (origem !== "novo-termo") fireEvent.click(screen.getByRole("button", { name: origem === "transferencia" ? "Sim" : "OK" }));
+    expect(await screen.findByLabelText(nomeRecebedor)).toHaveValue("");
+    expect(screen.getByLabelText(cpfRecebedor)).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Imprimir sem preencher" }));
+    const frame = await screen.findByTitle("Termo desta importação");
+    expect(frame.getAttribute("srcdoc")).toContain("TERMO DE RESPONSABILIDADE Nº 21/2026");
+    expect(frame.getAttribute("srcdoc")).toContain("Mesa");
+    expect(frame.getAttribute("srcdoc")).toContain("Nome: ________________________________________");
+    expect(frame.getAttribute("srcdoc")).toContain("CPF: ______________________________");
+    esperarSemGravacao();
+    fireEvent.load(frame);
+    expect(mocks.imprimir).toHaveBeenCalledOnce();
+  });
+
   it("não grava nem abre o documento com CPF inválido", async () => {
     abrir(); await preencher();
     fireEvent.change(screen.getByLabelText(cpfRecebedor), { target: { value: "11111111111" } });

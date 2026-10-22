@@ -90,7 +90,9 @@ describe("Formulário Notas Fiscais", () => {
     const dadosXml = screen.getByText("Dados do XML").parentElement!;
     const danfe = screen.getByRole("region", { name: "DANFE da nota" });
     expect(dadosXml.parentElement).toHaveClass("lg:grid-cols-2");
-    expect(dadosXml.nextElementSibling).toBe(danfe);
+    expect(dadosXml.nextElementSibling).toContainElement(danfe);
+    expect(screen.getByRole("region", { name: "PDF original do DANFE" })).toBeInTheDocument();
+    expect(screen.getByText(/Salve primeiro o XML/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salvar XML da nota" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Salvar XML da nota" }));
