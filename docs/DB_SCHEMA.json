@@ -29,6 +29,12 @@
       "argumentos": "_checklist_id uuid, _codigo_red text, _sala_id uuid DEFAULT NULL::uuid"
     },
     {
+      "nome": "bens_da_nota_fiscal",
+      "retorno": "SETOF bens",
+      "definicao": "CREATE OR REPLACE FUNCTION public.bens_da_nota_fiscal(_fornecedor text, _numero text)\n RETURNS SETOF bens\n LANGUAGE sql\n STABLE\n SET search_path TO 'public'\nAS $function$\n SELECT b.* FROM public.bens b\n WHERE b.fornecedor = _fornecedor\n AND coalesce(nullif(ltrim(trim(b.nota_fiscal), '0'), ''), '0') = coalesce(nullif(ltrim(trim(_numero), '0'), ''), '0')\n AND nullif(trim(b.nota_fiscal), '') IS NOT NULL\n ORDER BY b.codigo_red, b.id;\n$function$\n",
+      "argumentos": "_fornecedor text, _numero text"
+    },
+    {
       "nome": "buscar_ultima_transferencia",
       "retorno": "jsonb",
       "definicao": "CREATE OR REPLACE FUNCTION public.buscar_ultima_transferencia(_codigo text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  transferencia uuid;\n  resultado jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para consultar transferências'; END IF;\n  IF _codigo IS NULL OR btrim(_codigo) !~ '^[0-9]+$' THEN RAISE EXCEPTION 'Digite apenas um código RED, somente com números'; END IF;\n  SELECT transferencia_id INTO transferencia FROM public.transferencias_bens_itens\n    WHERE codigo_red = btrim(_codigo) ORDER BY id DESC LIMIT 1;\n  IF NOT FOUND THEN RETURN NULL; END IF;\n  SELECT jsonb_build_object(\n    'id', transferencia, 'numero', min(t.numero), 'ano', min(t.termo_ano),\n    'data', min(t.created_at), 'destino', min(t.destino_nome),\n    'itens', jsonb_agg(jsonb_build_object(\n      'id', t.bem_id, 'codigo_red', t.codigo_red, 'descricao', t.descricao, 'valor', t.valor,\n      'origem', t.origem_nome, 'estornado_em', t.estornado_em,\n      'impedimento', CASE\n        WHEN t.estornado_em IS NOT NULL THEN 'Já estornado'\n        WHEN b.id IS NULL THEN 'Bem removido'\n        WHEN b.sala_id IS DISTINCT FROM t.destino_sala_id OR b.importacao_id IS DISTINCT FROM t.transferencia_id THEN 'Bem movimentado após esta transferência'\n        WHEN t.origem_sala_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.salas s WHERE s.id = t.origem_sala_id) THEN 'Sala de origem removida'\n        WHEN EXISTS (SELECT 1 FROM public.bens outro WHERE outro.id <> t.bem_id AND outro.codigo_red = t.codigo_red AND outro.sala_id IS NOT DISTINCT FROM t.origem_sala_id) THEN 'O local de origem já contém este código RED'\n        ELSE NULL END\n    ) ORDER BY t.codigo_red, t.id)\n  ) INTO resultado FROM public.transferencias_bens_itens t LEFT JOIN public.bens b ON b.id = t.bem_id\n    WHERE t.transferencia_id = transferencia;\n  RETURN resultado;\nEND;\n$function$\n",
@@ -69,6 +75,12 @@
       "retorno": "jsonb",
       "definicao": "CREATE OR REPLACE FUNCTION public.consultar_proximo_numero_transferencia()\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  proximo bigint;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para gerar transferência';\n  END IF;\n  SELECT ultimo_numero + 1 INTO proximo FROM public.termos_numeracao_contador WHERE id = true;\n  IF proximo IS NULL THEN RAISE EXCEPTION 'Numeração indisponível'; END IF;\n  RETURN jsonb_build_object('numero', proximo, 'ano', extract(year FROM timezone('America/Sao_Paulo', now()))::integer);\nEND;\n$function$\n",
       "argumentos": ""
+    },
+    {
+      "nome": "criar_termo_bens_sala",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.criar_termo_bens_sala(_sala uuid, _itens uuid[], _pedido uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  local_sala public.salas%ROWTYPE;\n  dept public.departamentos%ROWTYPE;\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\n  itens_snapshot jsonb;\n  responsavel jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para criar termos de responsabilidade';\n  END IF;\n  IF _sala IS NULL OR _pedido IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala) THEN\n    RAISE EXCEPTION 'Selecione uma sala disponível para sua conta';\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT * INTO lote FROM public.importacoes WHERE id = _pedido;\n  IF FOUND THEN\n    IF lote.user_id IS DISTINCT FROM auth.uid() OR lote.sala_id IS DISTINCT FROM _sala OR lote.termo_snapshot->>'tipo_documento' IS DISTINCT FROM 'novo_termo' THEN\n      RAISE EXCEPTION 'Pedido inválido';\n    END IF;\n    RETURN to_jsonb(lote);\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens por termo';\n  END IF;\n  IF (SELECT count(DISTINCT id) FROM unnest(_itens) AS t(id)) <> quantidade THEN\n    RAISE EXCEPTION 'Lista de bens inválida ou repetida';\n  END IF;\n  SELECT * INTO local_sala FROM public.salas WHERE id = _sala FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR SHARE;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um bem foi removido ou não está nesta sala. Atualize a lista e selecione novamente';\n  END IF;\n  SELECT * INTO dept FROM public.departamentos WHERE id = local_sala.departamento_id;\n  responsavel := public.dados_responsavel_sala_termo(_sala);\n  SELECT jsonb_agg(jsonb_build_object('codigo_red', b.codigo_red, 'descricao', b.descricao,\n    'valor', b.valor, 'incorporacao', b.incorporacao, 'tipo', b.tipo) ORDER BY b.codigo_red)\n    INTO itens_snapshot FROM public.bens b WHERE b.id = ANY(_itens);\n  INSERT INTO public.importacoes(id, sala_id, user_id, arquivo, termo_ano, termo_snapshot)\n  VALUES (_pedido, _sala, auth.uid(), 'Novo termo de responsabilidade',\n    extract(year FROM timezone('America/Sao_Paulo', now()))::integer,\n    jsonb_build_object('tipo_documento', 'novo_termo', 'bem_ids', to_jsonb(_itens),\n      'local', local_sala.nome, 'endereco', coalesce(local_sala.endereco, ''),\n      'historico', 'Termo de responsabilidade de ' || quantidade || ' bem(ns) já pertencente(s) ao Local Físico. Sem movimentação patrimonial.',\n      'data_origem', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'data_termo', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'departamento', coalesce(dept.departamento, ''), 'diretor', coalesce(dept.diretor, ''),\n      'almoxarifado', coalesce(dept.almoxarifado, ''), 'endereco_departamento', coalesce(dept.endereco, ''),\n      'bens', itens_snapshot) || responsavel)\n  RETURNING * INTO lote;\n  RETURN to_jsonb(lote);\nEND;\n$function$\n",
+      "argumentos": "_sala uuid, _itens uuid[], _pedido uuid"
     },
     {
       "nome": "dados_responsavel_sala_termo",
@@ -129,6 +141,12 @@
       "retorno": "jsonb",
       "definicao": "CREATE OR REPLACE FUNCTION public.excluir_termo_sala(_termo uuid, _sala uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  documento jsonb;\n  devolvidos integer := 0;\n  desvinculados integer := 0;\n  pedido uuid := gen_random_uuid();\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Você não tem permissão para excluir termos';\n  END IF;\n  IF _termo IS NULL OR _sala IS NULL THEN RAISE EXCEPTION 'Informe o termo e a sala'; END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala OR s.id IN (\n    SELECT t.origem_sala_id FROM public.transferencias_bens_itens t\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL\n  ) ORDER BY s.id FOR UPDATE;\n  PERFORM b.id FROM public.bens b WHERE b.importacao_id = _termo OR b.id IN (\n    SELECT t.bem_id FROM public.transferencias_bens_itens t\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL\n  ) ORDER BY b.id FOR UPDATE;\n  SELECT i.termo_snapshot INTO documento FROM public.importacoes i\n    WHERE i.id = _termo AND i.sala_id = _sala FOR UPDATE;\n  IF NOT FOUND OR documento IS NULL THEN RAISE EXCEPTION 'Termo não encontrado nesta sala. Atualize a lista'; END IF;\n  PERFORM t.id FROM public.transferencias_bens_itens t\n    WHERE t.transferencia_id = _termo ORDER BY t.id FOR UPDATE;\n  IF EXISTS (\n    SELECT 1 FROM public.transferencias_bens_itens t LEFT JOIN public.bens b ON b.id = t.bem_id\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL AND (\n      b.id IS NULL OR b.sala_id IS DISTINCT FROM t.destino_sala_id\n      OR b.importacao_id IS DISTINCT FROM _termo\n      OR (t.origem_sala_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.salas s WHERE s.id = t.origem_sala_id))\n    )\n  ) THEN\n    RAISE EXCEPTION 'Não é possível excluir: um bem foi removido, movimentado para outro termo ou sua sala de origem não existe mais. Nenhum bem foi alterado';\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.bens b WHERE b.importacao_id = _termo AND b.sala_id IS DISTINCT FROM _sala) THEN\n    RAISE EXCEPTION 'Há bens vinculados a este termo em outra sala. Confira as movimentações antes de excluir';\n  END IF;\n  IF EXISTS (\n    SELECT 1 FROM public.transferencias_bens_itens t JOIN public.bens b\n      ON b.codigo_red = t.codigo_red AND b.sala_id IS NOT DISTINCT FROM t.origem_sala_id AND b.id <> t.bem_id\n    WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL\n  ) THEN RAISE EXCEPTION 'A sala de origem já contém um dos códigos RED. Nenhum bem foi alterado'; END IF;\n  UPDATE public.bens b SET sala_id = t.origem_sala_id,\n    importacao_id = (SELECT i.id FROM public.importacoes i WHERE i.id = t.origem_importacao_id\n      AND i.id <> _termo AND i.sala_id IS NOT DISTINCT FROM t.origem_sala_id),\n    conferido = false, conferencia_finalizada = false\n  FROM public.transferencias_bens_itens t\n  WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL AND b.id = t.bem_id;\n  GET DIAGNOSTICS devolvidos = ROW_COUNT;\n  UPDATE public.solicitacoes_bens SET ativa = false, updated_at = now()\n    WHERE ativa AND bem_id IN (SELECT t.bem_id FROM public.transferencias_bens_itens t\n      WHERE t.transferencia_id = _termo AND t.estornado_em IS NULL);\n  UPDATE public.transferencias_bens_itens SET estornado_em = now(), estornado_por = auth.uid(), estorno_pedido = pedido\n    WHERE transferencia_id = _termo AND estornado_em IS NULL;\n  UPDATE public.bens SET importacao_id = NULL WHERE importacao_id = _termo;\n  GET DIAGNOSTICS desvinculados = ROW_COUNT;\n  DELETE FROM public.importacoes WHERE id = _termo AND sala_id = _sala;\n  RETURN jsonb_build_object('devolvidos', devolvidos, 'desvinculados', desvinculados);\nEND;\n$function$\n",
       "argumentos": "_termo uuid, _sala uuid"
+    },
+    {
+      "nome": "fornecedores_notas_fiscais",
+      "retorno": "TABLE(fornecedor text)",
+      "definicao": "CREATE OR REPLACE FUNCTION public.fornecedores_notas_fiscais()\n RETURNS TABLE(fornecedor text)\n LANGUAGE sql\n STABLE\n SET search_path TO 'public'\nAS $function$\n SELECT DISTINCT f.fornecedor FROM (\n SELECT b.fornecedor FROM public.bens b WHERE nullif(trim(b.fornecedor), '') IS NOT NULL\n UNION SELECT n.fornecedor FROM public.notas_fiscais n\n ) f ORDER BY f.fornecedor;\n$function$\n",
+      "argumentos": ""
     },
     {
       "nome": "handle_new_user",
@@ -814,6 +832,114 @@
           "tipo": "integer",
           "default": null,
           "tipo_udt": "int4"
+        }
+      ]
+    },
+    {
+      "tabela": "notas_fiscais",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "fornecedor",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "numero",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "serie",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "chave",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "xml",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "arquivo",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "criado_por",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "notas_fiscais_danfes",
+      "colunas": [
+        {
+          "nome": "nota_fiscal_id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "arquivo_path",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "arquivo_nome",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "criado_por",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
         }
       ]
     },
@@ -1558,7 +1684,7 @@
       "roles": [
         "authenticated"
       ],
-      "using": "true",
+      "using": "has_any_role(auth.uid())",
       "policy": "consulta comissao permanente",
       "tabela": "comissao_recebimento_veiculos",
       "comando": "SELECT",
@@ -1649,6 +1775,50 @@
       "using": "can_edit(auth.uid())",
       "policy": "editores leem importacoes",
       "tabela": "importacoes",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "editores anexam notas fiscais",
+      "tabela": "notas_fiscais",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "(can_edit(auth.uid()) AND (criado_por = auth.uid()))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editores consultam notas fiscais",
+      "tabela": "notas_fiscais",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": null,
+      "policy": "editores anexam danfes originais",
+      "tabela": "notas_fiscais_danfes",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "(can_edit(auth.uid()) AND (criado_por = auth.uid()))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editores consultam danfes originais",
+      "tabela": "notas_fiscais_danfes",
       "comando": "SELECT",
       "permissiva": "PERMISSIVE",
       "with_check": null
@@ -1946,7 +2116,7 @@
       "trigger": "numerar_recebimento_veiculo_trigger"
     }
   ],
-  "gerado_em": "2026-10-21T15:49:09.505636+00:00",
+  "gerado_em": "2026-10-22T11:27:27.038881+00:00",
   "rls_ativo": {
     "bens": true,
     "salas": true,
@@ -1955,6 +2125,7 @@
     "user_salas": true,
     "importacoes": true,
     "departamentos": true,
+    "notas_fiscais": true,
     "chat_conversas": true,
     "chat_mensagens": true,
     "entregas_termos": true,
@@ -1962,6 +2133,7 @@
     "solicitacoes_bens": true,
     "retiradas_veiculos": true,
     "checklists_veiculos": true,
+    "notas_fiscais_danfes": true,
     "chat_push_assinaturas": true,
     "recebimentos_veiculos": true,
     "termos_numeracao_contador": true,
@@ -1974,11 +2146,12 @@
   "contagem_linhas": {
     "bens": 29520,
     "salas": 79,
-    "profiles": 6,
-    "user_roles": 6,
-    "user_salas": 6,
-    "importacoes": 0,
+    "profiles": 9,
+    "user_roles": 9,
+    "user_salas": 9,
+    "importacoes": 4,
     "departamentos": 0,
+    "notas_fiscais": 2,
     "chat_conversas": 0,
     "chat_mensagens": 0,
     "entregas_termos": 1,
@@ -1986,6 +2159,7 @@
     "solicitacoes_bens": 0,
     "retiradas_veiculos": 1,
     "checklists_veiculos": 0,
+    "notas_fiscais_danfes": 0,
     "chat_push_assinaturas": 0,
     "recebimentos_veiculos": 3,
     "termos_numeracao_contador": 0,
@@ -2038,6 +2212,14 @@
     },
     {
       "coluna": "id",
+      "tabela": "notas_fiscais"
+    },
+    {
+      "coluna": "nota_fiscal_id",
+      "tabela": "notas_fiscais_danfes"
+    },
+    {
+      "coluna": "id",
       "tabela": "profiles"
     },
     {
@@ -2061,11 +2243,11 @@
       "tabela": "solicitacoes_bens"
     },
     {
-      "coluna": "solicitacao_id",
+      "coluna": "admin_id",
       "tabela": "solicitacoes_bens_leituras"
     },
     {
-      "coluna": "admin_id",
+      "coluna": "solicitacao_id",
       "tabela": "solicitacoes_bens_leituras"
     },
     {
@@ -2085,11 +2267,11 @@
       "tabela": "user_roles"
     },
     {
-      "coluna": "user_id",
+      "coluna": "sala_id",
       "tabela": "user_salas"
     },
     {
-      "coluna": "sala_id",
+      "coluna": "user_id",
       "tabela": "user_salas"
     }
   ],
@@ -2123,6 +2305,11 @@
       "coluna": "sala_id",
       "tabela": "importacoes",
       "referencia": "salas.id"
+    },
+    {
+      "coluna": "nota_fiscal_id",
+      "tabela": "notas_fiscais_danfes",
+      "referencia": "notas_fiscais.id"
     },
     {
       "coluna": "bem_id",
@@ -2168,5 +2355,5 @@
       "trigger": "on_auth_user_created"
     }
   ],
-  "geckoai_sincronizado_em": "2026-10-21T15:49:09.385Z"
+  "geckoai_sincronizado_em": "2026-10-22T11:27:28.329Z"
 }
