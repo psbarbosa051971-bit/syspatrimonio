@@ -50,7 +50,7 @@ export function NotasFiscais({ fornecedorImportado = "" }: { fornecedorImportado
   return <>
     <Button variant="ghost" size="sm" onClick={() => setAberto(true)} className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"><FileText className="mr-2 h-4 w-4" />Notas Fiscais</Button>
     <Dialog open={aberto} onOpenChange={setAberto}>
-      <DialogContent className="flex max-h-[94dvh] w-[calc(100%_-_1rem)] max-w-[1600px] flex-col gap-4 overflow-hidden p-4 sm:p-6">
+      <DialogContent className="left-0 top-0 flex h-dvh max-h-dvh w-full max-w-none translate-x-0 translate-y-0 flex-col gap-4 overflow-hidden rounded-none border-0 p-4 sm:rounded-none sm:p-6">
         <DialogHeader className="shrink-0 pr-6"><DialogTitle>Notas Fiscais</DialogTitle><DialogDescription>Selecione o fornecedor e digite o número da nota para consultar os dados do XML, anexar ou visualizar o DANFE original em PDF ao lado e consultar os bens já cadastrados nas salas disponíveis para sua conta.</DialogDescription></DialogHeader>
         <div className="grid shrink-0 gap-3 rounded-lg border border-border bg-muted/30 p-3 sm:grid-cols-[2fr_1fr]">
           <div className="min-w-0 space-y-1"><Label htmlFor="nf-fornecedor">Fornecedor</Label><select id="nf-fornecedor" className={selectClass} value={fornecedor} disabled={carregando && !opcoesFornecedores.length} onChange={(e) => setFornecedor(e.target.value)}><option value="">{carregando ? "Carregando fornecedores…" : "Selecione o fornecedor"}</option>{opcoesFornecedores.map((f) => <option key={f} value={f}>{f}</option>)}</select></div>

@@ -41,6 +41,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Formulário Notas Fiscais", () => {
+  it("abre maximizado para ocupar toda a tela e mantém a opção de fechar", async () => {
+    render(<NotasFiscais />);
+    fireEvent.click(screen.getByRole("button", { name: "Notas Fiscais" }));
+    const formulario = screen.getByRole("dialog", { name: "Notas Fiscais" });
+    expect(formulario).toHaveClass("left-0", "top-0", "h-dvh", "w-full", "max-w-none", "translate-x-0", "translate-y-0", "sm:rounded-none");
+    await screen.findByRole("option", { name: "Fornecedor A" });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Notas Fiscais" })).not.toBeInTheDocument();
+  });
   it("preenche o fornecedor recebido de Importar por fornecedor mesmo antes da vinculação", async () => {
     render(<NotasFiscais fornecedorImportado="Fornecedor importado" />);
     fireEvent.click(screen.getByRole("button", { name: "Notas Fiscais" }));
