@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Printer } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { htmlDoTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
+import { ajustarViasDoTermo, htmlDoTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -96,7 +96,7 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
     <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${documento.html ? "max-w-5xl" : "max-w-xl"}`}>
       <DialogHeader>
         <DialogTitle>{consultarPorNumero ? "Termo de Responsabilidade" : "Termos de responsabilidade"}</DialogTitle>
-        <DialogDescription>{consultarPorNumero ? "Informe o número do termo deste Local Físico e clique em Imprimir para abrir o documento." : pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado para imprimir ou salvar em PDF. Os dados originais são preservados."}</DialogDescription>
+        <DialogDescription>{consultarPorNumero ? "Informe o número do termo deste Local Físico e clique em Imprimir para abrir o documento." : pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado. Ao imprimir ou salvar em PDF, serão geradas duas vias lado a lado na mesma folha A4 em paisagem. Os dados originais são preservados."}</DialogDescription>
       </DialogHeader>
       {carregando ? <p className="text-sm text-muted-foreground">Carregando termos...</p> : registros.length > 0 ? <>
         <div className="flex flex-wrap items-end gap-3">
@@ -114,7 +114,7 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
             <Input id="numero-termo" autoFocus className="w-48 text-base md:text-base" placeholder="Ex.: 15 ou 15/2026" value={numero} onChange={(e) => { setNumero(e.target.value); setErro(""); }} />
           </div><Button type="submit">{consultarPorNumero ? "Imprimir" : "Visualizar impressão"}</Button>
         </form>}
-        {documento.html && <iframe ref={frame} title={`Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}`} sandbox="allow-same-origin allow-modals" srcDoc={documento.html} onLoad={() => setPronto(true)} className="h-[58vh] w-full rounded-md border bg-background" />}
+        {documento.html && <iframe ref={frame} title={`Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}`} sandbox="allow-same-origin allow-modals" srcDoc={documento.html} onLoad={() => { if (frame.current?.contentDocument) ajustarViasDoTermo(frame.current.contentDocument); setPronto(true); }} className="h-[58vh] w-full rounded-md border bg-background" />}
         {confirmado === selecionado && !termo && !erro && <p className="text-sm text-muted-foreground">Preparando documento...</p>}
       </> : !erro && <p className="text-sm text-muted-foreground">Nenhum termo gerado para este local. Faça uma nova importação HTML para criar um termo numerado. As importações anteriores a esta função não possuem cópia dos dados originais.</p>}
       {(erro || documento.erro) && <p role="alert" className="text-sm text-destructive">{erro || documento.erro}</p>}

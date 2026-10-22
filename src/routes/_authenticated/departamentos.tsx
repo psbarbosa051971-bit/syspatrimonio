@@ -31,6 +31,7 @@ import { htmlPesquisaDinamica } from "@/lib/pesquisa-dinamica-impressao";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
+import { TermosPorLote } from "@/components/TermosPorLote";
 import { NovoTermoDialog } from "@/components/NovoTermoDialog";
 import { TermosDaSala } from "@/components/TermosDaSala";
 import { IncluirBensTermoDialog } from "@/components/IncluirBensTermoDialog";
@@ -1188,6 +1189,7 @@ function DepartamentosPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
                 <div className="bens-sala-acoes flex flex-wrap items-center gap-2">
+                  <TermosPorLote />
                   <Button variant="outline" size="sm"
                     title="Marque os bens na coluna SEL. para criar um termo sem movimentá-los"
                     disabled={!bensSelecionadosParaTermo.length || (!resultadoPesquisa && (carregandoBens || !!erroBens)) || importando || localizando || abrindoNovoTermo}

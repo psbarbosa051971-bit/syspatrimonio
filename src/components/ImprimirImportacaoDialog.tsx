@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cpfValido, formatarCpf, normalizarCpf } from "@/lib/cpf";
-import { htmlDoTermo, lerDadosTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
+import { ajustarViasDoTermo, htmlDoTermo, lerDadosTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,7 +117,7 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
       <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${etapa === "documento" ? "max-w-5xl" : "max-w-xl"}`}>
         <DialogHeader>
           <DialogTitle>{etapa === "documento" ? `Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}` : "Dados do recebimento"}</DialogTitle>
-          <DialogDescription>{etapa === "documento" ? "Imprima ou salve uma cópia em PDF. A opção sem preencher usa os dados já registrados no termo, sem alterar o recebimento." : "Você pode imprimir sem preencher os campos abaixo. Para registrar o recebimento, informe o recebedor e seu CPF e clique em Imprimir. O responsável pela sala vem do cadastro do local físico. A data de recebimento fica em branco para assinatura."}</DialogDescription>
+          <DialogDescription>{etapa === "documento" ? "Imprima ou salve duas vias na mesma folha A4 em paisagem. A opção sem preencher usa os dados já registrados no termo, sem alterar o recebimento." : "Você pode imprimir sem preencher os campos abaixo. Para registrar o recebimento, informe o recebedor e seu CPF e clique em Imprimir. O responsável pela sala vem do cadastro do local físico. A data de recebimento fica em branco para assinatura."}</DialogDescription>
         </DialogHeader>
         {etapa === "formulario" && (carregando ? <p className="text-sm text-muted-foreground">Carregando dados {transferencia ? "da transferência" : "da importação"}...</p> : termo ? <form onSubmit={salvarEImprimir} className="space-y-4">
           <div className="space-y-1.5"><Label htmlFor="recebimento-responsavel-sala">Responsável pela Sala</Label>
@@ -149,6 +149,7 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
         {etapa === "documento" && <>
           <Button className="self-end" disabled={!pronto} onClick={imprimir}><Printer className="mr-2 h-4 w-4" />Imprimir / Salvar PDF</Button>
           <iframe ref={frame} title="Termo desta importação" srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[60vh] w-full rounded-md border bg-background" onLoad={() => {
+            if (frame.current?.contentDocument) ajustarViasDoTermo(frame.current.contentDocument);
             setPronto(true);
             if (imprimirAoAbrir.current) { imprimirAoAbrir.current = false; imprimir(); }
           }} />

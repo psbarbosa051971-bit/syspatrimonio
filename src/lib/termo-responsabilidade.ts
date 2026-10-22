@@ -45,7 +45,7 @@ const escapar = (texto: string) => texto.replace(/[&<>"']/g, (c) =>
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 /** Documento independente do tema da aplicação; todos os textos importados são escapados. */
-export function htmlDoTermo(termo: TermoResponsabilidade): string {
+function htmlViaDoTermo(termo: TermoResponsabilidade): string {
   const d = lerDadosTermo(termo.termo_snapshot);
   const grupos = new Map<string, ItemTermo[]>();
   for (const b of d.bens) {
@@ -102,4 +102,46 @@ export function htmlDoTermo(termo: TermoResponsabilidade): string {
     <footer class="faixa">ATENÇÃO: CONFERIR NO ATO DO RECEBIMENTO. NÃO ACEITAREMOS RECLAMAÇÕES APÓS O RECEBIMENTO E ASSINATURA DESTE TERMO.</footer>
     <p class="origem">Arquivo: ${escapar(termo.arquivo)}${d.data_origem ? ` • Data do relatório: ${escapar(d.data_origem)}` : ""}</p>
     </main></body></html>`;
+}
+
+/** Duas vias lado a lado, em uma folha A4 por termo, inclusive na impressão em lote. */
+export function htmlDosTermos(termos: TermoResponsabilidade[]): string {
+  if (!termos.length) throw new Error("Selecione pelo menos um termo para imprimir.");
+  const documentos = termos.map(htmlViaDoTermo);
+  const primeiro = documentos[0]!;
+  const estilos = primeiro.slice(primeiro.indexOf("<style>") + 7, primeiro.indexOf("</style>"));
+  const folhas = documentos.map((html) => {
+    const conteudo = html.slice(html.indexOf('<main class="documento">'), html.indexOf("</body>"));
+    return `<section class="folha">${[1, 2].map((via) => `<div class="via"><div class="via-conteudo"><p class="numero-via">${via}ª VIA</p>${conteudo}</div></div>`).join("")}</section>`;
+  }).join("");
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${termos.length === 1 ? `Termo de responsabilidade ${escapar(numeroDoTermo(termos[0]!))}` : "Termos de responsabilidade por lote"}</title><style>${estilos}
+    @page { size: A4 landscape; margin: 10mm; }
+    .folha { width: 277mm; height: 189mm; display: flex; gap: 6mm; margin: 0 auto; break-inside: avoid; break-after: page; page-break-after: always; }
+    .folha:last-child { break-after: auto; page-break-after: auto; }
+    .via { position: relative; width: 135.5mm; height: 189mm; flex: none; overflow: hidden; }
+    .via + .via::before { content: ""; position: absolute; left: -3mm; height: 100%; border-left: 1px dashed oklch(0.65 0 0); }
+    .via-conteudo { width: 135.5mm; position: absolute; top: 0; left: 0; transform-origin: top left; }
+    .documento { width: 100%; max-width: none; margin: 0; }
+    h1 { font-size: 16px; } h2 { font-size: 12px; }
+    header { padding: 4px 0 8px; } .local { padding: 6px; }
+    th, td { padding: 3px; } th { font-size: 9px; }
+    .assinaturas { gap: 8px; margin-top: 12px; font-size: 9px; }
+    .assinatura { min-height: 160px; padding: 6px; } .linha { margin-top: 28px; }
+    .numero-via { text-align: right; font-weight: bold; margin: 0 0 4px; }
+    @media screen { .folha { margin: 12px auto; background: oklch(1 0 0); } }
+  </style></head><body>${folhas}</body></html>`;
+}
+
+export function htmlDoTermo(termo: TermoResponsabilidade): string {
+  return htmlDosTermos([termo]);
+}
+
+/** Executar após o iframe carregar: ajusta todo o conteúdo sem cortar bens ou assinaturas. */
+export function ajustarViasDoTermo(documento: Document): void {
+  documento.querySelectorAll<HTMLElement>(".via-conteudo").forEach((conteudo) => {
+    const via = conteudo.parentElement;
+    if (!via || !via.clientWidth || !via.clientHeight || !conteudo.scrollWidth || !conteudo.scrollHeight) return;
+    const escala = Math.min(via.clientWidth / conteudo.scrollWidth, via.clientHeight / conteudo.scrollHeight, 1);
+    conteudo.style.transform = `scale(${Math.max(0.001, escala * 0.995)})`;
+  });
 }

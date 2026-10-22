@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlDoTermo, lerDadosTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
+import { ajustarViasDoTermo, htmlDoTermo, htmlDosTermos, lerDadosTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
 
 const registro = (alteracoes: Partial<TermoResponsabilidade> = {}): TermoResponsabilidade => ({
   id: "importacao-1", numero: 2561, termo_ano: 2026,
@@ -73,6 +73,38 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(html).toContain("Responsável pelo Recebimento");
     expect(html).not.toContain("Diretor cadastrado");
     expect(html).toContain("DATA DE RECEBIMENTO ____/____/________");
+  });
+
+  it("gera duas vias completas na mesma folha por termo", () => {
+    const html = htmlDoTermo(registro());
+    expect(html.match(/class="folha"/g)).toHaveLength(1);
+    expect(html.match(/class="via"/g)).toHaveLength(2);
+    expect(html.match(/TERMO DE RESPONSABILIDADE Nº 2561\/2026/g)).toHaveLength(2);
+    expect(html.match(/LISTADO\(S\) GERAL: 3/g)).toHaveLength(2);
+    expect(html).toContain("1ª VIA");
+    expect(html).toContain("2ª VIA");
+  });
+
+  it("mantém uma folha para cada termo na ordem do lote", () => {
+    const html = htmlDosTermos([registro(), registro({ id: "segunda", numero: 2562 })]);
+    expect(html.match(/class="folha"/g)).toHaveLength(2);
+    expect(html.match(/class="via"/g)).toHaveLength(4);
+    expect(html.indexOf("Nº 2561/2026")).toBeLessThan(html.indexOf("Nº 2562/2026"));
+    expect(html).toContain("break-after: page");
+    expect(() => htmlDosTermos([])).toThrow("Selecione pelo menos um termo");
+    expect(() => htmlDosTermos([registro(), registro({ termo_snapshot: null })])).toThrow();
+  });
+
+  it("reduz cada via de acordo com a altura disponível, sem remover bens", () => {
+    const doc = document.implementation.createHTMLDocument();
+    doc.body.innerHTML = '<div class="via"><div class="via-conteudo">conteúdo longo</div></div>';
+    const via = doc.querySelector<HTMLElement>(".via")!;
+    const conteudo = doc.querySelector<HTMLElement>(".via-conteudo")!;
+    Object.defineProperties(via, { clientWidth: { value: 500 }, clientHeight: { value: 700 } });
+    Object.defineProperties(conteudo, { scrollWidth: { value: 500 }, scrollHeight: { value: 1400 } });
+    ajustarViasDoTermo(doc);
+    expect(conteudo.style.transform).toBe("scale(0.4975)");
+    expect(conteudo.textContent).toBe("conteúdo longo");
   });
 
   it("recusa termos sem dados ou com valores inválidos", () => {
