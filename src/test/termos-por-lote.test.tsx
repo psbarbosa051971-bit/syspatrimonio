@@ -57,15 +57,18 @@ describe("termos por lote", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it("imprime apenas os termos marcados e duas vias em uma folha por termo", async () => {
+  it("imprime apenas os termos marcados com cada via em uma folha separada", async () => {
     abrir(); datas();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Selecionar termo 11/2026" }));
+    expect(screen.getByText("1 termo(s) selecionado(s) · 2 folha(s) · 2 vias")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Imprimir", exact: true }));
     const iframe = await screen.findByTitle("Termos de responsabilidade por lote — duas vias") as HTMLIFrameElement;
     expect(mocks.ids).toHaveBeenCalledWith(["dois"]);
     const html = iframe.getAttribute("srcdoc")!;
-    expect(html.match(/class="folha"/g)).toHaveLength(1);
+    expect(html.match(/class="folha"/g)).toHaveLength(2);
     expect(html.match(/class="via"/g)).toHaveLength(2);
+    expect(html).toContain("size: A4 portrait");
+    expect(html).not.toContain("size: A4 landscape");
     expect(html).toContain("Nº 11/2026");
     expect(html).not.toContain("Nº 10/2026");
     const print = vi.spyOn(iframe.contentWindow!, "print").mockImplementation(() => {});

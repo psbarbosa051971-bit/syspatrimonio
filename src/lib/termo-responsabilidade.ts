@@ -104,29 +104,31 @@ function htmlViaDoTermo(termo: TermoResponsabilidade): string {
     </main></body></html>`;
 }
 
-/** Duas vias lado a lado, em uma folha A4 por termo, inclusive na impressão em lote. */
-export function htmlDosTermos(termos: TermoResponsabilidade[]): string {
+/** Duas vias por termo: lado a lado por padrão ou em folhas A4 separadas. */
+export function htmlDosTermos(termos: TermoResponsabilidade[], layout: "lado-a-lado" | "vias-separadas" = "lado-a-lado"): string {
   if (!termos.length) throw new Error("Selecione pelo menos um termo para imprimir.");
+  const separadas = layout === "vias-separadas";
   const documentos = termos.map(htmlViaDoTermo);
   const primeiro = documentos[0]!;
-  const estilos = primeiro.slice(primeiro.indexOf("<style>") + 7, primeiro.indexOf("</style>"));
+  const estilos = primeiro.slice(primeiro.indexOf("<style>") + 7, primeiro.indexOf("</style>")).replace(/@page\s*\{[^}]*\}/g, "");
   const folhas = documentos.map((html) => {
     const conteudo = html.slice(html.indexOf('<main class="documento">'), html.indexOf("</body>"));
-    return `<section class="folha">${[1, 2].map((via) => `<div class="via"><div class="via-conteudo"><p class="numero-via">${via}ª VIA</p>${conteudo}</div></div>`).join("")}</section>`;
+    const vias = [1, 2].map((via) => `<div class="via"><div class="via-conteudo"><p class="numero-via">${via}ª VIA</p>${conteudo}</div></div>`);
+    return separadas ? vias.map((via) => `<section class="folha">${via}</section>`).join("") : `<section class="folha">${vias.join("")}</section>`;
   }).join("");
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${termos.length === 1 ? `Termo de responsabilidade ${escapar(numeroDoTermo(termos[0]!))}` : "Termos de responsabilidade por lote"}</title><style>${estilos}
-    @page { size: A4 landscape; margin: 10mm; }
-    .folha { width: 277mm; height: 189mm; display: flex; gap: 6mm; margin: 0 auto; break-inside: avoid; break-after: page; page-break-after: always; }
+    @page { size: A4 ${separadas ? "portrait" : "landscape"}; margin: 10mm; }
+    .folha { width: ${separadas ? "190mm" : "277mm"}; height: ${separadas ? "277mm" : "189mm"}; display: flex; gap: 6mm; margin: 0 auto; break-inside: avoid; break-after: page; page-break-after: always; }
     .folha:last-child { break-after: auto; page-break-after: auto; }
-    .via { position: relative; width: 135.5mm; height: 189mm; flex: none; overflow: hidden; }
+    .via { position: relative; width: ${separadas ? "190mm" : "135.5mm"}; height: ${separadas ? "277mm" : "189mm"}; flex: none; overflow: hidden; }
     .via + .via::before { content: ""; position: absolute; left: -3mm; height: 100%; border-left: 1px dashed oklch(0.65 0 0); }
-    .via-conteudo { width: 135.5mm; position: absolute; top: 0; left: 0; transform-origin: top left; }
+    .via-conteudo { width: ${separadas ? "190mm" : "135.5mm"}; position: absolute; top: 0; left: 0; transform-origin: top left; }
     .documento { width: 100%; max-width: none; margin: 0; }
-    h1 { font-size: 16px; } h2 { font-size: 12px; }
+    ${separadas ? "" : `h1 { font-size: 16px; } h2 { font-size: 12px; }
     header { padding: 4px 0 8px; } .local { padding: 6px; }
     th, td { padding: 3px; } th { font-size: 9px; }
     .assinaturas { gap: 8px; margin-top: 12px; font-size: 9px; }
-    .assinatura { min-height: 160px; padding: 6px; } .linha { margin-top: 28px; }
+    .assinatura { min-height: 160px; padding: 6px; } .linha { margin-top: 28px; }`}
     .numero-via { text-align: right; font-weight: bold; margin: 0 0 4px; }
     @media screen { .folha { margin: 12px auto; background: oklch(1 0 0); } }
   </style></head><body>${folhas}</body></html>`;

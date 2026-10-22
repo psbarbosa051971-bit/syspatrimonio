@@ -78,7 +78,7 @@ export function TermosPorLote() {
       }
       if (termos.length !== ids.length) throw new Error("Algum termo não está mais disponível. Atualize a listagem e selecione novamente.");
       const porId = new Map(termos.map((t) => [t.id, t]));
-      const documento = htmlDosTermos(ids.map((id) => porId.get(id)!));
+      const documento = htmlDosTermos(ids.map((id) => porId.get(id)!), "vias-separadas");
       if (atual === versao.current) { imprimirAoAbrir.current = true; setHtml(documento); }
     } catch (e) { if (atual === versao.current) setErro(e instanceof Error ? e.message : "Não foi possível preparar a impressão."); }
     finally { setPreparando(false); }
@@ -95,7 +95,7 @@ export function TermosPorLote() {
       <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-5xl flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Termos por lote</DialogTitle>
-          <DialogDescription>Selecione o período de criação dos termos, incluindo as duas datas (horário de Brasília). A lista inclui todos os locais físicos que você pode consultar. Cada termo será impresso em duas vias lado a lado na mesma folha A4.</DialogDescription>
+          <DialogDescription>Selecione o período de criação dos termos, incluindo as duas datas (horário de Brasília). A lista inclui todos os locais físicos que você pode consultar. Cada termo será impresso em duas vias, cada uma em uma folha A4 separada, em retrato.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5"><Label htmlFor="lote-data-inicial">Data inicial</Label><Input id="lote-data-inicial" type="date" value={inicial} disabled={preparando} onChange={(e) => setInicial(e.target.value)} /></div>
@@ -107,7 +107,7 @@ export function TermosPorLote() {
         {registros.length > 0 && <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" aria-label="Selecionar todos os termos" checked={selecionados.length === registros.length} disabled={preparando} onChange={(e) => { setSelecionados(e.target.checked ? registros.map((r) => r.id) : []); setHtml(""); setPronto(false); }} />Selecionar todos ({registros.length})</label>
-            <span className="text-sm">{selecionados.length} termo(s) selecionado(s) · {selecionados.length} folha(s) · {selecionados.length * 2} vias</span>
+            <span className="text-sm">{selecionados.length} termo(s) selecionado(s) · {selecionados.length * 2} folha(s) · {selecionados.length * 2} vias</span>
           </div>
           <div className="max-h-[35vh] overflow-auto rounded-md border">
             <table className="w-full text-left text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-2">SEL.</th><th className="p-2">Termo</th><th className="p-2">Criado em</th><th className="p-2">Local Físico</th><th className="p-2">Arquivo</th></tr></thead>

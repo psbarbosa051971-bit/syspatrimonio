@@ -95,6 +95,25 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(() => htmlDosTermos([registro(), registro({ termo_snapshot: null })])).toThrow();
   });
 
+  it("gera cada via do lote em uma folha A4 separada, na ordem dos termos", () => {
+    const html = htmlDosTermos([registro(), registro({ id: "segunda", numero: 2562 })], "vias-separadas");
+    const doc = document.implementation.createHTMLDocument();
+    doc.documentElement.innerHTML = html;
+    const folhas = [...doc.querySelectorAll(".folha")];
+    expect(folhas).toHaveLength(4);
+    folhas.forEach((folha) => {
+      expect(folha.querySelectorAll(".via")).toHaveLength(1);
+      expect(folha.textContent).toContain("LISTADO(S) GERAL: 3");
+      expect(folha.textContent).toContain("Responsável cadastrado");
+    });
+    expect(folhas.map((folha) => folha.querySelector(".numero-via")?.textContent)).toEqual(["1ª VIA", "2ª VIA", "1ª VIA", "2ª VIA"]);
+    expect(folhas.slice(0, 2).every((folha) => folha.textContent?.includes("Nº 2561/2026"))).toBe(true);
+    expect(folhas.slice(2).every((folha) => folha.textContent?.includes("Nº 2562/2026"))).toBe(true);
+    expect(html).toContain("size: A4 portrait");
+    expect(html).not.toContain("size: A4 landscape");
+    expect(html).toContain("break-after: page");
+  });
+
   it("reduz cada via de acordo com a altura disponível, sem remover bens", () => {
     const doc = document.implementation.createHTMLDocument();
     doc.body.innerHTML = '<div class="via"><div class="via-conteudo">conteúdo longo</div></div>';
