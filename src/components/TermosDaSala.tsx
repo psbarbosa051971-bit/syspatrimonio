@@ -76,13 +76,13 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10 bg-muted text-foreground">
             <tr className="text-left [&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-2">
-              <th>Termo</th><th>Bens</th><th>Status</th><th>Recebido por</th><th>Recebimento</th><th className="text-right">Valor do termo</th><th>Ano</th><th>Tipo de bem</th><th className="text-right">Impressão</th>
+              <th>Termo</th><th>Bens</th><th>Status</th><th>Recebido por</th><th>Recebimento</th><th className="text-right">Valor do termo</th><th>Ano</th><th>Tipo de bem</th><th>Classificação</th><th className="text-right">Impressão</th>
             </tr>
           </thead>
           <tbody>
-            {aguardandoDados ? <tr><td colSpan={9} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
-              : falhaCarga ? <tr><td colSpan={9} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => { setTentativa((n) => n + 1); if (erroBens) onAtualizar(); }}>Tentar novamente</Button></td></tr>
-              : termosComBens.length === 0 ? <tr><td colSpan={9} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo com bens atualmente nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
+            {aguardandoDados ? <tr><td colSpan={10} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
+              : falhaCarga ? <tr><td colSpan={10} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => { setTentativa((n) => n + 1); if (erroBens) onAtualizar(); }}>Tentar novamente</Button></td></tr>
+              : termosComBens.length === 0 ? <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo com bens atualmente nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
               : termosComBens.map(({ termo, quantidade }) => {
                 const resumo = resumoTermoDaSala(termo);
                 const entrega = entregas[termo.id];
@@ -94,7 +94,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
                   <td>{entrega?.recebido_por || resumo.dados?.responsavel_recebimento || "Não informado"}</td>
                   <td className="whitespace-nowrap">{entrega?.data_entrega ? entrega.data_entrega.split("-").reverse().join("/") : "Não registrado"}</td>
                   <td className="whitespace-nowrap text-right">{resumo.dados ? moeda(resumo.total) : "—"}</td>
-                  <td>{numeroDoTermo(termo).split("/")[1]}</td><td>{resumo.tipos}</td>
+                  <td>{numeroDoTermo(termo).split("/")[1]}</td><td>{resumo.tipos}</td><td className="whitespace-nowrap font-semibold">{resumo.classificacao}</td>
                   <td className="text-right"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button><Button type="button" size="sm" variant="outline" aria-label={`Status do termo ${numeroDoTermo(termo)}`} onClick={() => setTermoEntrega(termo)}>Status</Button>{salaId && <ExcluirTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onExcluir={() => {
                     setTermos((atuais) => atuais.filter((item) => item.id !== termo.id));
                     if (selecionado === termo.id) onLimpar();

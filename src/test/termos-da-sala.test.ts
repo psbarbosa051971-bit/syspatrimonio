@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
+import { classificacaoTermo, resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
 
 const termo: TermoDaSala = {
   id: "termo", numero: 29, termo_ano: 2026, created_at: "2026-10-17T12:00:00Z", arquivo: "termo.html",
@@ -25,7 +25,13 @@ describe("Resumo dos termos da sala", () => {
     expect(resumo.dados?.responsavel_recebimento).toBe("");
   });
   it("trata documentos ausentes ou inválidos sem interromper a listagem", () => {
-    expect(resumoTermoDaSala({ ...termo, termo_snapshot: null })).toEqual({ dados: null, quantidade: 0, total: 0, tipos: "—" });
+    expect(resumoTermoDaSala({ ...termo, termo_snapshot: null })).toEqual({ dados: null, quantidade: 0, total: 0, tipos: "—", classificacao: "—" });
     expect(resumoTermoDaSala({ ...termo, termo_snapshot: { bens: [{}] } }).dados).toBeNull();
+  });
+  it("classifica pela primeira palavra, DIVERSOS ou VEÍCULO", () => {
+    const b = (descricao: string) => ({ descricao, tipo: null });
+    expect(classificacaoTermo([b("10 MICROCOMPUTADOR DELL"), b("MICROCOMPUTADOR LENOVO")])).toBe("MICROCOMPUTADOR");
+    expect(classificacaoTermo([b("MESA DE ESCRITÓRIO"), b("CADEIRA GIRATÓRIA")])).toBe("DIVERSOS");
+    expect(classificacaoTermo([b("MESA"), b("VEÍCULO FIAT UNO")])).toBe("VEÍCULO");
   });
 });
