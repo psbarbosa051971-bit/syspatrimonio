@@ -197,7 +197,14 @@ function ConferenciaPage() {
           </div>
           <Button variant="ghost" size="sm"
             className="text-base text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-            onClick={async () => { await supabase.auth.signOut(); navigate({ to: "/" }); }}>
+            onClick={async () => {
+              if (role === "admin") {
+                navigate({ to: "/departamentos" });
+                return;
+              }
+              await supabase.auth.signOut();
+              navigate({ to: "/" });
+            }}>
             <LogOut className="mr-2 h-4 w-4" /> Sair
           </Button>
         </div>
