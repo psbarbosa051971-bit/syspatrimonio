@@ -61,7 +61,7 @@ function CabecalhoOrdenavel({ campo, titulo, ordenacao, onOrdenar, className = "
 
 function ConferenciaPage() {
   const navigate = useNavigate();
-  const { podeEditar } = useRole();
+  const { role, podeEditar } = useRole();
   const [salas, setSalas] = useState<Sala[]>([]);
   const [sala, setSala] = useState<Sala | null>(null);
   const [bens, setBens] = useState<Bem[]>([]);
