@@ -106,7 +106,7 @@ describe("impressão em Termos criados da sala", () => {
     expect(cabecalhos.at(-2)).toHaveTextContent("Classificação");
     expect(cabecalhos.at(-1)).toHaveTextContent("Impressão");
     const linha = screen.getByRole("button", { name: "Imprimir termo 15/2026" }).closest("tr")!;
-    expect(within(linha).getAllByRole("cell").at(-3)).toHaveTextContent("CADEIRA");
+    expect(within(linha).getAllByRole("cell").at(-2)).toHaveTextContent("CADEIRA");
     fireEvent.click(imprimir);
     expect(screen.getByRole("dialog", { name: "Impressão do termo" })).toHaveTextContent("sala:antigo");
     expect(props.onSelecionar).not.toHaveBeenCalled();
