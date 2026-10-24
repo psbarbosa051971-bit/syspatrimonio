@@ -102,8 +102,11 @@ describe("impressão em Termos criados da sala", () => {
     render(<TermosDaSala {...props} />);
     const imprimir = await screen.findByRole("button", { name: "Imprimir termo 15/2026" });
     const cabecalhos = screen.getAllByRole("columnheader");
-    expect(cabecalhos.at(-2)).toHaveTextContent("Tipo de bem");
+    expect(cabecalhos.at(-3)).toHaveTextContent("Tipo de bem");
+    expect(cabecalhos.at(-2)).toHaveTextContent("Classificação");
     expect(cabecalhos.at(-1)).toHaveTextContent("Impressão");
+    const linha = screen.getByRole("button", { name: "Imprimir termo 15/2026" }).closest("tr")!;
+    expect(within(linha).getAllByRole("cell").at(-3)).toHaveTextContent("CADEIRA");
     fireEvent.click(imprimir);
     expect(screen.getByRole("dialog", { name: "Impressão do termo" })).toHaveTextContent("sala:antigo");
     expect(props.onSelecionar).not.toHaveBeenCalled();
