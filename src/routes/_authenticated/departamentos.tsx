@@ -326,8 +326,9 @@ function DepartamentosPage() {
     local: string;
     quantidade: number;
     conflitos: { id: string; sala_id: string | null; codigo_red: string; sala_nome: string }[];
+    permitirTudo?: boolean;
   } | null>(null);
-  const resolverConfirmacaoImportacao = useRef<((confirmado: boolean) => void) | null>(null);
+  const resolverConfirmacaoImportacao = useRef<((confirmado: boolean | "tudo") => void) | null>(null);
   const [perguntarNumeroTermo, setPerguntarNumeroTermo] = useState(false);
   const resolverNumeroTermo = useRef<((gerar: boolean | null) => void) | null>(null);
   useEffect(() => () => {
@@ -355,14 +356,15 @@ function DepartamentosPage() {
     local: string,
     quantidade: number,
     conflitos: NonNullable<typeof confirmacaoImportacao>["conflitos"],
-  ): Promise<boolean> {
+    permitirTudo = false,
+  ): Promise<boolean | "tudo"> {
     return new Promise((resolve) => {
       resolverConfirmacaoImportacao.current = resolve;
-      setConfirmacaoImportacao({ local, quantidade, conflitos });
+      setConfirmacaoImportacao({ local, quantidade, conflitos, permitirTudo });
     });
   }
 
-  function responderConfirmacaoImportacao(confirmado: boolean) {
+  function responderConfirmacaoImportacao(confirmado: boolean | "tudo") {
     const resolver = resolverConfirmacaoImportacao.current;
     resolverConfirmacaoImportacao.current = null;
     setConfirmacaoImportacao(null);
@@ -770,6 +772,7 @@ function DepartamentosPage() {
       if (locais.length > 1) {
         const planos = [];
         const destinos = new Set<string>();
+        let importarTudo = false;
         for (const [indice, local] of locais.entries()) {
           const nome = local.cabecalho.local.trim();
           if (!nome) throw new Error("Um dos locais físicos não foi identificado. Nada foi importado.");
@@ -787,7 +790,11 @@ function DepartamentosPage() {
           });
           if (error) throw error;
           const conflitos = (existentes ?? []).filter((b) => b.sala_id !== alvo?.id && b.sala_id !== null);
-          if (!await confirmarImportacao(`${indice + 1}/${locais.length} — ${nome}`, local.bens.length, conflitos)) return;
+          if (!importarTudo) {
+            const resposta = await confirmarImportacao(`${indice + 1}/${locais.length} — ${nome}`, local.bens.length, conflitos, indice < locais.length - 1);
+            if (!resposta) return;
+            if (resposta === "tudo") importarTudo = true;
+          }
           planos.push({ sala_id: alvo?.id ?? null, cabecalho: { ...local.cabecalho },
             bens: local.bens.map((b) => ({ ...b })), existentes: (existentes ?? []).map((b) => ({ ...b })) });
         }
@@ -1013,6 +1020,9 @@ function DepartamentosPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => responderConfirmacaoImportacao(false)}>{confirmacaoImportacao?.conflitos.length ? "Cancelar" : "Não"}</AlertDialogCancel>
+            {confirmacaoImportacao?.permitirTudo && (
+              <AlertDialogAction onClick={() => responderConfirmacaoImportacao("tudo")}>Importar tudo</AlertDialogAction>
+            )}
             <AlertDialogAction onClick={() => responderConfirmacaoImportacao(true)}>{confirmacaoImportacao?.conflitos.length ? "OK" : "Sim"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
