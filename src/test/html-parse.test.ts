@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parsearTermoHtml } from "@/lib/html-parse";
 import { cpfValido, formatarCpf } from "@/lib/cpf";
+import sonnerInserviveis from "./fixtures/sonner-inserviveis-2026.html?raw";
 
 const cabecalho = `<table><tr><td>Local Físico:</td><td>58195</td><td>C.I.E.M. PROFESSORA GERALDA CERÁVOLO RODRIGUES</td></tr>
 <tr><td>Endereço:</td><td>Rua da Escola, 10</td></tr></table>`;
@@ -8,6 +9,37 @@ const colunas = `<tr><th>Cód. RED</th><th>Descrição</th><th>Incorporação</t
 const bem = (codigo: number) => `<tr><td>${codigo}</td><td>CADEIRA ESCOLAR</td><td>10/05/2020</td><td>Aquisição</td><td>1.234,56</td></tr>`;
 
 describe("importação HTML", () => {
+  it("reconhece todos os 1.148 bens do relatório real de inservíveis", () => {
+    const termo = parsearTermoHtml(sonnerInserviveis);
+    expect(termo.locais).toHaveLength(1);
+    expect(termo.cabecalho.local).toBe("58536 1º LEILÃO DE INSERVÍVEIS 2026");
+    expect(termo.bens).toHaveLength(1148);
+    expect(new Set(termo.bens.map((b) => b.codigo_red)).size).toBe(1148);
+    expect(termo.bens[0]?.codigo_red).toBe("181");
+    expect(termo.bens.at(-1)?.codigo_red).toBe("75971");
+    expect(termo.bens.reduce((total, b) => total + Math.round((b.valor ?? 0) * 100), 0)).toBe(77536140);
+  });
+
+  it("lê o layout Sonner com filtro, Código Red.: e grade diferente na continuação", () => {
+    const termo = parsearTermoHtml(`<p><b>Local Físico: 1º LEILÃO DE INSERVÍVEIS 2026; Situação do Bem: Ativo; Parâmetro de Ordenação: Código;</b></p>
+      <table><tr><td></td><td colspan="2"><b>Local Físico:</b></td><td><b>58536</b></td><td colspan="10"><b>1º LEILÃO DE INSERVÍVEIS 2026</b></td><td></td></tr>
+      <tr><td></td><td colspan="2">Código Red.:</td><td colspan="6">Descrição do bem</td><td>Incorporação</td><td>Tipo</td><td colspan="4">Valor</td><td></td></tr>
+      <tr><td></td><td colspan="2">181</td><td colspan="6" rowspan="2">CADEIRA ESTOFADO DE COURVIM PRETO PRETO</td><td>31/12/1994</td><td>Aquisição</td><td colspan="2">R$ 10,00</td><td></td></tr>
+      <tr><td></td><td colspan="2"></td><td></td><td></td><td colspan="2"></td><td></td></tr></table>
+      <table><tr><td></td><td>2174</td><td rowspan="2">CADEIRA DE ACO</td><td>31/12/1994</td><td>Aquisição</td><td>R$ 15,00</td><td></td></tr>
+      <tr><td>Total de Bens Sem Código:</td><td>0</td></tr><tr><td>Total de Bens:</td><td>2</td></tr></table>`);
+    expect(termo.locais).toHaveLength(1);
+    expect(termo.cabecalho.local).toBe("58536 1º LEILÃO DE INSERVÍVEIS 2026");
+    expect(termo.bens.map((b) => [b.codigo_red, b.valor, b.incorporacao, b.tipo])).toEqual([
+      ["181", 10, "31/12/1994", "Aquisição"], ["2174", 15, "31/12/1994", "Aquisição"],
+    ]);
+  });
+
+  it("não deixa passar linhas incompletas em páginas sem cabeçalho", () => {
+    expect(() => parsearTermoHtml(`${cabecalho}<table>${colunas}${bem(100001)}</table>
+      <table>${bem(100002).replace("1.234,56", "???")}</table>`)).toThrow("Nada foi importado");
+  });
+
   it("preserva código e nome do local e lê as 888 linhas em várias tabelas", () => {
     const primeira = Array.from({ length: 444 }, (_, i) => bem(100000 + i)).join("");
     const segunda = Array.from({ length: 444 }, (_, i) => bem(100444 + i)).join("");
