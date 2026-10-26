@@ -28,7 +28,7 @@ function locaisEmNegrito(doc: Document): MarcadorLocal[] {
   const vistos = new Set<Element>();
   for (const el of negritos) {
     if (el.querySelector("table,tr")) continue;
-    const contexto = el.closest("tr,p,div");
+    const contexto = el.closest("tr") ?? el.closest("p,div");
     const elemento = contexto && !contexto.querySelector("table") ? contexto : el;
     if (vistos.has(elemento)) continue;
     const conteudo = elemento.tagName === "TR"
@@ -39,7 +39,7 @@ function locaisEmNegrito(doc: Document): MarcadorLocal[] {
     if (elemento.tagName === "TR" && Array.from(elemento.children).some((celula) => moeda(celula.textContent ?? "") !== null)) continue;
     if (/\d[.,]\d{2}(?:\s|$)|\d{2}[/.-]\d{2}[/.-]\d{4}/.test(conteudo)) continue;
     const local = [nomeLocal(conteudo), nomeLocal(el.textContent ?? "")]
-      .find((s) => /^\d+\s+[A-Za-zÀ-ÿ]/.test(s) && s.length < 400);
+      .find((s) => /^\d+\s+(?:\d+[ºª]\s+)?[A-Za-zÀ-ÿ]/.test(s) && s.length < 400);
     if (local) { locais.push({ elemento, local }); vistos.add(elemento); }
   }
   return locais;
@@ -176,7 +176,7 @@ export function parsearTermoHtml(html: string): TermoHtmlExtraido {
     const conteudo = texto(el.textContent ?? "");
     if (!/^Local\s+F[ií]sico\s*:?/i.test(conteudo)) continue;
     // Os filtros não iniciam uma sala: podem anteceder o título real e não conter bens.
-    if (/Situa[çc][ãa]o\s+do\s+Bem|Par[âa]metro/i.test(conteudo)) continue;
+    if (temTitulos && /Situa[çc][ãa]o\s+do\s+Bem|Par[âa]metro/i.test(conteudo)) continue;
     const linha = el.closest("tr");
     const partes = [conteudo];
     let seguinte = el.nextElementSibling;
@@ -194,6 +194,7 @@ export function parsearTermoHtml(html: string): TermoHtmlExtraido {
   }
   if (limites.length <= 1) {
     const termo = parsearSecaoHtml(html);
+    if (limites[0]) termo.cabecalho.local = limites[0].local;
     return { ...termo, locais: [termo] };
   }
   const grupos = new Map<string, TermoExtraido>();
