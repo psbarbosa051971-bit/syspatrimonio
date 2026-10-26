@@ -70,3 +70,38 @@ describe("edição do valor do bem", () => {
     await waitFor(() => expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "MESA", valor: 3459 }));
   });
 });
+
+describe("edição da incorporação e do tipo do bem", () => {
+  const bemComDados = { ...bem, incorporacao: "07/12/2009", tipo: "Doação" } as Tables<"bens">;
+
+  function abrirComDados() {
+    render(<EditarDescricaoBem bem={bemComDados} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Editar descrição do bem — 123" }));
+  }
+
+  it("mostra a incorporação e o tipo já cadastrados", () => {
+    abrirComDados();
+    expect(screen.getByLabelText("Incorporação")).toHaveValue("07/12/2009");
+    expect(screen.getByLabelText("Tipo")).toHaveValue("Doação");
+  });
+
+  it("salva a incorporação digitada com máscara e o tipo escolhido", async () => {
+    abrirComDados();
+    fireEvent.change(screen.getByLabelText("Incorporação"), { target: { value: "15022020" } });
+    expect(screen.getByLabelText("Incorporação")).toHaveValue("15/02/2020");
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "Aquisição" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar descrição" }));
+    await waitFor(() => expect(mocks.atualizar).toHaveBeenCalledWith(
+      { descricao: "MESA", incorporacao: "15/02/2020", tipo: "Aquisição" },
+    ));
+  });
+
+  it("não salva quando a data de incorporação é inválida", async () => {
+    abrirComDados();
+    fireEvent.change(screen.getByLabelText("Incorporação"), { target: { value: "33132020" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar descrição" }));
+    await waitFor(() => expect(mocks.erro).toHaveBeenCalled());
+    expect(mocks.atualizar).not.toHaveBeenCalled();
+  });
+});
+
