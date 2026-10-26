@@ -85,8 +85,9 @@ function parsearSecaoHtml(html: string, validarTotal = true): TermoExtraido {
   const bens: BemExtraido[] = [];
   let suspeitos = 0;
   const codigosEncontrados = new Set<string>();
-  let colunas: { codigo: number; descricao: number; valor: number; incorporacao: number; tipo: number } | null = null;
   for (const tabela of Array.from(doc.querySelectorAll("table"))) {
+    // Jasper/Sonner pode mudar a grade de células entre páginas do mesmo local.
+    let colunas: { codigo: number; descricao: number; valor: number; incorporacao: number; tipo: number } | null = null;
     for (const tr of Array.from(tabela.querySelectorAll("tr"))) {
       if (tr.closest("table") !== tabela) continue;
       const valores: string[] = [];
@@ -98,7 +99,7 @@ function parsearSecaoHtml(html: string, validarTotal = true): TermoExtraido {
         for (let i = 1; i < span; i++) valores.push("");
       }
       const nomes = valores.map(chave);
-      const codigo = nomes.findIndex((v) => /^(?:cod(?:igo)?\.?\s*(?:red\.?)?|red\.?|patrimonio|tombamento)$/.test(v));
+      const codigo = nomes.findIndex((v) => /^(?:cod(?:igo)?\.?\s*(?:red\.?)?|red\.?|patrimonio|tombamento)\s*:?$/.test(v));
       const descricao = nomes.findIndex((v) => /^descricao(?:\s+do\s+bem)?$/.test(v));
       const valor = nomes.findIndex((v) => /^valor(?:\s+(?:atual|do bem|aquisicao|de aquisicao|total))?$/.test(v));
       if (codigo >= 0 && descricao >= 0 && valor >= 0) {
@@ -109,7 +110,7 @@ function parsearSecaoHtml(html: string, validarTotal = true): TermoExtraido {
       }
       if (!colunas || !valores.some(Boolean)) continue;
       const cod = (valores[colunas.codigo] ?? "").replace(/\s/g, "");
-      if (!/^\d{3,}$/.test(cod)) continue;
+      if (!/^\d+$/.test(cod)) continue;
       codigosEncontrados.add(cod);
       const v = moeda(valores[colunas.valor] ?? "");
       const desc = texto(valores[colunas.descricao] ?? "");
@@ -118,9 +119,8 @@ function parsearSecaoHtml(html: string, validarTotal = true): TermoExtraido {
         incorporacao: valores[colunas.incorporacao] || null,
         tipo: valores[colunas.tipo] || null });
     }
+    if (!colunas) extrairSemColunas(tabela, bens, codigosEncontrados);
   }
-  // Sem cabeçalhos reconhecidos, tenta o layout simples de células do relatório.
-  if (!colunas) extrairSemColunas(doc, bens, codigosEncontrados);
   const unicos = new Map(bens.map((b) => [b.codigo_red, b]));
   if (!unicos.size) throw new Error("Nenhum bem reconhecido no HTML. Envie o arquivo exportado pelo Sonner para conferir o layout.");
   if (suspeitos || unicos.size < codigosEncontrados.size) {
@@ -137,27 +137,29 @@ function parsearSecaoHtml(html: string, validarTotal = true): TermoExtraido {
   }, bens: [...unicos.values()] };
 }
 
-function extrairSemColunas(doc: Document, bens: BemExtraido[], codigos: Set<string>) {
-  for (const tr of Array.from(doc.querySelectorAll("tr"))) {
+function extrairSemColunas(tabela: Element, bens: BemExtraido[], codigos: Set<string>) {
+  for (const tr of Array.from(tabela.querySelectorAll("tr"))) {
+    if (tr.closest("table") !== tabela) continue;
     const valores = Array.from(tr.children)
       .filter((el) => /^(TD|TH)$/.test(el.tagName) && !el.querySelector("table"))
       .map((el) => texto(el.textContent ?? "")).filter(Boolean);
-    const indice = valores.findIndex((v) => /^\d{3,}$/.test(v));
-    if (indice < 0) continue;
+    const indice = valores.findIndex((v) => /^\d+$/.test(v));
+    if (indice !== 0) continue;
     const depois = valores.slice(indice + 1);
     let ultimo = -1;
     for (let i = depois.length - 1; i >= 0; i--) {
       if (moeda(depois[i]!) !== null) { ultimo = i; break; }
     }
-    if (ultimo < 1) continue;
-    const descricao = depois.slice(0, ultimo).find((v) =>
+    const descricao = depois.slice(0, ultimo >= 1 ? ultimo : depois.length).find((v) =>
       /[A-Za-zÀ-ÿ]{3}/.test(v) && !/^\d{2}[/.-]/.test(v) &&
       !/^(?:Motivo|Obs\.?|Aquisi[çc][ãa]o|Doa[çc][ãa]o|Transfer[êe]ncia)\b/i.test(v));
     if (!descricao) continue;
-    const codigo = valores[indice]!;
-    if (indice !== 0 || bens.some((b) => b.codigo_red === codigo)) continue;
+    const codigo = valores[indice] ?? "";
+    if (ultimo < 1 && !depois.some((v) => /^\d{2}[/.-]\d{2}[/.-]\d{4}$/.test(v))) continue;
     codigos.add(codigo);
-    bens.push({ codigo_red: codigo, descricao, valor: moeda(depois[ultimo]!)!,
+    const valor = moeda(depois[ultimo] ?? "");
+    if (valor === null) continue;
+    bens.push({ codigo_red: codigo, descricao, valor,
       incorporacao: depois.find((v) => /^\d{2}[/.-]\d{2}[/.-]\d{4}$/.test(v)) ?? null,
       tipo: depois.find((v) => /^(?:Aquisi[çc][ãa]o|Doa[çc][ãa]o|Transfer[êe]ncia|Comodato|Cess[ãa]o)$/i.test(v)) ?? null });
   }
@@ -173,7 +175,8 @@ export function parsearTermoHtml(html: string): TermoHtmlExtraido {
     if (el.querySelector("table,tr,p,div")) continue;
     const conteudo = texto(el.textContent ?? "");
     if (!/^Local\s+F[ií]sico\s*:?/i.test(conteudo)) continue;
-    if (temTitulos && /Situa[çc][ãa]o\s+do\s+Bem|Par[âa]metro/i.test(conteudo)) continue;
+    // Os filtros não iniciam uma sala: podem anteceder o título real e não conter bens.
+    if (/Situa[çc][ãa]o\s+do\s+Bem|Par[âa]metro/i.test(conteudo)) continue;
     const linha = el.closest("tr");
     const partes = [conteudo];
     let seguinte = el.nextElementSibling;

@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Keep an exact-match Vite alias for the jsPDF package root to its bundled ESM distribution; import-protection resolution must work under Worker conditions without externalizing dependencies.
+- Parse Sonner HTML column grids per table/page, using row-based extraction on headerless continuation pages; report filters must never create room boundaries.
