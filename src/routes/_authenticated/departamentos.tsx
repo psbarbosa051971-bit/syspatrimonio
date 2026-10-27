@@ -1261,47 +1261,45 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 px-4 pb-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
-              {!resultadoPesquisa && <div className="resumo-local grid gap-x-3 gap-y-2 p-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,3fr)_minmax(0,1.2fr)]">
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor="cabData">Última</Label>
-                  <Input
-                    id="cabData"
-                    aria-label="Data da última importação"
-                    title="Data da última importação"
-                    disabled={!salaSel}
-                    value={cabecalho.data}
-                    onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
-                    onBlur={salvarCabecalho}
-                  />
-                </div>
-                <div className="flex min-w-0 flex-col gap-1.5">
+              {!resultadoPesquisa && <div className="resumo-local grid gap-x-3 gap-y-2 p-3 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)] [&_input]:!text-xs [&_label]:!text-xs [&_select]:!text-xs">
+                <div className="flex min-w-0 flex-col gap-1">
                   <Label htmlFor="cabLocal">Local Físico</Label>
                   <Input
                     id="cabLocal"
-                    className="text-xs md:text-xs"
+                    className="h-8"
                     disabled={!salaSel}
                     value={cabecalho.local}
                     onChange={(e) => setCabecalho({ ...cabecalho, local: e.target.value })}
                     onBlur={salvarCabecalho}
                   />
                 </div>
-                <div className="flex min-w-0 flex-col gap-1.5">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Label htmlFor="cabResp">Responsável pela sala</Label>
+                  <Input id="cabResp" className="h-8" readOnly value={responsavelAtual?.nome ?? salaSel?.responsavel ?? ""}
+                    placeholder="Preenchido pelo usuário vinculado ao local" />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Label htmlFor="cabCpf">CPF</Label>
+                  <Input id="cabCpf" className="h-8" readOnly value={responsavelAtual?.cpf ? formatarCpf(responsavelAtual.cpf) : ""}
+                    placeholder="CPF do responsável" />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1">
                   <Label htmlFor="cabUnidade">Unidade</Label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                   <select
                     ref={unidadeRef}
                     id="cabUnidade"
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!unidadeLiberada || salvandoUnidade || carregandoSalas || !!erroSalas || importando}
                     value={salaSel?.unidade ?? ""}
                     onChange={(e) => void salvarUnidade(e.target.value)}
                   >
-                    <option value="" disabled>Selecione a Unidade</option>
+                    <option value="" disabled>Selecione</option>
                     <option value="CENTRAL">CENTRAL</option>
                     <option value="SAÚDE">SAÚDE</option>
                     <option value="EDUCAÇÃO">EDUCAÇÃO</option>
                   </select>
-                  <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0"
+                  <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0"
                     aria-label="Desbloquear campo Unidade" title="Desbloquear campo Unidade"
                     disabled={!salaSel || unidadeLiberada || importando}
                     onClick={() => { if (salaSel) { setUnidadeLiberadaSalaId(salaSel.id); setTimeout(() => unidadeRef.current?.focus(), 0); } }}>
@@ -1309,23 +1307,6 @@ function DepartamentosPage() {
                   </Button>
                   </div>
                   {salvandoUnidade && <span className="sr-only" role="status">Salvando unidade...</span>}
-                </div>
-                <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label htmlFor="cabResp">Responsável pela sala</Label>
-                    <Input id="cabResp" readOnly value={responsavelAtual?.nome ?? salaSel?.responsavel ?? ""}
-                      placeholder="Preenchido pelo usuário vinculado ao local" />
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label htmlFor="cabCpf">CPF</Label>
-                    <Input id="cabCpf" readOnly value={responsavelAtual?.cpf ? formatarCpf(responsavelAtual.cpf) : ""}
-                      placeholder="CPF do responsável" />
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label htmlFor="cabMatricula">Matrícula</Label>
-                    <Input id="cabMatricula" readOnly value={responsavelAtual?.matricula ?? ""}
-                      placeholder="Matrícula do responsável" />
-                  </div>
                 </div>
               </div>}
               {bensExibidos.length > 0 && (
