@@ -836,6 +836,10 @@ export type Database = {
         Args: { _checklist_id: string; _codigo_red: string; _sala_id?: string }
         Returns: Json
       }
+      bem_em_outro_termo_da_sala: {
+        Args: { _itens: string[]; _sala: string; _termo_atual: string }
+        Returns: Json
+      }
       bens_da_nota_fiscal: {
         Args: { _fornecedor: string; _numero: string }
         Returns: {

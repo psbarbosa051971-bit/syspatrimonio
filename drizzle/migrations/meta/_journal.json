@@ -134,6 +134,13 @@
       "when": 1793139180835,
       "tag": "0018_unificar_termos",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793141774144,
+      "tag": "0019_bloquear_bem_em_dois_termos_da_sala",
+      "breakpoints": true
     }
   ]
 }
