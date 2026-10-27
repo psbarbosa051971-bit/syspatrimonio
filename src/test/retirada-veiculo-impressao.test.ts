@@ -55,7 +55,7 @@ describe("relatório de retirada do veículo", () => {
       "RUA CONSELHEIRO JOAQUIM DELFINO, 173", "VEÍCULO TOYOTA HILUX", "2024/2024", "TCS3H06",
       "2013", "Aquisição", "02/10/2024", "NOVO", "LISTADO(S) POR GRUPO:",
       "VALOR POR GRUPO:", "VALOR TOTAL:", "DIRETOR DE MATERIAL E PATRIMÔNIO",
-      "Diretor de Patrimônio", "Responsável da Saúde", "Matrícula / documento: 12345",
+      "Diretor de Patrimônio", "Responsável da Saúde", "CPF: 12345",
       "DATA DE RECEBIMENTO 17/10/2026", "CHAVE RESERVA, CRV/RECIBO, MANUAL DO PROPRIETÁRIO",
       "DECLARO QUE RETIREI DA CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA",
       "ÔNIBUS RURAL ESCOLAR MOTOR DIESEL 275 L 59 PASSAGEIRO + CONDUTOR DISPOSITIVO POLTRONA MÓVEL MODELO 25811: IVECO 15-210 - ORE 3",

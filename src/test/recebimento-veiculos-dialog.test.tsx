@@ -74,6 +74,20 @@ describe("formulário de recebimento de veículos", () => {
     expect(screen.getByLabelText("Nome / matrícula 5")).toHaveValue("Assinante adicional");
   });
 
+  it("preenche a comissão do anexo e o diretor padrão em um novo checklist", async () => {
+    mocks.carregarComissao.mockResolvedValue({ data: null, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    expect(screen.getByLabelText("Diretor de Material e Patrimônio")).toHaveValue("LUCAS LEONARDO DANIEL SALGADO");
+    expect(screen.queryByLabelText("Endereço do destino")).toBeNull();
+    expect(screen.queryByLabelText("CRV/recibo entregue")).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Nome / matrícula 1")).toHaveValue("LUCAS LEONARDO DANIEL SALGADO");
+    expect(screen.getByLabelText("Nome / matrícula 2")).toHaveValue("IGOR TALLES DE SOUZA");
+    expect(screen.getByLabelText("Nome / matrícula 4")).toHaveValue("THÔMAS TRINDADE DA SILVA");
+    expect(screen.getByLabelText("Cargo / função 2")).toHaveValue("COORDENADOR DE MATERIAL E PATRIMÔNIO");
+  });
+
   it("salva a comissão separadamente sem emitir nem fechar o recebimento", async () => {
     const onClose = vi.fn();
     render(<RecebimentoVeiculosDialog bem={bem} onClose={onClose} />);
@@ -84,7 +98,7 @@ describe("formulário de recebimento de veículos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salvar comissão permanente" }));
     await waitFor(() => expect(mocks.gravarComissao).toHaveBeenCalledWith(expect.objectContaining({
       id: true, atualizado_por: "usuario", dados: expect.objectContaining({
-        assinante_1: "Nova presidente", cargo_1: "Engenheira", assinante_2: "", cargo_2: "",
+        assinante_1: "Nova presidente", cargo_1: "Engenheira", assinante_2: "IGOR TALLES DE SOUZA", cargo_2: "COORDENADOR DE MATERIAL E PATRIMÔNIO",
       }),
     }), { onConflict: "id" }));
     await waitFor(() => expect(mocks.sucesso).toHaveBeenCalled());
@@ -384,8 +398,7 @@ describe("formulário de recebimento de veículos", () => {
     const abrir = vi.spyOn(window, "open").mockReturnValue(janela as unknown as Window);
     const dadosRetirada = {
       secretaria: "TRANSPORTE DA SAÚDE", retirada_responsavel: "Maria da Silva",
-      retirada_documento: "12345", retirada_diretor: "João", retirada_estado: "NOVO",
-      retirada_endereco: "Rua do destino, 173", retirada_data: "2026-10-17", retirada_crv: "Sim",
+      retirada_documento: "12345", retirada_diretor: "João", retirada_data: "2026-10-17",
     };
     mocks.gravar.mockResolvedValue({ data: {
       bem_id: bem.id, numero: 2, ano: 2026, criado_em: "2026-10-17T12:00:00Z",
@@ -397,10 +410,9 @@ describe("formulário de recebimento de veículos", () => {
       await aguardarCarga();
       fireEvent.change(screen.getByLabelText("Secretaria"), { target: { value: dadosRetirada.secretaria } });
       for (const [rotulo, chave] of [
-        ["Endereço do destino", "retirada_endereco"], ["Estado na retirada", "retirada_estado"],
         ["Data da retirada", "retirada_data"], ["Diretor de Material e Patrimônio", "retirada_diretor"],
         ["Responsável pela retirada", "retirada_responsavel"],
-        ["Matrícula / documento do responsável", "retirada_documento"], ["CRV/recibo entregue", "retirada_crv"],
+        ["CPF", "retirada_documento"],
       ] as const) fireEvent.change(screen.getByLabelText(rotulo), { target: { value: dadosRetirada[chave] } });
       fireEvent.click(screen.getByRole("button", { name: "Retirar Veículo" }));
       await waitFor(() => expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({

@@ -129,7 +129,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         setNomesComissao(Array.from(new Set([1, 2, 3, 4, 5].flatMap((i) => [COMISSAO_PADRAO[`assinante_${i}`], comissaoInicial[`assinante_${i}`]]))));
         setCargosComissao(Array.from(new Set([1, 2, 3, 4, 5].flatMap((i) => [COMISSAO_PADRAO[`cargo_${i}`], comissaoInicial[`cargo_${i}`]]))));
         const comissaoDoTermo: Record<string, string> = { ...comissaoInicial };
-        if (recebimento.data) for (const chave of Object.keys(comissaoDoTermo)) if (salvos[chave]?.trim()) comissaoDoTermo[chave] = salvos[chave];
+        if (recebimento.data) for (const chave of Object.keys(comissaoDoTermo)) if (chave in salvos) comissaoDoTermo[chave] = salvos[chave];
         setDados({
           ...preenchidos, ...comissaoDoTermo,
           retirada_diretor: preenchidos.retirada_diretor?.trim() || DIRETOR_PADRAO, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
