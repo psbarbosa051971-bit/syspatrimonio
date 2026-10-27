@@ -1033,6 +1033,10 @@ export type Database = {
         Args: { _destino: string; _itens: Json; _pedido: string }
         Returns: Json
       }
+      unificar_termos: {
+        Args: { _sala: string; _termos: string[] }
+        Returns: Json
+      }
       vincular_dados_fornecedor: {
         Args: { _itens: Json }
         Returns: {

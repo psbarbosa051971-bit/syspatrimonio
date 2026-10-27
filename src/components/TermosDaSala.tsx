@@ -8,7 +8,8 @@ import { EntregaTermoDialog } from "@/components/EntregaTermoDialog";
 import { ExcluirTermoDialog } from "@/components/ExcluirTermoDialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
-import { Printer } from "lucide-react";
+import { Printer, Merge } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Props = {
@@ -26,10 +27,26 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   const [tentativa, setTentativa] = useState(0);
   const [termoImpressao, setTermoImpressao] = useState("");
   const [termoEntrega, setTermoEntrega] = useState<TermoDaSala | null>(null);
+  const [marcados, setMarcados] = useState<string[]>([]);
+  const [unificando, setUnificando] = useState(false);
+  async function unificar() {
+    const escolhidos = termos.filter((t) => marcados.includes(t.id)).sort((a, b) => Number(b.numero) - Number(a.numero));
+    if (!salaId || escolhidos.length !== 2) return;
+    const [maior, menor] = escolhidos;
+    if (!window.confirm(`Unificar os termos? Os bens do termo ${numeroDoTermo(menor)} irão para o termo ${numeroDoTermo(maior)} e o termo ${numeroDoTermo(menor)} deixará de existir.`)) return;
+    setUnificando(true);
+    const { error } = await supabase.rpc("unificar_termos", { _sala: salaId, _termos: escolhidos.map((t) => t.id) });
+    setUnificando(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Termos unificados no termo ${numeroDoTermo(maior)}.`);
+    setMarcados([]);
+    if (selecionado === menor.id) onLimpar();
+    setTentativa((n) => n + 1); onAtualizar();
+  }
   const [entregas, setEntregas] = useState<Record<string, Tables<"entregas_termos">>>({});
   useEffect(() => {
     let ativo = true;
-    setTermos([]); setErro(false); setTermoImpressao(""); setTermoEntrega(null); setEntregas({});
+    setTermos([]); setMarcados([]); setErro(false); setTermoImpressao(""); setTermoEntrega(null); setEntregas({});
     if (!salaId) { setCarregando(false); return; }
     setCarregando(true);
     async function carregar() {
@@ -64,11 +81,14 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
     <CardHeader className="pb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>Termos criados da sala</CardTitle>
-        {selecionado && <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
+          {salaId && <Button size="sm" disabled={marcados.length !== 2 || unificando} onClick={unificar} title="Marque dois termos na coluna Unificar"><Merge className="mr-2 h-4 w-4" />{unificando ? "Unificando..." : "Unificar termos"}</Button>}
+        {selecionado && <>
           {salaId && termos.filter((termo) => termo.id === selecionado && !termoSemMovimentacao(termo)).map((termo) =>
             <IncluirBensTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onAtualizar={onAtualizar} />)}
           <Button size="sm" variant="outline" onClick={onLimpar}>Mostrar todos os bens da sala</Button>
-        </div>}
+        </>}
+        </div>
       </div>
     </CardHeader>
     <CardContent className="space-y-3">
@@ -76,13 +96,13 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10 bg-muted text-foreground">
             <tr className="text-left [&_th]:whitespace-nowrap [&_th]:px-3 [&_th]:py-2">
-              <th>Termo</th><th>Bens</th><th>Status</th><th>Recebido por</th><th>Recebimento</th><th className="text-right">Valor do termo</th><th>Ano</th><th>Tipo de bem</th><th>Classificação</th><th className="text-right">Impressão</th>
+              <th>Termo</th><th>Bens</th><th>Status</th><th>Recebido por</th><th>Recebimento</th><th className="text-right">Valor do termo</th><th>Ano</th><th>Tipo de bem</th><th>Classificação</th><th>Unificar</th><th className="text-right">Impressão</th>
             </tr>
           </thead>
           <tbody>
-            {aguardandoDados ? <tr><td colSpan={10} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
-              : falhaCarga ? <tr><td colSpan={10} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => { setTentativa((n) => n + 1); if (erroBens) onAtualizar(); }}>Tentar novamente</Button></td></tr>
-              : termosComBens.length === 0 ? <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo com bens atualmente nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
+            {aguardandoDados ? <tr><td colSpan={11} className="p-4 text-center" role="status">Carregando termos da sala...</td></tr>
+              : falhaCarga ? <tr><td colSpan={11} className="p-4 text-center"><p role="alert">Não foi possível carregar os termos.</p><Button size="sm" variant="outline" onClick={() => { setTentativa((n) => n + 1); if (erroBens) onAtualizar(); }}>Tentar novamente</Button></td></tr>
+              : termosComBens.length === 0 ? <tr><td colSpan={11} className="p-4 text-center text-muted-foreground">{salaId ? "Nenhum termo com bens atualmente nesta sala." : "Selecione uma sala para consultar os termos."}</td></tr>
               : termosComBens.map(({ termo, quantidade }) => {
                 const resumo = resumoTermoDaSala(termo);
                 const entrega = entregas[termo.id];
@@ -95,6 +115,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
                   <td className="whitespace-nowrap">{entrega?.data_entrega ? entrega.data_entrega.split("-").reverse().join("/") : "Não registrado"}</td>
                   <td className="whitespace-nowrap text-right">{resumo.dados ? moeda(resumo.total) : "—"}</td>
                   <td>{numeroDoTermo(termo).split("/")[1]}</td><td>{resumo.tipos}</td><td className="whitespace-nowrap font-semibold">{resumo.classificacao}</td>
+                  <td className="text-center"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Selecionar termo ${numeroDoTermo(termo)} para unificar`} checked={marcados.includes(termo.id)} disabled={!marcados.includes(termo.id) && marcados.length >= 2} onChange={(e) => setMarcados((atuais) => e.target.checked ? [...atuais, termo.id] : atuais.filter((id) => id !== termo.id))} /></td>
                   <td className="text-right"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button><Button type="button" size="sm" variant="outline" aria-label={`Status do termo ${numeroDoTermo(termo)}`} onClick={() => setTermoEntrega(termo)}>Status</Button>{salaId && <ExcluirTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onExcluir={() => {
                     setTermos((atuais) => atuais.filter((item) => item.id !== termo.id));
                     if (selecionado === termo.id) onLimpar();
