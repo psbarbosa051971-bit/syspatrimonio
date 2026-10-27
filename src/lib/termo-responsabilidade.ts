@@ -66,7 +66,8 @@ function htmlViaDoTermo(termo: TermoResponsabilidade): string {
       body { margin: 0; color: oklch(0 0 0); background: oklch(1 0 0); font: 11px Arial, sans-serif; }
       .documento { max-width: 273mm; margin: auto; }
       h1 { font-size: 23px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 0; }
-      header { text-align: center; padding: 8px 0 12px; } header p { margin: 3px 0; }
+      header { text-align: center; padding: 4px 0 8px; } header p { margin: 3px 0; }
+      .cabecalho-institucional { display: block; width: 190mm; max-width: 100%; height: auto; margin: 0 auto 4px; }
       .local { border: 1px solid; text-align: center; padding: 10px; } .local p { margin: 5px 0 0; }
       .faixa { background: oklch(0.83 0 0); padding: 6px; text-align: center; font-weight: bold; }
       .historico { padding: 6px 0; } table { border-collapse: collapse; width: 100%; margin-top: 6px; table-layout: fixed; }
@@ -75,16 +76,16 @@ function htmlViaDoTermo(termo: TermoResponsabilidade): string {
       th, td { padding: 4px; vertical-align: top; overflow-wrap: anywhere; } tbody tr { break-inside: avoid; }
       thead { display: table-header-group; } .valor { text-align: right; white-space: nowrap; }
       .total { font-weight: bold; background: oklch(0.9 0 0); }
-      .assinaturas { display: flex; gap: 12px; margin-top: 18px; break-inside: avoid; }
-      .assinatura { border: 1px solid; width: 50%; padding: 10px; min-height: 210px; }
-      .linha { border-top: 1px solid; margin-top: 55px; padding-top: 5px; text-align: center; }
-      .declaracao { text-align: justify; line-height: 1.5; } .assinatura p { margin: 5px 0; }
+      .assinaturas { display: flex; gap: 12px; margin-top: 12px; break-inside: avoid; }
+      .assinatura { border: 1px solid; width: 50%; padding: 8px; }
+      .linha { border-top: 1px solid; margin-top: 28px; padding-top: 3px; text-align: center; }
+      .declaracao { text-align: justify; line-height: 1.35; } .assinatura p { margin: 3px 0; }
       footer { margin-top: 8px; font-size: 9px; break-inside: avoid; }
       .origem { text-align: center; margin: 8px 0; font-size: 9px; }
       @media print { * { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
     </style></head><body><main class="documento">
-    <header><h1>PREFEITURA MUNICIPAL DE ITAJUBÁ</h1><p>Av. Dr. Jerson Dias, 500 - Estiva, Itajubá - MG, 37500-295</p>
-      <strong>CENTRAL DE DISTRIBUIÇÃO E LOGÍSTICA / MATERIAL E PATRIMÔNIO</strong></header>
+    <header><img class="cabecalho-institucional" src="/images/cabecalho-recebimento-veiculos.jpg" alt="Prefeitura Municipal de Itajubá — Central de Distribuição e Logística / Material e Patrimônio">
+      <p>Av. Dr. Jerson Dias, 500 - Estiva, Itajubá - MG, 37500-295</p></header>
     <section class="local"><h2>${escapar(d.local)}</h2><p>${escapar(d.endereco)}</p></section>
     <h2 class="faixa">TERMO DE RESPONSABILIDADE Nº ${escapar(numeroDoTermo(termo))}</h2>
     ${d.data_termo ? `<p><strong>DATA DO TERMO:</strong> ${escapar(d.data_termo)}</p>` : ""}

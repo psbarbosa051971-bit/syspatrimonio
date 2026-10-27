@@ -44,6 +44,23 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(html).toContain("DATA DE RECEBIMENTO ____/____/________");
   });
 
+  it("usa o cabeçalho institucional e reduz a altura dos quadros de assinatura", () => {
+    const html = htmlDoTermo(registro());
+    const doc = document.implementation.createHTMLDocument();
+    doc.documentElement.innerHTML = html;
+    const cabecalho = doc.querySelector("header img");
+    expect(cabecalho?.getAttribute("src")).toBe("/images/cabecalho-recebimento-veiculos.jpg");
+    expect(cabecalho?.getAttribute("alt")).toContain("Prefeitura Municipal de Itajubá");
+    expect(doc.querySelector("header")?.textContent).toContain("Av. Dr. Jerson Dias, 500");
+    expect(doc.querySelectorAll(".assinatura")).toHaveLength(2);
+    expect(html).toContain("margin-top: 28px; padding-top: 3px; text-align: center;");
+    expect(html).toContain(".assinatura { border: 1px solid; width: 50%; padding: 8px; }");
+    expect(html).not.toContain("min-height: 210px");
+    expect(html).not.toContain("margin-top: 55px");
+    expect(html).toContain("Responsável pela Sala");
+    expect(html).toContain("Responsável pelo Recebimento");
+  });
+
   it("não executa conteúdo do arquivo nem interpreta nomes como HTML", () => {
     const termo = registro();
     const dados = lerDadosTermo(termo.termo_snapshot);
