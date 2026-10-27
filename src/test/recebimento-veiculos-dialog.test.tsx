@@ -303,7 +303,7 @@ describe("formulário de recebimento de veículos", () => {
     }), { onConflict: "bem_id" }));
   });
 
-  it("reutiliza a secretaria mais recente nos próximos veículos e oferece os nomes já salvos", async () => {
+  it("deixa a secretaria em branco no novo checklist e oferece os nomes já salvos", async () => {
     mocks.historico.mockResolvedValue({ data: [
       { secretaria: "Secretaria da Saúde" }, { secretaria: "Secretaria da Educação" },
       { secretaria: "Secretaria da Saúde" }, { secretaria: " " }, { secretaria: null },
@@ -311,7 +311,7 @@ describe("formulário de recebimento de veículos", () => {
     render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
     await aguardarCarga();
     const secretaria = screen.getByLabelText("Secretaria");
-    expect(secretaria).toHaveValue("Secretaria da Saúde");
+    expect(secretaria).toHaveValue("");
     expect(secretaria).toHaveAttribute("list", "secretarias-recebimento");
     expect(Array.from(document.querySelectorAll("#secretarias-recebimento option"), (opcao) => opcao.getAttribute("value")))
       .toEqual(["Secretaria da Saúde", "Secretaria da Educação"]);
