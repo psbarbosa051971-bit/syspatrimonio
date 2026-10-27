@@ -56,6 +56,22 @@ async function aguardarCarga() {
 }
 
 describe("formulário de recebimento de veículos", () => {
+  it("traz os dados fixos do documento salvos e não mostra Via do documento", async () => {
+    mocks.carregarComissao.mockResolvedValue({ data: { dados: { endereco_orgao: "AVENIDA DR JERSON DIAS, 500", cnpj_orgao: "18.025.940/0001-09", portaria: "200/2026" } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
+    await aguardarCarga();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Termo e assinaturas" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByLabelText("Endereço do órgão")).toHaveValue("AVENIDA DR JERSON DIAS, 500");
+    expect(screen.getByLabelText("CNPJ do órgão")).toHaveValue("18.025.940/0001-09");
+    expect(screen.getByLabelText("Portaria da comissão (nº/ano)")).toHaveValue("200/2026");
+    expect(screen.queryByLabelText("Via do documento")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Cidade"), { target: { value: "ITAJUBÁ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar comissão permanente" }));
+    await waitFor(() => expect(mocks.gravarComissao).toHaveBeenCalledWith(expect.objectContaining({
+      dados: expect.objectContaining({ cidade: "ITAJUBÁ", cnpj_orgao: "18.025.940/0001-09" }),
+    }), { onConflict: "id" }));
+  });
+
   it("reutiliza nomes e cargos da comissão permanente em um novo veículo", async () => {
     mocks.carregarComissao.mockResolvedValue({ data: { dados: {
       assinante_1: "Presidente cadastrado", cargo_1: "Diretor",
