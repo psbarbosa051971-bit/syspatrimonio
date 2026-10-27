@@ -95,7 +95,7 @@ export function TermosPorLote() {
       <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-5xl flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Termos por lote</DialogTitle>
-          <DialogDescription>Selecione o período de criação dos termos, incluindo as duas datas (horário de Brasília). A lista inclui todos os locais físicos que você pode consultar. Cada termo será impresso em duas vias, em A4 paisagem. Cada via começa em uma folha nova, mesmo com frente e verso ligado; se uma via não couber em uma página, continua no verso da própria folha.</DialogDescription>
+          <DialogDescription>Selecione o período de criação dos termos, incluindo as duas datas (horário de Brasília). A lista inclui todos os locais físicos que você pode consultar. Cada termo será impresso em uma única via, em A4 paisagem. Se o conteúdo não couber em uma página, continuará nas páginas seguintes, sem duplicar o termo.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5"><Label htmlFor="lote-data-inicial">Data inicial</Label><Input id="lote-data-inicial" type="date" value={inicial} disabled={preparando} onChange={(e) => setInicial(e.target.value)} /></div>
@@ -107,7 +107,7 @@ export function TermosPorLote() {
         {registros.length > 0 && <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" aria-label="Selecionar todos os termos" checked={selecionados.length === registros.length} disabled={preparando} onChange={(e) => { setSelecionados(e.target.checked ? registros.map((r) => r.id) : []); setHtml(""); setPronto(false); }} />Selecionar todos ({registros.length})</label>
-            <span className="text-sm">{selecionados.length} termo(s) selecionado(s) · {selecionados.length * 2} folha(s) · {selecionados.length * 2} vias</span>
+            <span className="text-sm">{selecionados.length} termo(s) selecionado(s) · {selecionados.length} via(s) · páginas conforme a quantidade de bens</span>
           </div>
           <div className="max-h-[35vh] overflow-auto rounded-md border">
             <table className="w-full text-left text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-2">SEL.</th><th className="p-2">Termo</th><th className="p-2">Criado em</th><th className="p-2">Local Físico</th><th className="p-2">Arquivo</th></tr></thead>
@@ -118,7 +118,7 @@ export function TermosPorLote() {
         </>}
         {html && <>
           <Button variant="outline" className="self-end" disabled={!pronto} onClick={imprimirDocumento}>Imprimir novamente / Salvar PDF</Button>
-          <iframe ref={frame} title="Termos de responsabilidade por lote — duas vias" srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[55vh] min-h-72 w-full shrink-0 rounded-md border bg-background" onLoad={() => {
+          <iframe ref={frame} title="Termos de responsabilidade por lote — via única" srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[55vh] min-h-72 w-full shrink-0 rounded-md border bg-background" onLoad={() => {
             if (frame.current?.contentDocument) ajustarViasDoTermo(frame.current.contentDocument);
             setPronto(true);
             if (imprimirAoAbrir.current) { imprimirAoAbrir.current = false; imprimirDocumento(); }

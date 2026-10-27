@@ -57,18 +57,19 @@ describe("termos por lote", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it("imprime apenas os termos marcados com cada via em uma folha separada", async () => {
+  it("imprime apenas os termos marcados em via única", async () => {
     abrir(); datas();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Selecionar termo 11/2026" }));
-    expect(screen.getByText("1 termo(s) selecionado(s) · 2 folha(s) · 2 vias")).toBeInTheDocument();
+    expect(screen.getByText("1 termo(s) selecionado(s) · 1 via(s) · páginas conforme a quantidade de bens")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Imprimir$/ }));
-    const iframe = await screen.findByTitle("Termos de responsabilidade por lote — duas vias") as HTMLIFrameElement;
+    const iframe = await screen.findByTitle("Termos de responsabilidade por lote — via única") as HTMLIFrameElement;
     expect(mocks.ids).toHaveBeenCalledWith(["dois"]);
     const html = iframe.getAttribute("srcdoc")!;
-    expect(html.match(/class="folha"/g)).toHaveLength(2);
-    expect(html.match(/class="via"/g)).toHaveLength(2);
+    expect(html.match(/class="folha"/g)).toHaveLength(1);
+    expect(html.match(/class="via"/g)).toHaveLength(1);
     expect(html).toContain("size: A4 landscape");
-    expect(html).toContain("break-before: right");
+    expect(html).not.toContain("2ª VIA");
+    expect(html).not.toContain("break-before: right");
     expect(html).toContain("Nº 11/2026");
     expect(html).not.toContain("Nº 10/2026");
     const print = vi.spyOn(iframe.contentWindow!, "print").mockImplementation(() => {});

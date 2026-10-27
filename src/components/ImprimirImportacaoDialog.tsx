@@ -117,7 +117,7 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
       <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${etapa === "documento" ? "max-w-5xl" : "max-w-xl"}`}>
         <DialogHeader>
           <DialogTitle>{etapa === "documento" ? `Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}` : "Dados do recebimento"}</DialogTitle>
-          <DialogDescription>{etapa === "documento" ? "Imprima ou salve duas vias na mesma folha A4 em paisagem. A opção sem preencher usa os dados já registrados no termo, sem alterar o recebimento." : "Você pode imprimir sem preencher os campos abaixo. Para registrar o recebimento, informe o recebedor e seu CPF e clique em Imprimir. O responsável pela sala vem do cadastro do local físico. A data de recebimento fica em branco para assinatura."}</DialogDescription>
+          <DialogDescription>{etapa === "documento" ? "Imprima ou salve uma única via em A4 paisagem. A opção sem preencher usa os dados já registrados no termo, sem alterar o recebimento." : "Você pode imprimir sem preencher os campos abaixo. Para registrar o recebimento, informe o recebedor e seu CPF e clique em Imprimir. O responsável pela sala vem do cadastro do local físico. A data de recebimento fica em branco para assinatura."}</DialogDescription>
         </DialogHeader>
         {etapa === "formulario" && (carregando ? <p className="text-sm text-muted-foreground">Carregando dados {transferencia ? "da transferência" : "da importação"}...</p> : termo ? <form onSubmit={salvarEImprimir} className="space-y-4">
           <div className="space-y-1.5"><Label htmlFor="recebimento-responsavel-sala">Responsável pela Sala</Label>

@@ -75,40 +75,43 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(html).toContain("DATA DE RECEBIMENTO ____/____/________");
   });
 
-  it("gera duas vias em folhas separadas, em paisagem", () => {
+  it("gera somente uma via em paisagem com fonte menor nas colunas dos bens", () => {
     const html = htmlDoTermo(registro());
-    expect(html.match(/class="folha"/g)).toHaveLength(2);
-    expect(html.match(/class="via"/g)).toHaveLength(2);
-    expect(html.match(/TERMO DE RESPONSABILIDADE Nº 2561\/2026/g)).toHaveLength(2);
-    expect(html.match(/LISTADO\(S\) GERAL: 3/g)).toHaveLength(2);
-    expect(html).toContain("1ª VIA");
-    expect(html).toContain("2ª VIA");
+    expect(html.match(/class="folha"/g)).toHaveLength(1);
+    expect(html.match(/class="via"/g)).toHaveLength(1);
+    expect(html.match(/TERMO DE RESPONSABILIDADE Nº 2561\/2026/g)).toHaveLength(1);
+    expect(html.match(/LISTADO\(S\) GERAL: 3/g)).toHaveLength(1);
+    expect(html).not.toContain("2ª VIA");
+    expect(html).toContain("th { background: oklch(0.78 0 0); text-align: left; font-size: 8px; }");
+    expect(html).toContain("td { font-size: 9px; }");
+    expect(html).not.toContain("overflow: hidden");
+    expect(html).not.toContain("break-before: right");
   });
 
   it("mantém uma folha para cada termo na ordem do lote", () => {
     const html = htmlDosTermos([registro(), registro({ id: "segunda", numero: 2562 })]);
     expect(html.match(/class="folha"/g)).toHaveLength(2);
-    expect(html.match(/class="via"/g)).toHaveLength(4);
+    expect(html.match(/class="via"/g)).toHaveLength(2);
     expect(html.indexOf("Nº 2561/2026")).toBeLessThan(html.indexOf("Nº 2562/2026"));
     expect(html).toContain("break-after: page");
     expect(() => htmlDosTermos([])).toThrow("Selecione pelo menos um termo");
     expect(() => htmlDosTermos([registro(), registro({ termo_snapshot: null })])).toThrow();
   });
 
-  it("gera cada via do lote em uma folha A4 separada, na ordem dos termos", () => {
+  it("mantém uma única via por termo também na orientação retrato", () => {
     const html = htmlDosTermos([registro(), registro({ id: "segunda", numero: 2562 })], "vias-separadas");
     const doc = document.implementation.createHTMLDocument();
     doc.documentElement.innerHTML = html;
     const folhas = [...doc.querySelectorAll(".folha")];
-    expect(folhas).toHaveLength(4);
+    expect(folhas).toHaveLength(2);
     folhas.forEach((folha) => {
       expect(folha.querySelectorAll(".via")).toHaveLength(1);
       expect(folha.textContent).toContain("LISTADO(S) GERAL: 3");
       expect(folha.textContent).toContain("Responsável cadastrado");
     });
-    expect(folhas.map((folha) => folha.querySelector(".numero-via")?.textContent)).toEqual(["1ª VIA", "2ª VIA", "1ª VIA", "2ª VIA"]);
-    expect(folhas.slice(0, 2).every((folha) => folha.textContent?.includes("Nº 2561/2026"))).toBe(true);
-    expect(folhas.slice(2).every((folha) => folha.textContent?.includes("Nº 2562/2026"))).toBe(true);
+    expect(folhas[0]!.textContent).toContain("Nº 2561/2026");
+    expect(folhas[1]!.textContent).toContain("Nº 2562/2026");
+    expect(html).not.toContain("2ª VIA");
     expect(html).toContain("size: A4 portrait");
     expect(html).not.toContain("size: A4 landscape");
     expect(html).toContain("break-after: page");

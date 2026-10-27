@@ -70,7 +70,8 @@ function htmlViaDoTermo(termo: TermoResponsabilidade): string {
       .local { border: 1px solid; text-align: center; padding: 10px; } .local p { margin: 5px 0 0; }
       .faixa { background: oklch(0.83 0 0); padding: 6px; text-align: center; font-weight: bold; }
       .historico { padding: 6px 0; } table { border-collapse: collapse; width: 100%; margin-top: 6px; table-layout: fixed; }
-      th { background: oklch(0.78 0 0); text-align: left; font-size: 10px; }
+      th { background: oklch(0.78 0 0); text-align: left; font-size: 8px; }
+      td { font-size: 9px; }
       th, td { padding: 4px; vertical-align: top; overflow-wrap: anywhere; } tbody tr { break-inside: avoid; }
       thead { display: table-header-group; } .valor { text-align: right; white-space: nowrap; }
       .total { font-weight: bold; background: oklch(0.9 0 0); }
@@ -104,59 +105,24 @@ function htmlViaDoTermo(termo: TermoResponsabilidade): string {
     </main></body></html>`;
 }
 
-/** Duas vias por termo: lado a lado por padrão ou em folhas A4 separadas. */
-export function htmlDosTermos(termos: TermoResponsabilidade[], layout: "lado-a-lado" | "vias-separadas" | "vias-paisagem" = "lado-a-lado"): string {
-  if (layout === "vias-paisagem") return htmlViasPaisagem(termos);
+/** Uma única via por termo, com continuação em novas páginas quando necessário. */
+export function htmlDosTermos(termos: TermoResponsabilidade[], layout: "lado-a-lado" | "vias-separadas" | "vias-paisagem" = "vias-paisagem"): string {
   if (!termos.length) throw new Error("Selecione pelo menos um termo para imprimir.");
-  const separadas = layout === "vias-separadas";
+  const retrato = layout === "vias-separadas";
   const documentos = termos.map(htmlViaDoTermo);
   const primeiro = documentos[0]!;
   const estilos = primeiro.slice(primeiro.indexOf("<style>") + 7, primeiro.indexOf("</style>")).replace(/@page\s*\{[^}]*\}/g, "");
   const folhas = documentos.map((html) => {
     const conteudo = html.slice(html.indexOf('<main class="documento">'), html.indexOf("</body>"));
-    const vias = [1, 2].map((via) => `<div class="via"><div class="via-conteudo"><p class="numero-via">${via}ª VIA</p>${conteudo}</div></div>`);
-    return separadas ? vias.map((via) => `<section class="folha">${via}</section>`).join("") : `<section class="folha">${vias.join("")}</section>`;
+    return `<section class="folha"><div class="via">${conteudo}</div></section>`;
   }).join("");
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${termos.length === 1 ? `Termo de responsabilidade ${escapar(numeroDoTermo(termos[0]!))}` : "Termos de responsabilidade por lote"}</title><style>${estilos}
-    @page { size: A4 ${separadas ? "portrait" : "landscape"}; margin: 10mm; }
-    .folha { width: ${separadas ? "190mm" : "277mm"}; height: ${separadas ? "277mm" : "189mm"}; display: flex; gap: 6mm; margin: 0 auto; break-inside: avoid; break-after: page; page-break-after: always; }
+    @page { size: A4 ${retrato ? "portrait" : "landscape"}; margin: 10mm; }
+    .folha { width: ${retrato ? "190mm" : "277mm"}; margin: 0 auto; break-after: page; page-break-after: always; }
     .folha:last-child { break-after: auto; page-break-after: auto; }
-    .via { position: relative; width: ${separadas ? "190mm" : "135.5mm"}; height: ${separadas ? "277mm" : "189mm"}; flex: none; overflow: hidden; }
-    .via + .via::before { content: ""; position: absolute; left: -3mm; height: 100%; border-left: 1px dashed oklch(0.65 0 0); }
-    .via-conteudo { width: ${separadas ? "190mm" : "135.5mm"}; position: absolute; top: 0; left: 0; transform-origin: top left; }
-    .documento { width: 100%; max-width: none; margin: 0; }
-    ${separadas ? "" : `h1 { font-size: 16px; } h2 { font-size: 12px; }
-    header { padding: 4px 0 8px; } .local { padding: 6px; }
-    th, td { padding: 3px; } th { font-size: 9px; }
-    .assinaturas { gap: 8px; margin-top: 12px; font-size: 9px; }
-    .assinatura { min-height: 160px; padding: 6px; } .linha { margin-top: 28px; }`}
-    .numero-via { text-align: right; font-weight: bold; margin: 0 0 4px; }
-    @media screen { .folha { margin: 12px auto; background: oklch(1 0 0); } }
-  </style></head><body>${folhas}</body></html>`;
-}
-
-/**
- * Lote em paisagem: cada via começa sempre em uma folha física nova (página ímpar),
- * então mesmo com frente e verso a 2ª via nunca fica no verso da 1ª. Uma via longa
- * continua no verso da própria folha.
- */
-function htmlViasPaisagem(termos: TermoResponsabilidade[]): string {
-  const documentos = termos.map(htmlViaDoTermo);
-  const primeiro = documentos[0]!;
-  const estilos = primeiro.slice(primeiro.indexOf("<style>") + 7, primeiro.indexOf("</style>")).replace(/@page\s*\{[^}]*\}/g, "");
-  const folhas = documentos.flatMap((html) => {
-    const conteudo = html.slice(html.indexOf('<main class="documento">'), html.indexOf("</body>"));
-    return [1, 2].map((via) => `<section class="folha"><div class="via"><p class="numero-via">${via}ª VIA</p>${conteudo}</div></section>`);
-  }).join("");
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Termos de responsabilidade por lote</title><style>${estilos}
-    @page { size: A4 landscape; margin: 10mm; }
-    .folha { width: 277mm; margin: 0 auto; break-before: right; page-break-before: right; break-after: page; page-break-after: always; }
-    .folha:first-child { break-before: auto; page-break-before: auto; }
-    .folha:last-child { break-after: auto; page-break-after: auto; }
-    .via { width: 277mm; }
+    .via { width: 100%; }
     .documento { width: 100%; max-width: none; margin: 0; }
     tr, .assinatura { break-inside: avoid; }
-    .numero-via { text-align: right; font-weight: bold; margin: 0 0 4px; }
     @media screen { .folha { margin: 12px auto; background: oklch(1 0 0); } }
   </style></head><body>${folhas}</body></html>`;
 }

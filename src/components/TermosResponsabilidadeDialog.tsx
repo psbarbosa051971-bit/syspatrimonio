@@ -96,7 +96,7 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
     <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${documento.html ? "max-w-5xl" : "max-w-xl"}`}>
       <DialogHeader>
         <DialogTitle>{consultarPorNumero ? "Termo de Responsabilidade" : "Termos de responsabilidade"}</DialogTitle>
-        <DialogDescription>{consultarPorNumero ? "Informe o número do termo deste Local Físico e clique em Imprimir para abrir o documento." : pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado. Ao imprimir ou salvar em PDF, serão geradas duas vias lado a lado na mesma folha A4 em paisagem. Os dados originais são preservados."}</DialogDescription>
+        <DialogDescription>{consultarPorNumero ? "Informe o número do termo deste Local Físico e clique em Imprimir para abrir o documento." : pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado. Ao imprimir ou salvar em PDF, será gerada uma única via em A4 paisagem. Os dados originais são preservados."}</DialogDescription>
       </DialogHeader>
       {carregando ? <p className="text-sm text-muted-foreground">Carregando termos...</p> : registros.length > 0 ? <>
         <div className="flex flex-wrap items-end gap-3">
