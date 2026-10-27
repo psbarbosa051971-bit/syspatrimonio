@@ -37,6 +37,15 @@ const detalhes = [
   { chave: "placa", nome: "Placa" }, { chave: "km", nome: "KM", tipo: "number" },
 ];
 
+export const DIRETOR_PADRAO = "LUCAS LEONARDO DANIEL SALGADO";
+export const COMISSAO_PADRAO: Record<string, string> = {
+  assinante_1: DIRETOR_PADRAO, cargo_1: "DIRETOR DE MATERIAL E PATRIMÔNIO",
+  assinante_2: "IGOR TALLES DE SOUZA", cargo_2: "COORDENADOR DE MATERIAL E PATRIMÔNIO",
+  assinante_3: "PAULO SERGIO BARBOSA", cargo_3: "AGENTE ADMINISTRATIVO",
+  assinante_4: "THÔMAS TRINDADE DA SILVA", cargo_4: "AGENTE ADMINISTRATIVO",
+  assinante_5: "RODRIGO JESUÍNO TRINDADE", cargo_5: "AGENTE ADMINISTRATIVO",
+};
+
 export function BotaoRecebimentoVeiculo({ bem }: { bem: Bem }) {
   const [aberto, setAberto] = useState(false);
   if (!ehVeiculo(bem)) return null;
@@ -53,6 +62,9 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
   const [dados, setDados] = useState<Record<string, string>>({});
   const [localOrigem, setLocalOrigem] = useState("");
   const [secretarias, setSecretarias] = useState<string[]>([]);
+  const [responsaveis, setResponsaveis] = useState<Record<string, string>>({});
+  const [nomesComissao, setNomesComissao] = useState<string[]>([]);
+  const [cargosComissao, setCargosComissao] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [tentativa, setTentativa] = useState(0);
@@ -61,7 +73,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
   const { emissaoRef, camposPreenchidos, registrarPreenchimento } = usePreenchimentoNfe();
   const alterar = (chave: string, valor: string) => {
     if (/^(assinante|cargo)_[1-5]$/.test(chave)) setComissaoAlterada(true);
-    setDados((atuais) => ({ ...atuais, [chave]: valor }));
+    setDados((atuais) => {
+      const novos = { ...atuais, [chave]: valor };
+      const cpf = chave === "retirada_responsavel" ? responsaveis[valor.trim().toUpperCase()] : undefined;
+      if (cpf) novos.retirada_documento = cpf;
+      return novos;
+    });
   };
 
   useEffect(() => {
@@ -74,7 +91,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
           supabase.from("recebimentos_veiculos").select("*").eq("bem_id", bem.id).maybeSingle(),
           bem.sala_id ? supabase.from("salas").select("nome").eq("id", bem.sala_id).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
-          supabase.from("recebimentos_veiculos").select("secretaria:dados->>secretaria")
+          supabase.from("recebimentos_veiculos").select("secretaria:dados->>secretaria,responsavel:dados->>retirada_responsavel,cpf:dados->>retirada_documento")
             .order("atualizado_em", { ascending: false }).limit(100),
           supabase.from("comissao_recebimento_veiculos").select("dados").eq("id", true).maybeSingle(),
         ]);
@@ -97,12 +114,25 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
           ...(historico.data ?? []).map((item) => typeof item.secretaria === "string" ? item.secretaria : ""),
         ].map((nome) => nome.trim()).filter(Boolean)));
         setSecretarias(nomesSecretarias);
+        const mapaResponsaveis: Record<string, string> = {};
+        for (const item of historico.data ?? []) {
+          const nome = typeof item.responsavel === "string" ? item.responsavel.trim() : "";
+          const cpf = typeof item.cpf === "string" ? item.cpf.trim() : "";
+          if (nome && !(nome.toUpperCase() in mapaResponsaveis)) mapaResponsaveis[nome.toUpperCase()] = cpf;
+        }
+        setResponsaveis(mapaResponsaveis);
         const assinaturasPadrao = Object.fromEntries(Object.entries(lerDadosRecebimento(comissao.data?.dados))
           .filter(([chave]) => /^(assinante|cargo)_[1-5]$/.test(chave)));
         setComissaoAlterada(false);
-        setDados({ assinante_5: "RODRIGO JESUÍNO TRINDADE", cargo_5: "AGENTE ADMINISTRATIVO",
-          ...(!recebimento.data ? assinaturasPadrao : {}),
-          ...preenchidos, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
+        const comissaoInicial: Record<string, string> = { ...COMISSAO_PADRAO };
+        for (const [chave, valor] of Object.entries(assinaturasPadrao)) if (valor.trim()) comissaoInicial[chave] = valor;
+        setNomesComissao(Array.from(new Set([1, 2, 3, 4, 5].flatMap((i) => [COMISSAO_PADRAO[`assinante_${i}`], comissaoInicial[`assinante_${i}`]]))));
+        setCargosComissao(Array.from(new Set([1, 2, 3, 4, 5].flatMap((i) => [COMISSAO_PADRAO[`cargo_${i}`], comissaoInicial[`cargo_${i}`]]))));
+        const comissaoDoTermo: Record<string, string> = { ...comissaoInicial };
+        if (recebimento.data) for (const chave of Object.keys(comissaoDoTermo)) if (salvos[chave]?.trim()) comissaoDoTermo[chave] = salvos[chave];
+        setDados({
+          ...preenchidos, ...comissaoDoTermo,
+          retirada_diretor: preenchidos.retirada_diretor?.trim() || DIRETOR_PADRAO, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
           modelo_veiculo: salvos.modelo_veiculo?.trim() || extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
           nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
         });
@@ -192,7 +222,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     } finally { setSalvando(false); }
   }
 
-  function campo(chave: string, nome: string, tipo = "text") {
+  function campo(chave: string, nome: string, tipo = "text", lista?: string) {
     const largura = chave === "fornecedor" ? "sm:col-span-3" : chave === "chassi" ? "sm:col-span-2" : "";
     return <label key={chave} className={`min-w-0 space-y-1 text-xs font-semibold ${largura}`}>
       <span className="block uppercase">{nome}</span>
@@ -201,7 +231,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         onChange={(valor) => alterar("emissao", valor)} /> : chave === "valor" ? <CampoValorReais aria-label={nome}
         value={dados.valor ?? ""} onChange={(valor) => alterar("valor", valor)}
         className={`h-8 min-w-0 px-2 text-xs md:text-xs ${camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : ""}`} /> : <Input type={tipo} min={tipo === "number" ? 0 : undefined}
-        maxLength={tipo === "text" ? 200 : undefined}
+        maxLength={tipo === "text" ? 200 : undefined} list={lista} aria-label={lista ? nome : undefined}
         className={`h-8 min-w-0 px-2 text-xs md:text-xs ${camposPreenchidos.has(chave) ? "campo-nfe-preenchido" : ""}`}
         value={dados[chave] ?? ""} onChange={(evento) => alterar(chave, evento.target.value)} />}
     </label>;
@@ -296,20 +326,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
             <section className="rounded-md border border-border">
               <h3 className="bg-muted px-3 py-1 text-xs font-bold uppercase">Termo de retirada de veículo</h3>
               <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3">
-                {campo("retirada_endereco", "Endereço do destino")}
-                {campo("retirada_estado", "Estado na retirada")}
                 {campo("retirada_data", "Data da retirada", "date")}
-                {campo("retirada_diretor", "Diretor de Material e Patrimônio")}
-                {campo("retirada_responsavel", "Responsável pela retirada")}
-                {campo("retirada_documento", "Matrícula / documento do responsável")}
-                <label className="min-w-0 space-y-1 text-xs font-semibold">
-                  <span className="block uppercase">CRV/recibo entregue</span>
-                  <select aria-label="CRV/recibo entregue" value={dados.retirada_crv ?? ""}
-                    onChange={(evento) => alterar("retirada_crv", evento.target.value)}
-                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground">
-                    <option value="">Não informado</option><option value="Sim">Sim</option><option value="Não">Não</option>
-                  </select>
-                </label>
+                {campo("retirada_diretor", "Diretor de Material e Patrimônio", "text", "nomes-diretor")}
+                {campo("retirada_responsavel", "Responsável pela retirada", "text", "responsaveis-retirada")}
+                {campo("retirada_documento", "CPF")}
+                <datalist id="nomes-diretor">{Array.from(new Set([DIRETOR_PADRAO, ...nomesComissao])).map((n) => <option key={n} value={n} />)}</datalist>
+                <datalist id="responsaveis-retirada">{Object.keys(responsaveis).map((n) => <option key={n} value={n} />)}</datalist>
               </div>
               <p className="px-2 pb-2 text-xs text-muted-foreground">Retirar Veículo salva o formulário e emite o Termo de Retirada de Veículo com número próprio, diferente dos termos de responsabilidade e de recebimento. Reimprimir a mesma retirada mantém seu número. Confira também a Secretaria e, no Check-list, a chave reserva e o manual entregues. Esta ação não transfere o patrimônio de Local Físico.</p>
             </section>
@@ -360,11 +382,13 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
                   <Save className="mr-2 h-4 w-4" />Salvar comissão permanente
                 </Button>
               </div>
+              <datalist id="nomes-comissao">{nomesComissao.map((n) => <option key={n} value={n} />)}</datalist>
+              <datalist id="cargos-comissao">{cargosComissao.map((n) => <option key={n} value={n} />)}</datalist>
               <div className="grid gap-3 p-3 sm:grid-cols-2">
                 {[1, 2, 3, 4, 5].map((i) => <div key={i} className="space-y-2 rounded-lg bg-muted/30 p-3">
                   <p className="text-xs font-bold text-primary">{i === 5 ? "Assinatura adicional · Rodrigo Jesuíno Trindade" : i === 1 ? "Presidente" : `Membro ${i - 1}`}</p>
-                  {campo(`assinante_${i}`, `Nome / matrícula ${i}`)}
-                  {campo(`cargo_${i}`, `Cargo / função ${i}`)}
+                  {campo(`assinante_${i}`, `Nome / matrícula ${i}`, "text", "nomes-comissao")}
+                  {campo(`cargo_${i}`, `Cargo / função ${i}`, "text", "cargos-comissao")}
                 </div>)}
               </div>
             </section>
