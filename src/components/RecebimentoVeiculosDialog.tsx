@@ -46,6 +46,9 @@ export const COMISSAO_PADRAO: Record<string, string> = {
   assinante_5: "RODRIGO JESUÍNO TRINDADE", cargo_5: "AGENTE ADMINISTRATIVO",
 };
 
+export const CAMPOS_DOCUMENTO_FIXOS = ["orgao", "endereco_orgao", "cnpj_orgao", "portaria", "cidade"];
+const ehCampoPermanente = (chave: string) => /^(assinante|cargo)_[1-5]$/.test(chave) || CAMPOS_DOCUMENTO_FIXOS.includes(chave);
+
 export function BotaoRecebimentoVeiculo({ bem }: { bem: Bem }) {
   const [aberto, setAberto] = useState(false);
   if (!ehVeiculo(bem)) return null;
@@ -72,7 +75,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
   const [comissaoAlterada, setComissaoAlterada] = useState(false);
   const { emissaoRef, camposPreenchidos, registrarPreenchimento } = usePreenchimentoNfe();
   const alterar = (chave: string, valor: string) => {
-    if (/^(assinante|cargo)_[1-5]$/.test(chave)) setComissaoAlterada(true);
+    if (ehCampoPermanente(chave)) setComissaoAlterada(true);
     setDados((atuais) => {
       const novos = { ...atuais, [chave]: valor };
       const cpf = chave === "retirada_responsavel" ? responsaveis[valor.trim().toUpperCase()] : undefined;
@@ -104,6 +107,8 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         const hoje = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
         const preenchidos: Record<string, string> = { data_termo: hoje, orgao: "PREFEITURA MUNICIPAL DE ITAJUBÁ", cidade: "Itajubá", portaria: "144/2025",
           ...extrairDadosVeiculo(limparDescricao(bem.descricao)).dados };
+        const fixosSalvos = lerDadosRecebimento(comissao.data?.dados);
+        for (const chave of CAMPOS_DOCUMENTO_FIXOS) if (fixosSalvos[chave]?.trim()) preenchidos[chave] = fixosSalvos[chave];
         for (const [chave, valor] of Object.entries(salvos)) {
           if (valor.trim() || !(chave in preenchidos)) preenchidos[chave] = valor;
         }
@@ -132,7 +137,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         if (recebimento.data) for (const chave of Object.keys(comissaoDoTermo)) if (chave in salvos) comissaoDoTermo[chave] = salvos[chave];
         setDados({
           ...preenchidos, ...comissaoDoTermo,
-          retirada_diretor: preenchidos.retirada_diretor?.trim() || DIRETOR_PADRAO, secretaria: salvos.secretaria ?? nomesSecretarias[0] ?? "",
+          retirada_diretor: preenchidos.retirada_diretor?.trim() || DIRETOR_PADRAO, secretaria: salvos.secretaria ?? "",
           modelo_veiculo: salvos.modelo_veiculo?.trim() || extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
           nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
         });
@@ -148,7 +153,7 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
     const assinaturas = Object.fromEntries([1, 2, 3, 4, 5].flatMap((i) => [
       [`assinante_${i}`, dados[`assinante_${i}`] ?? ""],
       [`cargo_${i}`, dados[`cargo_${i}`] ?? ""],
-    ]));
+    ]).concat(CAMPOS_DOCUMENTO_FIXOS.map((chave) => [chave, dados[chave] ?? ""])));
     const { error } = await supabase.from("comissao_recebimento_veiculos").upsert({
       id: true, dados: assinaturas, atualizado_por: userId, atualizado_em: new Date().toISOString(),
     }, { onConflict: "id" });
@@ -294,12 +299,12 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
                   <label className="col-span-2 min-w-0 space-y-1 text-xs font-semibold sm:col-span-4">
                     <span className="block uppercase">Secretaria</span>
                     <Input aria-label="Secretaria" value={dados.secretaria ?? ""} maxLength={500}
-                      list="secretarias-recebimento" className="h-8 text-xs md:text-xs" placeholder="Digite ou escolha uma secretaria salva"
+                      list="secretarias-recebimento" className="h-8 text-xs md:text-xs" placeholder="Escolha na lista ou digite uma nova secretaria"
                       onChange={(evento) => alterar("secretaria", evento.target.value)} />
                     <datalist id="secretarias-recebimento">
                       {secretarias.map((nome) => <option key={nome} value={nome} />)}
                     </datalist>
-                    <span className="block text-xs font-normal text-muted-foreground">Ao salvar o recebimento, a secretaria fica disponível para os próximos veículos.</span>
+                    <span className="block text-xs font-normal text-muted-foreground">Ao salvar, a secretaria digitada entra na lista para escolher nos próximos checklists.</span>
                   </label>
                 </div>
               </div>
@@ -361,7 +366,6 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
                 {campo("portaria", "Portaria da comissão (nº/ano)")}
                 {campo("data_termo", "Data do termo", "date")}
                 {campo("cidade", "Cidade")}
-                {campo("via", "Via do documento")}
               </div>
             </section>
             <section className="overflow-hidden rounded-xl border border-border">
