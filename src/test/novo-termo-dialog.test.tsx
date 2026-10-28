@@ -51,6 +51,25 @@ describe("novo termo sem movimentar bens", () => {
     expect(bens[0].importacao_id).toBe("anterior");
   });
 
+  it("envia o aceite somente quando o usuário autoriza repetição em termos", async () => {
+    render(<NovoTermoDialog sala={sala} bens={bens} onClose={vi.fn()} onSaved={vi.fn()} />);
+    const aceitar = screen.getByRole("button", { name: "Aceitar bens em termos diferentes" });
+    expect(aceitar).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(aceitar);
+    fireEvent.click(screen.getByRole("button", { name: "Criar termo" }));
+    await screen.findByText("Impressão: novo-termo");
+    expect(mocks.rpc).toHaveBeenCalledWith("criar_termo_bens_sala", expect.objectContaining({ _aceitar_repetidos: true }));
+  });
+
+  it("permite desfazer o aceite antes de criar", async () => {
+    render(<NovoTermoDialog sala={sala} bens={bens} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Aceitar bens em termos diferentes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer aceite de repetidos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar termo" }));
+    await screen.findByText("Impressão: novo-termo");
+    expect(mocks.rpc.mock.calls[0][1]).not.toHaveProperty("_aceitar_repetidos");
+  });
+
   it("reutiliza o mesmo pedido após falha de comunicação", async () => {
     mocks.rpc.mockRejectedValueOnce(new Error("Rede indisponível"));
     render(<NovoTermoDialog sala={sala} bens={bens} onClose={vi.fn()} onSaved={vi.fn()} />);
@@ -64,6 +83,17 @@ describe("novo termo sem movimentar bens", () => {
     render(<NovoTermoDialog sala={sala} bens={[{ ...bens[0], sala_id: "outra" }]} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Criar termo" })).toBeDisabled();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("mostra todos os bens no termo sobrevivente quando a união inclui termos sem movimentação", () => {
+    const unificado: TermoDaSala = {
+      ...termo, id: "termo-46", numero: 46,
+      termo_snapshot: { tipo_documento: "novo_termo", bem_ids: ["bem-1", "bem-2"],
+        bens: bens.map((bem) => ({ codigo_red: bem.codigo_red, descricao: bem.descricao, valor: bem.valor })) },
+    };
+    const bensUnificados = bens.map((bem) => ({ ...bem, importacao_id: "termo-46" }));
+    expect(bensAtuaisDoTermo(bensUnificados, unificado).map((bem) => bem.id)).toEqual(["bem-1", "bem-2"]);
+    expect(bensAtuaisDoTermo(bensUnificados, { ...unificado, termo_snapshot: { bens: [] } })).toEqual(bensUnificados);
   });
 
   it("filtra os bens do novo termo sem substituir o vínculo do termo anterior", () => {

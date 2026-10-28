@@ -134,6 +134,28 @@ describe("formulário de transferência", () => {
     expect(onSaved).toHaveBeenCalledWith("destino", "termo-1");
   });
 
+  it("inclui um bem já na sala somente após aceite explícito, sem duplicar seu cadastro", async () => {
+    mocks.buscar.mockResolvedValue([{ ...primeiro, sala_id: "destino" }]);
+    const onSaved = vi.fn();
+    render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={onSaved} />);
+    await escolherDestino();
+    fireEvent.change(screen.getByLabelText("Códigos RED separados por vírgulas"), { target: { value: "123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Filtrar" }));
+    await screen.findByText(/Já estão no destino; para incluir em outro termo/);
+    expect(screen.queryByRole("checkbox", { name: /Selecionar RED 123/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Aceitar bens em termos diferentes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filtrar" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Selecionar RED 123 — Sala destino — Bens encontrados" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aceitar selecionados" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos — Bens aceitos para transferência" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar transferência" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith("destino", "termo-1"));
+    expect(mocks.rpc).toHaveBeenCalledWith("transferir_bens", {
+      _destino: "destino", _itens: [{ id: "bem-1", sala_id: "destino" }],
+      _pedido: expect.any(String), _aceitar_repetidos: true,
+    });
+  });
+
   it("mantém a seleção quando o banco impede a transferência", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: "P0001", message: "O destino já contém um dos códigos RED selecionados" } });
     render(<TransferenciaBensDialog onClose={vi.fn()} onSaved={vi.fn()} />);

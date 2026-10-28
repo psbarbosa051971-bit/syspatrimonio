@@ -40,7 +40,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
     if (error) { toast.error(error.message); return; }
     toast.success(`Termos unificados no termo ${numeroDoTermo(maior)}.`);
     setMarcados([]);
-    if (selecionado === menor.id) onLimpar();
+    if (selecionado === menor.id || selecionado === maior.id) onLimpar();
     setTentativa((n) => n + 1); onAtualizar();
   }
   const [entregas, setEntregas] = useState<Record<string, Tables<"entregas_termos">>>({});

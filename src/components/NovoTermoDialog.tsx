@@ -19,6 +19,7 @@ export function NovoTermoDialog({ sala, bens, onClose, onSaved }: Props) {
   const [salvando, setSalvando] = useState(false);
   const [pendente, setPendente] = useState(false);
   const [erro, setErro] = useState("");
+  const [aceitarRepetidos, setAceitarRepetidos] = useState(false);
   const [termoId, setTermoId] = useState("");
   const pedido = useRef<string | null>(null);
   const operacao = useRef(false);
@@ -32,6 +33,7 @@ export function NovoTermoDialog({ sala, bens, onClose, onSaved }: Props) {
     try {
       const { data, error } = await supabase.rpc("criar_termo_bens_sala", {
         _sala: sala.id, _itens: bens.map((bem) => bem.id), _pedido: pedido.current,
+        ...(aceitarRepetidos ? { _aceitar_repetidos: true } : {}),
       });
       if (error) {
         if (error.code === "P0001" || error.code?.startsWith("23")) {
@@ -67,6 +69,11 @@ export function NovoTermoDialog({ sala, bens, onClose, onSaved }: Props) {
       <p className="text-sm">{bens.length} bem(ns) selecionado(s) · {bens.reduce((total, bem) => total + Number(bem.valor), 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
       <p className="text-sm text-muted-foreground">O número só é confirmado ao criar o termo. Depois, você poderá preencher os dados do recebimento e imprimir ou salvar em PDF.</p>
       {invalido && <p role="alert" className="text-sm text-destructive">{foraDaSala ? "Selecione apenas bens do Local Físico informado. Para mudar bens de sala, use Gerar transferência." : "Selecione de 1 a 500 bens por termo."}</p>}
+      <div className="space-y-2 rounded-md border border-border p-3 text-sm">
+        <p>Por padrão, bens que já constam em outro termo desta sala são bloqueados. O aceite permite repetir o bem nos documentos, sem duplicar seu cadastro.</p>
+        <Button type="button" variant={aceitarRepetidos ? "secondary" : "outline"} aria-pressed={aceitarRepetidos} disabled={salvando || pendente} onClick={() => { setAceitarRepetidos((atual) => !atual); setErro(""); }}>{aceitarRepetidos ? "Desfazer aceite de repetidos" : "Aceitar bens em termos diferentes"}</Button>
+        {aceitarRepetidos && <p role="status">Repetição autorizada somente para este novo termo. Os termos anteriores serão preservados.</p>}
+      </div>
       {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
       <div className="flex justify-end gap-2">
         <Button variant="outline" disabled={salvando || pendente} onClick={onClose}>Cancelar</Button>

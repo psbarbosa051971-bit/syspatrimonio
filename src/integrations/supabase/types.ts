@@ -888,7 +888,7 @@ export type Database = {
       }
       consultar_proximo_numero_transferencia: { Args: never; Returns: Json }
       criar_termo_bens_sala: {
-        Args: { _itens: string[]; _pedido: string; _sala: string }
+        Args: { _itens: string[]; _pedido: string; _sala: string; _aceitar_repetidos?: boolean }
         Returns: Json
       }
       dados_responsavel_sala_termo: {
@@ -986,7 +986,7 @@ export type Database = {
       }
       incluir_bens_fornecedor: { Args: { _itens: Json }; Returns: number }
       incluir_bens_no_termo: {
-        Args: { _itens: string[]; _sala: string; _termo: string }
+        Args: { _itens: string[]; _sala: string; _termo: string; _aceitar_repetidos?: boolean }
         Returns: Json
       }
       marcar_conferido: {
@@ -1034,7 +1034,7 @@ export type Database = {
         Returns: Json
       }
       transferir_bens: {
-        Args: { _destino: string; _itens: Json; _pedido: string }
+        Args: { _destino: string; _itens: Json; _pedido: string; _aceitar_repetidos?: boolean }
         Returns: Json
       }
       unificar_termos: {

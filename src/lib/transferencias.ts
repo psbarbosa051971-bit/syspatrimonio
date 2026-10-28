@@ -41,9 +41,9 @@ export async function buscarBensTransferencia(codigos: string[]): Promise<BemTra
   return bens.sort((a, b) => a.codigo_red.localeCompare(b.codigo_red, "pt-BR", { numeric: true }));
 }
 
-export function aceitarBens(atuais: BemTransferencia[], encontrados: BemTransferencia[], ids: string[], destino: string) {
+export function aceitarBens(atuais: BemTransferencia[], encontrados: BemTransferencia[], ids: string[], destino: string, aceitarRepetidos = false) {
   const unicos = new Map(atuais.map((b) => [b.id, b]));
-  encontrados.filter((b) => ids.includes(b.id) && b.sala_id !== destino).forEach((b) => unicos.set(b.id, b));
+  encontrados.filter((b) => ids.includes(b.id) && (aceitarRepetidos || b.sala_id !== destino)).forEach((b) => unicos.set(b.id, b));
   return [...unicos.values()];
 }
 

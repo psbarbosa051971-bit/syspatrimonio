@@ -26,11 +26,12 @@ export function IncluirBensTermoDialog({ salaId, termo, onAtualizar }: Props) {
   const salvandoRef = useRef(false);
   const [tentativa, setTentativa] = useState(0);
   const [confirmando, setConfirmando] = useState(false);
+  const [aceitarRepetidos, setAceitarRepetidos] = useState(false);
   useEffect(() => {
     if (!aberto) return;
     let ativo = true;
     setBusca(""); setSelecionados([]); setBens([]); setOrigens({});
-    setConfirmando(false); setErro(""); setCarregando(true);
+    setConfirmando(false); setAceitarRepetidos(false); setErro(""); setCarregando(true);
     async function carregar() {
       const itens: Bem[] = [];
       const numeros: Record<string, string> = {};
@@ -80,6 +81,7 @@ export function IncluirBensTermoDialog({ salaId, termo, onAtualizar }: Props) {
     try {
       const { error } = await supabase.rpc("incluir_bens_no_termo", {
         _termo: termo.id, _sala: salaId, _itens: selecionados,
+        ...(aceitarRepetidos ? { _aceitar_repetidos: true } : {}),
       });
       if (error) throw error;
       toast.success(`${selecionados.length} bem(ns) incluído(s) no termo ${numeroDoTermo(termo)}.`);
@@ -123,6 +125,10 @@ export function IncluirBensTermoDialog({ salaId, termo, onAtualizar }: Props) {
           </table>
         </div>
         <p className="text-xs text-muted-foreground" aria-live="polite">{encontrados.length} resultado(s). {encontrados.length > 200 ? "Exibindo os primeiros 200; refine a busca para localizar outros bens. " : ""}{selecionados.length} selecionado(s) — {moeda(escolhidos.reduce((total, bem) => total + Number(bem.valor), 0))}</p>
+        <div className="space-y-2 rounded-md border border-border p-3 text-sm">
+          <p>Bens presentes em outros termos desta sala continuam bloqueados até seu aceite. Autorizar preserva os documentos anteriores, sem duplicar o cadastro do bem.</p>
+          <Button type="button" variant={aceitarRepetidos ? "secondary" : "outline"} aria-pressed={aceitarRepetidos} disabled={salvando} onClick={() => { setAceitarRepetidos((atual) => !atual); setConfirmando(false); setErro(""); }}>{aceitarRepetidos ? "Desfazer aceite de repetidos" : "Aceitar bens em termos diferentes"}</Button>
+        </div>
         {confirmando && <div role="alert" className="rounded-md border border-border bg-accent p-3 text-sm">Confirma incluir {selecionados.length} bem(ns) no termo {numeroDoTermo(termo)}? {deOutroTermo > 0 && `${deOutroTermo} bem(ns) deixarão de aparecer como vínculo atual de outro termo. O documento histórico anterior não será alterado.`}</div>}
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="outline" disabled={salvando} onClick={() => setAberto(false)}>Cancelar</Button>

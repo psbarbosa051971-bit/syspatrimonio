@@ -41,6 +41,14 @@ describe("preparação de transferência de bens", () => {
     expect(origem.importacao_id).toBe("html-original");
   });
 
+  it("aceita bens já no destino somente com autorização e mantém um único cadastro na lista", () => {
+    const noDestino = bem("456", "destino");
+    expect(aceitarBens([], [noDestino], ["456"], "destino")).toEqual([]);
+    expect(aceitarBens([noDestino], [noDestino], ["456"], "destino", true)).toEqual([noDestino]);
+    expect(noDestino.sala_id).toBe("destino");
+    expect(noDestino.importacao_id).toBe("html-original");
+  });
+
   it("valida os dados do termo retornado antes da impressão", () => {
     const termo = { id: "termo", numero: 20, termo_ano: 2026, created_at: "2026-10-10T12:00:00Z",
       arquivo: "Transferência de bens", termo_snapshot: { local: "Sala destino", bens: [{ codigo_red: "123", descricao: "Mesa", valor: 100 }] } };

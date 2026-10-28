@@ -48,6 +48,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   const [filtrando, setFiltrando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [pendente, setPendente] = useState(false);
+  const [aceitarRepetidos, setAceitarRepetidos] = useState(false);
   const [termo, setTermo] = useState<TermoResponsabilidade | null>(null);
   const temCodigos = !grupo && Boolean(busca.trim() || aceitos.length);
   const numeracao = useNumeroTransferencia(temCodigos);
@@ -93,6 +94,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   function escolherDestino(ids: string[]) {
     if (bloqueado) return;
     setDestino(ids[0] ?? ""); setEncontrados([]); setMarcadosBusca([]);
+    setAceitarRepetidos(false);
     setAceitos(bensDoAlerta(grupo)); setMarcadosSalvar([]); setAviso(""); setErro(""); setPerfil(null);
   }
 
@@ -106,11 +108,11 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
       const dados = await buscarBensTransferencia(codigos);
       const faltantes = codigos.filter((c) => !dados.some((b) => b.codigo_red === c));
       const noDestino = dados.filter((b) => b.sala_id === destino);
-      const disponiveis = dados.filter((b) => b.sala_id !== destino && !aceitos.some((a) => a.id === b.id));
+      const disponiveis = dados.filter((b) => (aceitarRepetidos || b.sala_id !== destino) && !aceitos.some((a) => a.id === b.id));
       setEncontrados(disponiveis);
       setAviso([
         faltantes.length ? `Códigos não encontrados: ${faltantes.join(", ")}.` : "",
-        noDestino.length ? `Já estão no destino: ${[...new Set(noDestino.map((b) => b.codigo_red))].join(", ")}.` : "",
+        noDestino.length ? `${aceitarRepetidos ? "Já estão no destino; inclusão em novo termo autorizada" : "Já estão no destino; para incluir em outro termo, clique em Aceitar bens em termos diferentes e filtre novamente"}: ${[...new Set(noDestino.map((b) => b.codigo_red))].join(", ")}.` : "",
         `${disponiveis.length} bem(ns) disponível(is). Bens já aceitos não são repetidos.`,
       ].filter(Boolean).join(" "));
     } catch (e) { setErro(e instanceof Error ? e.message : "Não foi possível filtrar os bens. Tente novamente."); }
@@ -118,7 +120,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
   }
 
   function aceitar() {
-    const proximos = aceitarBens(aceitos, encontrados, marcadosBusca, destino);
+    const proximos = aceitarBens(aceitos, encontrados, marcadosBusca, destino, aceitarRepetidos);
     if (proximos.length > 500) { setErro("Aceite no máximo 500 bens por transferência."); return; }
     setAceitos(proximos); setMarcadosSalvar([]);
     setEncontrados((atuais) => atuais.filter((b) => !marcadosBusca.includes(b.id)));
@@ -139,6 +141,7 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
     try {
       const { data, error } = await supabase.rpc("transferir_bens", {
         _destino: atual.destino, _itens: atual.itens, _pedido: atual.id,
+        ...(aceitarRepetidos ? { _aceitar_repetidos: true } : {}),
       });
       if (error) {
         // Erros de validação do banco não efetivam nenhuma parte da transferência.
@@ -187,6 +190,14 @@ export function TransferenciaBensDialog({ onClose, onSaved, grupo, codigosInicia
           </div>
           {erroPerfil && <div role="alert" className="flex flex-wrap items-center gap-2"><p className="text-destructive">{erroPerfil}</p><Button variant="outline" disabled={bloqueado} onClick={() => setTentativa((n) => n + 1)}>Consultar novamente</Button></div>}
           {destino && !carregandoPerfil && !erroPerfil && (!perfil?.nome || !perfil?.cpf) && <p className="text-sm text-muted-foreground">Nome e CPF são obtidos do usuário vinculado ao local em Cadastrar usuário. Dados ausentes ficarão em branco no termo.</p>}
+        </section>
+        <section className="space-y-2 rounded-md border border-border p-3 text-sm" aria-label="Repetição de bens em termos">
+          <p>Por padrão, bens que já estão no destino não podem entrar em outro termo. O aceite permite repetir o mesmo bem nos documentos, sem duplicar seu cadastro ou mudar sua sala.</p>
+          <Button type="button" variant={aceitarRepetidos ? "secondary" : "outline"} aria-pressed={aceitarRepetidos} disabled={bloqueado || !destino} onClick={() => {
+            setAceitarRepetidos((atual) => !atual); setEncontrados([]); setMarcadosBusca([]);
+            setAceitos(bensDoAlerta(grupo)); setMarcadosSalvar([]); setErro(""); setAviso("");
+          }}>{aceitarRepetidos ? "Desfazer aceite de repetidos" : "Aceitar bens em termos diferentes"}</Button>
+          {aceitarRepetidos && <p role="status">Aceite válido somente para esta operação e este destino. Filtre novamente para incluir bens que já estão nesta sala. Os documentos anteriores serão preservados.</p>}
         </section>
         {!grupo && <><form onSubmit={filtrar} className="flex flex-wrap items-end gap-2">
           <div className="min-w-0 flex-1 basis-72 space-y-1.5"><Label htmlFor="transferencia-codigos">Códigos RED separados por vírgulas</Label>
