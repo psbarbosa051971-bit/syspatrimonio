@@ -39,6 +39,7 @@ describe("edição da descrição do bem", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ descricao: "VEÍCULO FIAT" })));
     expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "VEÍCULO FIAT" });
     expect(mocks.eq).toHaveBeenCalledWith("id", "bem-1");
+    expect(mocks.sucesso).toHaveBeenCalledWith("Dados do bem e dos termos de responsabilidade da sala atualizados.");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
@@ -52,6 +53,20 @@ describe("edição da descrição do bem", () => {
     expect(onSaved).not.toHaveBeenCalled();
     expect(campo).toHaveValue("VEÍCULO FIAT");
     expect(screen.getByRole("button", { name: "Salvar descrição" })).toBeEnabled();
+  });
+
+  it("informa que o salvamento também atualiza os termos já criados da mesma sala", async () => {
+    await abrir();
+    expect(screen.getByText(/nos termos de responsabilidade da mesma sala, inclusive os já criados/)).toBeInTheDocument();
+  });
+
+  it("salva mesmo sem mudar o texto para permitir sincronizar um termo desatualizado", async () => {
+    mocks.gravar.mockResolvedValueOnce({ data: bem, error: null });
+    const onSaved = vi.fn();
+    await abrir(onSaved);
+    fireEvent.click(screen.getByRole("button", { name: "Salvar descrição" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(bem));
+    expect(mocks.atualizar).toHaveBeenCalledWith({ descricao: "MESA" });
   });
 
   it("não aceita uma descrição vazia", async () => {

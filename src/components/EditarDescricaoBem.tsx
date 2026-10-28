@@ -60,7 +60,7 @@ export function EditarDescricaoBem({ bem, onSaved }: { bem: Bem; onSaved: (bem: 
       if (error || !data) throw error ?? new Error("Bem não atualizado");
       onSaved(data);
       setAberto(false);
-      toast.success("Dados do bem atualizados.");
+      toast.success("Dados do bem e dos termos de responsabilidade da sala atualizados.");
     } catch {
       toast.error("Não foi possível salvar a descrição. O texto foi mantido para tentar novamente.");
     } finally {
@@ -84,7 +84,7 @@ export function EditarDescricaoBem({ bem, onSaved }: { bem: Bem; onSaved: (bem: 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar descrição do bem</DialogTitle>
-          <DialogDescription>Patrimônio {formatarCodigoRed(bem.codigo_red)}. A alteração será salva no cadastro do bem.</DialogDescription>
+          <DialogDescription>Patrimônio {formatarCodigoRed(bem.codigo_red)}. Ao salvar, os dados serão atualizados no cadastro do bem e nos termos de responsabilidade da mesma sala, inclusive os já criados.</DialogDescription>
         </DialogHeader>
         <label className="space-y-2 text-sm font-semibold">
           <span>Descrição do bem</span>

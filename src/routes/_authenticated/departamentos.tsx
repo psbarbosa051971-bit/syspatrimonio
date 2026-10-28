@@ -314,6 +314,8 @@ function DepartamentosPage() {
     setBensParaTransferir(atualizar);
     setResultadoPesquisa((atual) => atual ? { ...atual, bens: atualizar(atual.bens) } : null);
     setTermoBem((atual) => atual?.id === atualizado.id ? atualizado : atual);
+    // Recarrega os termos depois da sincronização feita junto com o salvamento do bem.
+    setTentativaBens((valor) => valor + 1);
   }
   const [importando, setImportando] = useState(false);
   const [impressaoImportacao, setImpressaoImportacao] = useState<{ id: string; salaId: string } | null>(null);
