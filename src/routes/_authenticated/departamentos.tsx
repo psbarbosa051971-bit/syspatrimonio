@@ -46,6 +46,7 @@ import { RecebimentosVeiculos } from "@/components/RecebimentosVeiculos";
 import { NotasFiscais } from "@/components/NotasFiscais";
 import { EditarDescricaoBem } from "@/components/EditarDescricaoBem";
 import { BensIncorporadosDialog } from "@/components/BensIncorporadosDialog";
+import { NotasIncorporadasDialog } from "@/components/NotasIncorporadasDialog";
 import { ImportarFornecedorDialog } from "@/components/ImportarFornecedorDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1189,6 +1190,7 @@ function DepartamentosPage() {
               <Printer className="mr-1 h-4 w-4" /> Imprimir termo de Responsabilidade
             </Button>
             <BensIncorporadosDialog />
+            <NotasIncorporadasDialog />
             <CompartilharRelatorioSala dados={dadosRelatorioSala}
               disabled={!salaSel || carregandoBens || !!erroBens || carregandoSalas || !!erroSalas || importando || localizando || !!resultadoPesquisa} />
             <Button variant="outline" size="sm"
