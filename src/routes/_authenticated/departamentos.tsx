@@ -25,10 +25,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRole } from "@/hooks/use-role";
-import { limparDescricao } from "@/lib/pdf-parse";
+import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
 import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
 import { htmlPesquisaDinamica } from "@/lib/pesquisa-dinamica-impressao";
-import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { TermosPorLote } from "@/components/TermosPorLote";
@@ -753,19 +752,24 @@ function DepartamentosPage() {
     toast.success(`${ids.length} bem(ns) excluído(s)`);
   }
 
-  async function importarHtml(e: React.ChangeEvent<HTMLInputElement>) {
+  async function importarPdf(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !user || !departamentoSel) {
-      if (!departamentoSel) toast.error("Selecione ou salve um departamento antes de importar o HTML");
+      if (!departamentoSel) toast.error("Selecione ou salve um departamento antes de anexar o PDF");
+      return;
+    }
+    if (!/\.pdf$/i.test(file.name)) {
+      toast.error("Selecione somente um arquivo PDF.");
       return;
     }
     setImportando(true);
     try {
-      const termo = await extrairTermoDeHtml(file);
+      const termo = await extrairTermoDePdf(file);
       const extraidos = termo.bens;
+      if (!extraidos.length) throw new Error("Nenhum bem encontrado no PDF. Use um PDF com texto selecionável do Sonner.");
       const nomeLocal = termo.cabecalho.local.trim();
-      if (!nomeLocal) throw new Error("Local Físico não encontrado no HTML. Envie o arquivo para conferir o layout.");
+      if (!nomeLocal) throw new Error("Local Físico não encontrado no PDF. Confira o relatório selecionado.");
       const norm = (s: string) => s.normalize("NFC").replace(/\s+/g, " ").trim().toUpperCase()
         .split(/\s*;\s*|\s*(?:SITUA[ÇC][ÃA]O\s+DO\s+BEM|PAR[ÂA]METRO\s+DE\s+ORDENA[ÇC][ÃA]O)\s*:/)[0]!.trim()
         .replace(/^(\d+)\s*[-–—]?\s*(?=[A-ZÀ-Ú])/, "$1-");
@@ -785,7 +789,7 @@ function DepartamentosPage() {
             !/^\d+[-–—]/.test(norm(s.nome)) && semCodigo(s.nome) === semCodigo(nome));
           if (candidatas.length > 1) throw new Error(`Há mais de um cadastro para ${nome}. Corrija os locais antes de importar.`);
           const alvo = candidatas[0] ?? null;
-          if (alvo && destinos.has(alvo.id)) throw new Error("Dois locais do HTML apontam para a mesma sala. Corrija os cadastros; nada foi importado.");
+          if (alvo && destinos.has(alvo.id)) throw new Error("Dois locais do PDF apontam para a mesma sala. Corrija os cadastros; nada foi importado.");
           if (alvo) destinos.add(alvo.id);
           const { data: existentes, error } = await supabase.rpc("consultar_bens_importacao", {
             _bens: local.bens.map((b) => ({ ...b })),
@@ -887,10 +891,10 @@ function DepartamentosPage() {
         : "Importação concluída sem gerar número de termo. ") +
         `${Number(resultado["novos"])} bem(ns) adicionados; ${Number(resultado["transferidos"] ?? 0)} movidos de outros locais; ` +
         `${Math.max(0, Number(resultado["repetidos"]) - Number(resultado["transferidos"] ?? 0))} já estavam no destino. ` +
-        (gerarTermo ? `Confirme a impressão para preencher os dados do recebimento dos ${extraidos.length} bens do HTML.` : ""));
+        (gerarTermo ? `Confirme a impressão para preencher os dados do recebimento dos ${extraidos.length} bens do PDF.` : ""));
     } catch (erro) {
       toast.error(erro && typeof erro === "object" && "message" in erro
-        ? String(erro.message) : "Não foi possível concluir a importação do HTML");
+        ? String(erro.message) : "Não foi possível concluir a importação do PDF");
     } finally {
       setImportando(false);
     }
@@ -1037,7 +1041,7 @@ function DepartamentosPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Deseja gerar um número de termo?</AlertDialogTitle>
             <AlertDialogDescription>
-              Sim: importa os bens e cria um termo numerado para cada local físico do HTML. Não: importa os bens em seus respectivos locais, sem criar termos nem consumir números da sequência.
+              Sim: importa os bens e cria um termo numerado para cada local físico do PDF. Não: importa os bens em seus respectivos locais, sem criar termos nem consumir números da sequência.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1159,12 +1163,12 @@ function DepartamentosPage() {
 
           {/* Barra compacta compartilhada pelos painéis de bens e salas. */}
           <section aria-label="Ações da sala" className="bens-sala-form bens-sala-acoes flex min-w-0 flex-wrap items-center gap-1 rounded-md border border-border bg-card p-2 lg:col-span-2">
-            <input ref={fileRef} type="file" accept=".html,.htm,text/html" className="hidden" onChange={importarHtml} />
+            <input ref={fileRef} type="file" accept=".pdf,application/pdf" aria-label="Arquivo PDF do Sonner" className="hidden" onChange={importarPdf} />
             <Button variant="outline" size="sm"
               disabled={!departamentoSel || importando || localizando || !!resultadoPesquisa}
               onClick={() => fileRef.current?.click()}>
               <Upload className="mr-1 h-4 w-4" />
-              {importando ? "Lendo HTML..." : "Importar HTML do Sonner"}
+              {importando ? "Lendo PDF..." : "Anexar PDF do Sonner"}
             </Button>
             <ImportarFornecedorDialog onFornecedorChange={setFornecedorImportado} />
             <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>

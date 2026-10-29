@@ -34,8 +34,10 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
     ? mocks.consultarImportacao(args) : mocks.rpc(funcao, args),
 } }));
 vi.mock("@/lib/usuarios.functions", () => ({ responsavelDoLocal: vi.fn() }));
-vi.mock("@/lib/pdf-parse", () => ({ limparDescricao: (texto: string) => texto }));
-vi.mock("@/lib/html-parse", () => ({ extrairTermoDeHtml: mocks.extrairHtml }));
+vi.mock("@/lib/pdf-parse", () => ({
+  limparDescricao: (texto: string) => texto,
+  extrairTermoDePdf: mocks.extrairHtml,
+}));
 vi.mock("@/components/ExcluirImportacoesDialog", () => ({ ExcluirImportacoesDialog: () => null }));
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({ TermosResponsabilidadeDialog: () => null }));
 
@@ -128,7 +130,7 @@ async function importarParaLiberarUnidade() {
     data: { importacao_id: "importacao", termo_numero: "1/2026", novos: 0, repetidos: 1 }, error: null,
   });
   fireEvent.change(document.querySelector('input[type="file"]')!, {
-    target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+    target: { files: [new File(["%PDF-"], "termo.pdf", { type: "application/pdf" })] },
   });
   const dialogo = await screen.findByRole("alertdialog");
   fireEvent.click(within(dialogo).getByRole("button", { name: "Sim" }));
@@ -143,6 +145,19 @@ async function importarParaLiberarUnidade() {
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("aceita somente PDF e rejeita HTML antes de ler ou gravar dados", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const input = screen.getByLabelText("Arquivo PDF do Sonner");
+    expect(input).toHaveAttribute("accept", ".pdf,application/pdf");
+    expect(screen.queryByRole("button", { name: "Importar HTML do Sonner" })).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { files: [new File(["<html></html>"], "termo.html", { type: "text/html" })] } });
+    expect(mocks.erroToast).toHaveBeenCalledWith("Selecione somente um arquivo PDF.");
+    expect(mocks.extrairHtml).not.toHaveBeenCalled();
+    expect(mocks.consultarImportacao).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("envia vários locais separados em uma única importação após todas as confirmações", async () => {
     const locais = [
       { cabecalho: { local: "58195 Escola A", endereco: "Rua A", data: "", historico: "" },
@@ -158,7 +173,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(document.querySelector('input[type="file"]')!, {
-      target: { files: [new File(["html"], "locais.html", { type: "text/html" })] },
+      target: { files: [new File(["%PDF-"], "locais.pdf", { type: "application/pdf" })] },
     });
     const primeira = await screen.findByRole("alertdialog", { name: /1\/2 — 58195 Escola A/ });
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -169,7 +184,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     const numeracao = await screen.findByRole("alertdialog", { name: "Deseja gerar um número de termo?" });
     fireEvent.click(within(numeracao).getByRole("button", { name: "Não" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_multiplos_locais", {
-      _departamento_id: "dep", _arquivo: "locais.html", _gerar_termo: false,
+      _departamento_id: "dep", _arquivo: "locais.pdf", _gerar_termo: false,
       _locais: locais.map((l) => ({ ...l, sala_id: null, existentes: [] })),
     }));
     expect(mocks.atualizarSala).not.toHaveBeenCalled();
@@ -184,7 +199,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(document.querySelector('input[type="file"]')!, {
-      target: { files: [new File(["html"], "locais.html", { type: "text/html" })] },
+      target: { files: [new File(["%PDF-"], "locais.pdf", { type: "application/pdf" })] },
     });
     fireEvent.click(within(await screen.findByRole("alertdialog", { name: /1\/2 —/ })).getByRole("button", { name: "Sim" }));
     fireEvent.click(within(await screen.findByRole("alertdialog", { name: /2\/2 —/ })).getByRole("button", { name: "Não" }));
@@ -199,7 +214,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     const acoes = screen.getByRole("region", { name: "Ações da sala" });
     const botoes = within(acoes).getAllByRole("button");
     expect(botoes.slice(0, 6).map((botao) => botao.textContent?.trim())).toEqual([
-      "Importar HTML do Sonner", "Importar por fornecedor", "Gerar transferência",
+      "Anexar PDF do Sonner", "Importar por fornecedor", "Gerar transferência",
       "Estornar transferência", "Termo de Responsabilidade", "Imprimir termo de Responsabilidade",
     ]);
     const compartilhar = within(acoes).getByRole("button", { name: "Compartilhar Relatório" });
@@ -403,7 +418,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(within(screen.getByRole("main")).queryByRole("searchbox", { name: "PESQUISA DINÂMICA" })).not.toBeInTheDocument();
   });
 
-  it.each(["Sim", "Não"])("aguarda a confirmação personalizada da importação e respeita %s", async (resposta) => {
+  it.each(["Sim", "Não"])("aguarda a confirmação personalizada da importação PDF e respeita %s", async (resposta) => {
     const nomeLocal = "142 TRANSPORTE DA SAÚDE";
     mocks.salas = [{ ...sala, nome: nomeLocal }];
     const extraidos = Array.from({ length: 105 }, (_, i) => ({ codigo_red: String(i), descricao: "Mesa", valor: 10 }));
@@ -414,7 +429,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     const { container } = render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(container.querySelector('input[type="file"]')!, {
-      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+      target: { files: [new File(["%PDF-"], "termo.pdf", { type: "application/pdf" })] },
     });
     const dialogo = await screen.findByRole("alertdialog");
     expect(dialogo).toHaveAccessibleName(`LOCAL IMPORTADO: ${nomeLocal}`);
@@ -437,10 +452,10 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(screen.queryByRole("dialog", { name: "Dados do recebimento" })).not.toBeInTheDocument();
     }
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar PDF do Sonner" })).toBeEnabled());
     if (resposta === "Sim") {
       expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
-        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos, _existentes: [], _gerar_termo: true,
+        _sala_id: "sala", _arquivo: "termo.pdf", _bens: extraidos, _existentes: [], _gerar_termo: true,
       }));
       const unidade = screen.getByRole("combobox", { name: "Unidade" });
       expect(unidade).toBeEnabled();
@@ -470,7 +485,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(document.querySelector('input[type="file"]')!, {
-      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+      target: { files: [new File(["%PDF-"], "termo.pdf", { type: "application/pdf" })] },
     });
     const dialogo = await screen.findByRole("alertdialog");
     expect(within(dialogo).getByText("ATENÇÃO: os bens abaixo já existem em outra sala.")).toBeInTheDocument();
@@ -490,7 +505,7 @@ describe("Carregamento dos registros em Departamentos", () => {
       const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
       fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
     }
-    await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar PDF do Sonner" })).toBeEnabled());
     if (resposta === "OK") {
       expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
         _sala_id: "sala", _bens: extraidos, _existentes: existentes, _gerar_termo: true,
@@ -509,7 +524,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(document.querySelector('input[type="file"]')!, {
-      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+      target: { files: [new File(["%PDF-"], "termo.pdf", { type: "application/pdf" })] },
     });
     const confirmacao = await screen.findByRole("alertdialog");
     fireEvent.click(within(confirmacao).getByRole("button", { name: "Sim" }));
@@ -522,12 +537,12 @@ describe("Carregamento dos registros em Departamentos", () => {
       });
     }
     fireEvent.click(within(numeracao).getByRole("button", { name: resposta }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Importar HTML do Sonner" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar PDF do Sonner" })).toBeEnabled());
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Dados do recebimento" })).not.toBeInTheDocument();
     if (resposta === "Não") {
       expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
-        _sala_id: "sala", _arquivo: "termo.html", _bens: extraidos, _existentes: [], _gerar_termo: false,
+        _sala_id: "sala", _arquivo: "termo.pdf", _bens: extraidos, _existentes: [], _gerar_termo: false,
       }));
       expect(mocks.atualizarSala).toHaveBeenCalled();
       expect(screen.getByRole("combobox", { name: "Unidade" })).toBeEnabled();
@@ -547,7 +562,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(document.querySelector('input[type="file"]')!, {
-      target: { files: [new File(["html"], "termo.html", { type: "text/html" })] },
+      target: { files: [new File(["%PDF-"], "termo.pdf", { type: "application/pdf" })] },
     });
     await waitFor(() => expect(mocks.erroToast).toHaveBeenCalledWith("Falha ao verificar os códigos RED"));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

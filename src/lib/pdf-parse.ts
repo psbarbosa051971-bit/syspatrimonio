@@ -1,9 +1,26 @@
-import * as pdfjs from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+export type TextoPdf = { str: string; transform: number[]; hasEOL?: boolean };
+
+/** Carrega o leitor somente ao selecionar um PDF, sem executá-lo no servidor. */
+export async function lerPaginasPdf(file: File): Promise<TextoPdf[][]> {
+  if (!/\.pdf$/i.test(file.name)) throw new Error("Selecione somente um arquivo PDF.");
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  try {
+    const paginas: TextoPdf[][] = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      paginas.push(content.items.flatMap((item) => "str" in item
+        ? [{ str: item.str, transform: item.transform, hasEOL: item.hasEOL }] : []));
+    }
+    return paginas;
+  } finally {
+    await doc.destroy();
+  }
+}
 
 export type BemExtraido = {
   codigo_red: string;
@@ -23,6 +40,7 @@ export type CabecalhoTermo = {
 export type TermoExtraido = {
   cabecalho: CabecalhoTermo;
   bens: BemExtraido[];
+  locais?: { cabecalho: CabecalhoTermo; bens: BemExtraido[] }[];
 };
 
 const ROTULOS =
@@ -37,19 +55,55 @@ function campo(texto: string, rotulo: string): string {
 }
 
 export async function extrairTermoDePdf(file: File): Promise<TermoExtraido> {
-  const buffer = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: buffer }).promise;
-  let texto = "";
-  const bensPos: BemExtraido[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    bensPos.push(...parsearPorPosicao(content.items as unknown[]));
-    texto +=
-      content.items
-        .map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : ""))
-        .join("") + "\n";
+  return parsearPaginasTermo(await lerPaginasPdf(file));
+}
+
+function linhasPdf(items: TextoPdf[]): TextoPdf[][] {
+  const linhas: TextoPdf[][] = [];
+  for (const item of [...items].sort((a, b) => b.transform[5]! - a.transform[5]! || a.transform[4]! - b.transform[4]!)) {
+    const ultima = linhas[linhas.length - 1];
+    if (ultima && Math.abs(ultima[0]!.transform[5]! - item.transform[5]!) < 3) ultima.push(item);
+    else linhas.push([item]);
   }
+  return linhas.map((linha) => linha.sort((a, b) => a.transform[4]! - b.transform[4]!));
+}
+
+/** Agrupa páginas de continuação e separa os cabeçalhos reais de cada local. */
+export function parsearPaginasTermo(paginas: TextoPdf[][]): TermoExtraido {
+  const grupos: { nome: string; paginas: TextoPdf[][] }[] = [];
+  let atual: (typeof grupos)[number] | undefined;
+  for (const pagina of paginas) {
+    let trecho: TextoPdf[] = [];
+    const guardar = () => {
+      if (!trecho.length) return;
+      if (!atual) { atual = { nome: "", paginas: [] }; grupos.push(atual); }
+      atual.paginas.push(trecho);
+      trecho = [];
+    };
+    for (const linha of linhasPdf(pagina)) {
+      const texto = linha.map((i) => i.str).join(" ").normalize("NFC").trim();
+      const nome = texto.match(/^Local\s+F[íi]sico\s*:\s*(\d+\s*[-–—]?\s*[^;]+?)(?=\s+(?:C[óo]d(?:igo)?\.?\s*RED|Situa[çc][ãa]o|Par[âa]metro)\b|;|$)/i)?.[1]?.trim();
+      if (nome) {
+        guardar();
+        const chave = nome.replace(/\s+/g, " ").toUpperCase();
+        atual = grupos.find((g) => g.nome === chave);
+        if (!atual) { atual = { nome: chave, paginas: [] }; grupos.push(atual); }
+      }
+      trecho.push(...linha);
+    }
+    guardar();
+  }
+  const extraidos = grupos.map((g) => parsearTrechosTermo(g.paginas));
+  const locais = extraidos.filter((t) => t.bens.length > 0);
+  const primeiro = locais[0] ?? extraidos[0] ?? parsearTrechosTermo([]);
+  return { cabecalho: primeiro.cabecalho, bens: locais.flatMap((t) => t.bens),
+    ...(locais.length > 1 ? { locais } : {}) };
+}
+
+function parsearTrechosTermo(paginas: TextoPdf[][]): TermoExtraido {
+  const bensPos = paginas.flatMap((items) => parsearPorPosicao(items));
+  let texto = paginas.map((items) => linhasPdf(items)
+    .map((linha) => linha.map((i) => i.str).join(" ")).join("\n")).join("\n");
   texto = texto.normalize("NFC").replace(/[ \t\u00a0]+/g, " ");
   const dataMatch =
     texto.match(/Emiss\S{1,2}o\s*:.*?(\d{2}[-/.]\d{2}[-/.]\d{4})/i) ??

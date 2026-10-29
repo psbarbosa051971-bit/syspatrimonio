@@ -4,7 +4,7 @@ import { ImportarFornecedorDialog } from "@/components/ImportarFornecedorDialog"
 
 const mocks = vi.hoisted(() => ({ parsear: vi.fn(), rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mocks.rpc } }));
-vi.mock("@/lib/html-fornecedor", () => ({ parsearFornecedorHtml: mocks.parsear }));
+vi.mock("@/lib/pdf-fornecedor", () => ({ extrairFornecedorPdf: mocks.parsear }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 
 beforeEach(() => {
@@ -19,13 +19,25 @@ afterEach(cleanup);
 async function abrirImportacao(onFornecedorChange: (fornecedor: string) => void) {
   render(<ImportarFornecedorDialog onFornecedorChange={onFornecedorChange} />);
   fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
-  const arquivo = new File(["<html></html>"], "fornecedores.html", { type: "text/html" });
-  Object.defineProperty(arquivo, "text", { value: vi.fn().mockResolvedValue("<html></html>") });
-  fireEvent.change(screen.getByLabelText("Arquivo HTML por fornecedor"), { target: { files: [arquivo] } });
+  const arquivo = new File(["%PDF-"], "fornecedores.pdf", { type: "application/pdf" });
+  const input = screen.getByLabelText("Arquivo PDF por fornecedor");
+  expect(input).toHaveAttribute("accept", ".pdf,application/pdf");
+  fireEvent.change(input, { target: { files: [arquivo] } });
   await screen.findByLabelText("Fornecedor");
 }
 
 describe("Fornecedor compartilhado com Notas Fiscais", () => {
+  it("rejeita arquivos HTML sem tentar importar", () => {
+    render(<ImportarFornecedorDialog />);
+    fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
+    fireEvent.change(screen.getByLabelText("Arquivo PDF por fornecedor"), {
+      target: { files: [new File(["<html></html>"], "fornecedor.html", { type: "text/html" })] },
+    });
+    expect(mocks.parsear).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Fornecedor")).not.toBeInTheDocument();
+  });
+
   it("envia o fornecedor do bem carregado sem exigir a vinculação aos patrimônios", async () => {
     const receber = vi.fn();
     await abrirImportacao(receber);
