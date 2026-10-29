@@ -103,7 +103,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
           <form onSubmit={abrirBaixa} className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <Label htmlFor="numero-baixa-termo" className="whitespace-nowrap font-semibold">Baixa de termo</Label>
-              <Input id="numero-baixa-termo" className="h-9 w-36" placeholder="Ex.: 113/2026" autoComplete="off" value={numeroBaixa}
+              <Input id="numero-baixa-termo" className="h-9 w-36" placeholder="Ex.: 112" inputMode="numeric" autoComplete="off" value={numeroBaixa}
                 onChange={(event) => { setNumeroBaixa(event.target.value); setErroBaixa(""); }}
                 disabled={!salaId || aguardandoDados || falhaCarga} aria-invalid={!!erroBaixa} aria-describedby={erroBaixa ? "erro-baixa-termo" : undefined} />
               <Button type="submit" size="sm" disabled={!salaId || aguardandoDados || falhaCarga || !numeroBaixa.trim()}>Abrir termo</Button>

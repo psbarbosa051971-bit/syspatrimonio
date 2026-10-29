@@ -59,10 +59,13 @@ beforeEach(() => {
 });
 
 describe("impressão em Termos criados da sala", () => {
-  it("abre a baixa pelo número com zeros à esquerda e exibe os itens e totais do termo", async () => {
+  it.each(["00020", "00020/2026"])("abre a baixa por %s e exibe os itens e totais do termo", async (numero) => {
     render(<TermosDaSala {...props} />);
     await screen.findByRole("button", { name: "Status do termo 20/2026" });
-    fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "00020/2026" } });
+    const campo = screen.getByLabelText("Baixa de termo");
+    expect(campo).toHaveAttribute("placeholder", "Ex.: 112");
+    expect(campo).toHaveAttribute("inputmode", "numeric");
+    fireEvent.change(campo, { target: { value: numero } });
     fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
     const dialogo = screen.getByRole("dialog", { name: "Termo de responsabilidade 20/2026" });
     expect(within(dialogo).getByRole("columnheader", { name: "Patrimônio" })).toBeInTheDocument();
