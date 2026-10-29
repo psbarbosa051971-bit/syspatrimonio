@@ -31,13 +31,48 @@ describe("Notas incorporadas por exercício", () => {
     expect(screen.getByRole("dialog", { name: "Notas incorporadas e empenhos" })).toHaveClass("h-dvh", "w-full");
     fireEvent.click(screen.getByRole("button", { name: "Gerar relatório" }));
     await screen.findByRole("table", { name: "Notas incorporadas por empenho" });
-    expect(mocks.carregar).toHaveBeenCalledWith("2026");
+    expect(mocks.carregar).toHaveBeenCalledWith("2026", { dataInicial: "", dataFinal: "" });
     expect(screen.getAllByRole("columnheader").map((celula) => celula.textContent)).toEqual([
       "EMPENHO", "ANO EMPENHO", "PEDIDO", "FORNECEDORES", "NOTA FISCAL", "ITENS", "VALOR UNITÁRIO", "VALOR TOTAL",
     ]);
     expect(screen.getByText("Fornecedor A")).toBeInTheDocument();
     expect(screen.getByText("614")).toBeInTheDocument();
     expect(screen.getByText("1 nota(s) · 1 empenho(s) · 2 bem(ns)")).toBeInTheDocument();
+  });
+
+  it("permite filtrar opcionalmente por datas de incorporação e limpa o resultado ao alterá-las", async () => {
+    mocks.carregar.mockResolvedValueOnce({ ...resultado, dataInicial: "2026-01-01", dataFinal: "2026-01-31" });
+    abrir();
+    expect(screen.getByLabelText("Data inicial")).toHaveValue("");
+    expect(screen.getByLabelText("Data final")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-01-01" } });
+    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-01-31" } });
+    expect(mocks.carregar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Gerar relatório" }));
+    await screen.findByRole("table");
+    expect(mocks.carregar).toHaveBeenCalledWith("2026", { dataInicial: "2026-01-01", dataFinal: "2026-01-31" });
+    expect(screen.getByText("Data de incorporação: de 01/01/2026 · até 31/01/2026")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-02-28" } });
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Imprimir / Salvar em PDF" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Gerar relatório" }));
+    await screen.findByRole("table");
+    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-01-02" } });
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Imprimir / Salvar em PDF" })).toBeDisabled();
+  });
+
+  it("impede gerar com período invertido e permite consultar só com a data inicial", async () => {
+    abrir();
+    fireEvent.change(screen.getByLabelText("Data inicial"), { target: { value: "2026-02-01" } });
+    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "2026-01-31" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("A data inicial não pode ser posterior à data final.");
+    expect(screen.getByRole("button", { name: "Gerar relatório" })).toBeDisabled();
+    expect(mocks.carregar).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Data final"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gerar relatório" }));
+    await screen.findByRole("table");
+    expect(mocks.carregar).toHaveBeenCalledWith("2026", { dataInicial: "2026-02-01", dataFinal: "" });
   });
 
   it("limpa o resultado ao alterar o exercício e impede a impressão do ano anterior", async () => {

@@ -35,6 +35,45 @@ describe("Relatório de notas incorporadas e empenhos", () => {
     expect(resultado.linhas[0].ano).toBe("2026");
   });
 
+  it("filtra pela data de incorporação incluindo os limites em formatos brasileiro e ISO", () => {
+    const resultado = agruparNotasIncorporadas([
+      bem("a", { incorporacao: "01/02/2026" }),
+      bem("b", { incorporacao: "2026-02-28" }),
+      bem("c", { incorporacao: "15/02/2026" }),
+      bem("d", { incorporacao: "31/01/2026" }),
+      bem("e", { incorporacao: "01/03/2026" }),
+      bem("f", { incorporacao: "31/02/2026" }),
+      bem("g", { incorporacao: "não informada" }),
+      bem("h", { incorporacao: "15/02/2026", ano_empenho: "2025" }),
+    ], "2026", { dataInicial: "2026-02-01", dataFinal: "2026-02-28" });
+    expect(resultado).toMatchObject({ quantidade: 3, total: 357000, dataInicial: "2026-02-01", dataFinal: "2026-02-28" });
+    expect(resultado.linhas[0].quantidade).toBe(3);
+  });
+
+  it("permite apenas um limite de data e mantém o ano do empenho como exercício", () => {
+    const bens = [bem("a"), bem("b", { incorporacao: "10/01/2027" })];
+    expect(agruparNotasIncorporadas(bens, "2026", { dataInicial: "2027-01-10" }).quantidade).toBe(1);
+    expect(agruparNotasIncorporadas(bens, "2026", { dataFinal: "2026-01-10" }).quantidade).toBe(1);
+    expect(agruparNotasIncorporadas(bens, "2026").quantidade).toBe(2);
+  });
+
+  it("rejeita períodos invertidos e datas inválidas antes de consultar", async () => {
+    await expect(carregarNotasIncorporadas("2026", { dataInicial: "2026-02-01", dataFinal: "2026-01-01" })).rejects.toThrow("data inicial");
+    await expect(carregarNotasIncorporadas("2026", { dataFinal: "2026-02-30" })).rejects.toThrow("datas válidas");
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("aplica o filtro de datas na consulta e mostra o período na impressão", async () => {
+    const builder = consulta();
+    builder.range.mockResolvedValue({ data: [bem("a"), bem("b", { incorporacao: "10/02/2026" })], error: null });
+    mocks.from.mockReturnValue(builder);
+    const resultado = await carregarNotasIncorporadas("2026", { dataInicial: "2026-01-01", dataFinal: "2026-01-31" });
+    expect(resultado.quantidade).toBe(1);
+    const html = htmlNotasIncorporadas(resultado);
+    expect(html).toContain("Data de incorporação: de 01/01/2026 · até 31/01/2026 (inclusive)");
+    expect(htmlNotasIncorporadas(agruparNotasIncorporadas([], "2026"))).not.toContain("Data de incorporação:");
+  });
+
   it("separa notas, fornecedores e valores unitários sem multiplicar o número de notas", () => {
     const resultado = agruparNotasIncorporadas([
       bem("a", { valor: 0.1 }), bem("b", { valor: 0.1 }),
