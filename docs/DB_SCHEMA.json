@@ -29,6 +29,12 @@
       "argumentos": "_checklist_id uuid, _codigo_red text, _sala_id uuid DEFAULT NULL::uuid"
     },
     {
+      "nome": "bem_em_outro_termo_da_sala",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.bem_em_outro_termo_da_sala(_sala uuid, _itens uuid[], _termo_atual uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT jsonb_build_object('codigo_red', b.codigo_red, 'termo', lpad(i.numero::text, 5, '0'))\n  FROM public.bens b\n  JOIN public.importacoes i ON i.sala_id = _sala AND i.id IS DISTINCT FROM _termo_atual\n   AND jsonb_typeof(i.termo_snapshot->'bens') = 'array'\n   AND EXISTS (SELECT 1 FROM jsonb_array_elements(i.termo_snapshot->'bens') it\n               WHERE ltrim(it->>'codigo_red','0') = ltrim(b.codigo_red,'0'))\n  WHERE b.id = ANY(_itens)\n    AND NOT EXISTS (\n      SELECT 1 FROM public.transferencias_bens_itens t\n      WHERE t.bem_id = b.id AND t.destino_sala_id = _sala AND t.estornado_em IS NULL\n        AND t.origem_sala_id IS DISTINCT FROM _sala AND t.created_at > i.created_at)\n  ORDER BY i.numero LIMIT 1\n$function$\n",
+      "argumentos": "_sala uuid, _itens uuid[], _termo_atual uuid"
+    },
+    {
       "nome": "bens_da_nota_fiscal",
       "retorno": "SETOF bens",
       "definicao": "CREATE OR REPLACE FUNCTION public.bens_da_nota_fiscal(_fornecedor text, _numero text)\n RETURNS SETOF bens\n LANGUAGE sql\n STABLE\n SET search_path TO 'public'\nAS $function$\n SELECT b.* FROM public.bens b\n WHERE b.fornecedor = _fornecedor\n AND coalesce(nullif(ltrim(trim(b.nota_fiscal), '0'), ''), '0') = coalesce(nullif(ltrim(trim(_numero), '0'), ''), '0')\n AND nullif(trim(b.nota_fiscal), '') IS NOT NULL\n ORDER BY b.codigo_red, b.id;\n$function$\n",
@@ -79,8 +85,14 @@
     {
       "nome": "criar_termo_bens_sala",
       "retorno": "jsonb",
-      "definicao": "CREATE OR REPLACE FUNCTION public.criar_termo_bens_sala(_sala uuid, _itens uuid[], _pedido uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  local_sala public.salas%ROWTYPE;\n  dept public.departamentos%ROWTYPE;\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\n  itens_snapshot jsonb;\n  responsavel jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para criar termos de responsabilidade';\n  END IF;\n  IF _sala IS NULL OR _pedido IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala) THEN\n    RAISE EXCEPTION 'Selecione uma sala disponível para sua conta';\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT * INTO lote FROM public.importacoes WHERE id = _pedido;\n  IF FOUND THEN\n    IF lote.user_id IS DISTINCT FROM auth.uid() OR lote.sala_id IS DISTINCT FROM _sala OR lote.termo_snapshot->>'tipo_documento' IS DISTINCT FROM 'novo_termo' THEN\n      RAISE EXCEPTION 'Pedido inválido';\n    END IF;\n    RETURN to_jsonb(lote);\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens por termo';\n  END IF;\n  IF (SELECT count(DISTINCT id) FROM unnest(_itens) AS t(id)) <> quantidade THEN\n    RAISE EXCEPTION 'Lista de bens inválida ou repetida';\n  END IF;\n  SELECT * INTO local_sala FROM public.salas WHERE id = _sala FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR SHARE;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um bem foi removido ou não está nesta sala. Atualize a lista e selecione novamente';\n  END IF;\n  SELECT * INTO dept FROM public.departamentos WHERE id = local_sala.departamento_id;\n  responsavel := public.dados_responsavel_sala_termo(_sala);\n  SELECT jsonb_agg(jsonb_build_object('codigo_red', b.codigo_red, 'descricao', b.descricao,\n    'valor', b.valor, 'incorporacao', b.incorporacao, 'tipo', b.tipo) ORDER BY b.codigo_red)\n    INTO itens_snapshot FROM public.bens b WHERE b.id = ANY(_itens);\n  INSERT INTO public.importacoes(id, sala_id, user_id, arquivo, termo_ano, termo_snapshot)\n  VALUES (_pedido, _sala, auth.uid(), 'Novo termo de responsabilidade',\n    extract(year FROM timezone('America/Sao_Paulo', now()))::integer,\n    jsonb_build_object('tipo_documento', 'novo_termo', 'bem_ids', to_jsonb(_itens),\n      'local', local_sala.nome, 'endereco', coalesce(local_sala.endereco, ''),\n      'historico', 'Termo de responsabilidade de ' || quantidade || ' bem(ns) já pertencente(s) ao Local Físico. Sem movimentação patrimonial.',\n      'data_origem', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'data_termo', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'departamento', coalesce(dept.departamento, ''), 'diretor', coalesce(dept.diretor, ''),\n      'almoxarifado', coalesce(dept.almoxarifado, ''), 'endereco_departamento', coalesce(dept.endereco, ''),\n      'bens', itens_snapshot) || responsavel)\n  RETURNING * INTO lote;\n  RETURN to_jsonb(lote);\nEND;\n$function$\n",
+      "definicao": "CREATE OR REPLACE FUNCTION public.criar_termo_bens_sala(_sala uuid, _itens uuid[], _pedido uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  local_sala public.salas%ROWTYPE;\n  dept public.departamentos%ROWTYPE;\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\n  itens_snapshot jsonb;\n  responsavel jsonb;\n  conflito jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para criar termos de responsabilidade';\n  END IF;\n  IF _sala IS NULL OR _pedido IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala) THEN\n    RAISE EXCEPTION 'Selecione uma sala disponível para sua conta';\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT * INTO lote FROM public.importacoes WHERE id = _pedido;\n  IF FOUND THEN\n    IF lote.user_id IS DISTINCT FROM auth.uid() OR lote.sala_id IS DISTINCT FROM _sala OR lote.termo_snapshot->>'tipo_documento' IS DISTINCT FROM 'novo_termo' THEN\n      RAISE EXCEPTION 'Pedido inválido';\n    END IF;\n    RETURN to_jsonb(lote);\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens por termo';\n  END IF;\n  IF (SELECT count(DISTINCT id) FROM unnest(_itens) AS t(id)) <> quantidade THEN\n    RAISE EXCEPTION 'Lista de bens inválida ou repetida';\n  END IF;\n  SELECT * INTO local_sala FROM public.salas WHERE id = _sala FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR SHARE;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um bem foi removido ou não está nesta sala. Atualize a lista e selecione novamente';\n  END IF;\n  conflito := public.bem_em_outro_termo_da_sala(_sala, _itens, _pedido);\n  IF conflito IS NOT NULL THEN\n    RAISE EXCEPTION 'O bem % já está no termo % desta sala. Um bem só pode estar em outro termo da mesma sala se tiver ido para outra sala e retornado depois', conflito->>'codigo_red', conflito->>'termo';\n  END IF;\n  SELECT * INTO dept FROM public.departamentos WHERE id = local_sala.departamento_id;\n  responsavel := public.dados_responsavel_sala_termo(_sala);\n  SELECT jsonb_agg(jsonb_build_object('codigo_red', b.codigo_red, 'descricao', b.descricao,\n    'valor', b.valor, 'incorporacao', b.incorporacao, 'tipo', b.tipo) ORDER BY b.codigo_red)\n    INTO itens_snapshot FROM public.bens b WHERE b.id = ANY(_itens);\n  INSERT INTO public.importacoes(id, sala_id, user_id, arquivo, termo_ano, termo_snapshot)\n  VALUES (_pedido, _sala, auth.uid(), 'Novo termo de responsabilidade',\n    extract(year FROM timezone('America/Sao_Paulo', now()))::integer,\n    jsonb_build_object('tipo_documento', 'novo_termo', 'bem_ids', to_jsonb(_itens),\n      'local', local_sala.nome, 'endereco', coalesce(local_sala.endereco, ''),\n      'historico', 'Termo de responsabilidade de ' || quantidade || ' bem(ns) já pertencente(s) ao Local Físico. Sem movimentação patrimonial.',\n      'data_origem', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'data_termo', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'departamento', coalesce(dept.departamento, ''), 'diretor', coalesce(dept.diretor, ''),\n      'almoxarifado', coalesce(dept.almoxarifado, ''), 'endereco_departamento', coalesce(dept.endereco, ''),\n      'bens', itens_snapshot) || responsavel)\n  RETURNING * INTO lote;\n  RETURN to_jsonb(lote);\nEND;\n$function$\n",
       "argumentos": "_sala uuid, _itens uuid[], _pedido uuid"
+    },
+    {
+      "nome": "criar_termo_bens_sala",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.criar_termo_bens_sala(_sala uuid, _itens uuid[], _pedido uuid, _aceitar_repetidos boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  local_sala public.salas%ROWTYPE;\n  dept public.departamentos%ROWTYPE;\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\n  itens_snapshot jsonb;\n  responsavel jsonb;\n  conflito jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para criar termos de responsabilidade';\n  END IF;\n  IF _sala IS NULL OR _pedido IS NULL OR NOT public.pode_ver_sala(auth.uid(), _sala) THEN\n    RAISE EXCEPTION 'Selecione uma sala disponível para sua conta';\n  END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT * INTO lote FROM public.importacoes WHERE id = _pedido;\n  IF FOUND THEN\n    IF lote.user_id IS DISTINCT FROM auth.uid() OR lote.sala_id IS DISTINCT FROM _sala OR lote.termo_snapshot->>'tipo_documento' IS DISTINCT FROM 'novo_termo' THEN\n      RAISE EXCEPTION 'Pedido inválido';\n    END IF;\n    RETURN to_jsonb(lote);\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens por termo';\n  END IF;\n  IF (SELECT count(DISTINCT id) FROM unnest(_itens) AS t(id)) <> quantidade THEN\n    RAISE EXCEPTION 'Lista de bens inválida ou repetida';\n  END IF;\n  SELECT * INTO local_sala FROM public.salas WHERE id = _sala FOR SHARE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR SHARE;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um bem foi removido ou não está nesta sala. Atualize a lista e selecione novamente';\n  END IF;\n  conflito := public.bem_em_outro_termo_da_sala(_sala, _itens, _pedido);\n  IF conflito IS NOT NULL AND NOT coalesce(_aceitar_repetidos, false) THEN\n    RAISE EXCEPTION 'O bem % já está no termo % desta sala. Um bem só pode estar em outro termo da mesma sala se tiver ido para outra sala e retornado depois', conflito->>'codigo_red', conflito->>'termo';\n  END IF;\n  SELECT * INTO dept FROM public.departamentos WHERE id = local_sala.departamento_id;\n  responsavel := public.dados_responsavel_sala_termo(_sala);\n  SELECT jsonb_agg(jsonb_build_object('codigo_red', b.codigo_red, 'descricao', b.descricao,\n    'valor', b.valor, 'incorporacao', b.incorporacao, 'tipo', b.tipo) ORDER BY b.codigo_red)\n    INTO itens_snapshot FROM public.bens b WHERE b.id = ANY(_itens);\n  INSERT INTO public.importacoes(id, sala_id, user_id, arquivo, termo_ano, termo_snapshot)\n  VALUES (_pedido, _sala, auth.uid(), 'Novo termo de responsabilidade',\n    extract(year FROM timezone('America/Sao_Paulo', now()))::integer,\n    jsonb_build_object('tipo_documento', 'novo_termo', 'bem_ids', to_jsonb(_itens),\n      'local', local_sala.nome, 'endereco', coalesce(local_sala.endereco, ''),\n      'historico', 'Termo de responsabilidade de ' || quantidade || ' bem(ns) já pertencente(s) ao Local Físico. Sem movimentação patrimonial.',\n      'data_origem', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'data_termo', to_char(timezone('America/Sao_Paulo', now()), 'DD/MM/YYYY'),\n      'departamento', coalesce(dept.departamento, ''), 'diretor', coalesce(dept.diretor, ''),\n      'almoxarifado', coalesce(dept.almoxarifado, ''), 'endereco_departamento', coalesce(dept.endereco, ''),\n      'bens', itens_snapshot) || responsavel)\n  RETURNING * INTO lote;\n  RETURN to_jsonb(lote);\nEND;\n$function$\n",
+      "argumentos": "_sala uuid, _itens uuid[], _pedido uuid, _aceitar_repetidos boolean"
     },
     {
       "nome": "dados_responsavel_sala_termo",
@@ -191,15 +203,33 @@
       "argumentos": "_sala_id uuid, _arquivo text, _bens jsonb, _cabecalho jsonb, _existentes jsonb"
     },
     {
+      "nome": "importar_bens_html_multiplos_locais",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.importar_bens_html_multiplos_locais(_departamento_id uuid, _arquivo text, _locais jsonb, _gerar_termo boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  grupo jsonb;\n  sala public.salas%ROWTYPE;\n  destino uuid;\n  chave text;\n  nome_destino text;\n  codigo_local text;\n  resultado jsonb;\n  resultados jsonb := '[]'::jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para importar'; END IF;\n  IF _gerar_termo IS NULL OR jsonb_typeof(_locais) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Dados da importação inválidos'; END IF;\n  IF jsonb_array_length(_locais) < 2 THEN RAISE EXCEPTION 'Informe os locais físicos do HTML'; END IF;\n  PERFORM id FROM public.departamentos WHERE id = _departamento_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Departamento não encontrado'; END IF;\n  FOR grupo IN SELECT value FROM jsonb_array_elements(_locais) LOOP\n    IF jsonb_typeof(grupo->'bens') IS DISTINCT FROM 'array'\n      OR jsonb_typeof(grupo->'existentes') IS DISTINCT FROM 'array'\n      OR jsonb_typeof(grupo->'cabecalho') IS DISTINCT FROM 'object'\n      OR nullif(btrim(grupo->'cabecalho'->>'local'), '') IS NULL THEN\n      RAISE EXCEPTION 'Um local físico não foi identificado corretamente';\n    END IF;\n    IF jsonb_array_length(grupo->'bens') = 0 THEN RAISE EXCEPTION 'Um local físico está sem bens'; END IF;\n  END LOOP;\n  IF EXISTS (\n    SELECT public.chave_codigo_red_importacao(b->>'codigo_red')\n    FROM jsonb_array_elements(_locais) g CROSS JOIN LATERAL jsonb_array_elements(g->'bens') b\n    GROUP BY public.chave_codigo_red_importacao(b->>'codigo_red') HAVING count(*) > 1\n  ) THEN RAISE EXCEPTION 'Há patrimônios repetidos entre os locais do HTML. Nada foi importado.'; END IF;\n  IF EXISTS (\n    SELECT coalesce(substring(g->'cabecalho'->>'local' FROM '^\\d+'), lower(btrim(g->'cabecalho'->>'local')))\n    FROM jsonb_array_elements(_locais) g GROUP BY 1 HAVING count(*) > 1\n  ) THEN RAISE EXCEPTION 'Há locais físicos repetidos no pedido de importação'; END IF;\n  FOR chave IN\n    SELECT DISTINCT public.chave_codigo_red_importacao(b->>'codigo_red')\n    FROM jsonb_array_elements(_locais) g CROSS JOIN LATERAL jsonb_array_elements(g->'bens') b ORDER BY 1\n  LOOP\n    PERFORM pg_advisory_xact_lock(hashtextextended('codigo-red:' || chave, 0));\n  END LOOP;\n  PERFORM s.id FROM public.salas s WHERE s.departamento_id = _departamento_id OR s.id IN (\n    SELECT b.sala_id FROM public.bens b WHERE public.chave_codigo_red_importacao(b.codigo_red) IN (\n      SELECT public.chave_codigo_red_importacao(x->>'codigo_red')\n      FROM jsonb_array_elements(_locais) g CROSS JOIN LATERAL jsonb_array_elements(g->'bens') x\n    )\n  ) ORDER BY s.id FOR UPDATE;\n  FOR grupo IN SELECT value FROM jsonb_array_elements(_locais) LOOP\n    nome_destino := btrim(grupo->'cabecalho'->>'local');\n    codigo_local := substring(nome_destino FROM '^\\d+');\n    destino := nullif(grupo->>'sala_id', '')::uuid;\n    IF destino IS NULL THEN\n      IF EXISTS (SELECT 1 FROM public.salas s WHERE s.departamento_id = _departamento_id AND (\n        (codigo_local IS NOT NULL AND substring(s.nome FROM '^\\d+') = codigo_local)\n        OR lower(btrim(s.nome)) = lower(nome_destino)\n      )) THEN RAISE EXCEPTION 'O cadastro dos locais mudou. Atualize a página e importe novamente; nada foi importado.'; END IF;\n      INSERT INTO public.salas(user_id, departamento_id, nome, endereco, data_termo)\n        VALUES (auth.uid(), _departamento_id, nome_destino, nullif(grupo->'cabecalho'->>'endereco', ''), nullif(grupo->'cabecalho'->>'data', ''))\n        RETURNING * INTO sala;\n      destino := sala.id;\n    ELSE\n      SELECT * INTO sala FROM public.salas WHERE id = destino AND departamento_id = _departamento_id;\n      IF NOT FOUND THEN RAISE EXCEPTION 'Local físico não pertence ao departamento selecionado'; END IF;\n      UPDATE public.salas SET nome = nome_destino,\n        endereco = coalesce(nullif(sala.endereco, ''), nullif(grupo->'cabecalho'->>'endereco', '')),\n        data_termo = coalesce(nullif(grupo->'cabecalho'->>'data', ''), sala.data_termo)\n        WHERE id = destino RETURNING * INTO sala;\n    END IF;\n    resultado := public.importar_bens_html_com_opcao(destino, _arquivo, grupo->'bens', grupo->'cabecalho', grupo->'existentes', _gerar_termo);\n    resultados := resultados || jsonb_build_array(resultado || jsonb_build_object('sala', to_jsonb(sala), 'quantidade', jsonb_array_length(grupo->'bens')));\n  END LOOP;\n  RETURN resultados;\nEND;\n$function$\n",
+      "argumentos": "_departamento_id uuid, _arquivo text, _locais jsonb, _gerar_termo boolean"
+    },
+    {
       "nome": "importar_bens_pdf",
       "retorno": "jsonb",
       "definicao": "CREATE OR REPLACE FUNCTION public.importar_bens_pdf(_sala_id uuid, _arquivo text, _bens jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para importar';\n  END IF;\n  PERFORM id FROM public.salas WHERE id = _sala_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local não encontrado'; END IF;\n  IF jsonb_typeof(_bens) IS DISTINCT FROM 'array' OR jsonb_array_length(_bens) = 0 THEN\n    RAISE EXCEPTION 'Nenhum bem encontrado no PDF';\n  END IF;\n  INSERT INTO public.importacoes(sala_id, user_id, arquivo)\n    VALUES (_sala_id, auth.uid(), _arquivo) RETURNING * INTO lote;\n  INSERT INTO public.bens(user_id, sala_id, importacao_id, codigo_red, descricao, valor, incorporacao, tipo)\n    SELECT auth.uid(), _sala_id, lote.id, public.chave_codigo_red_importacao(b.codigo_red), b.descricao, COALESCE(b.valor, 0), b.incorporacao, b.tipo\n    FROM (\n      SELECT DISTINCT ON (public.chave_codigo_red_importacao(x.codigo_red)) x.* FROM jsonb_to_recordset(_bens)\n        AS x(codigo_red text, descricao text, valor numeric, incorporacao text, tipo text)\n      WHERE x.codigo_red IS NOT NULL AND x.descricao IS NOT NULL\n      ORDER BY public.chave_codigo_red_importacao(x.codigo_red)\n    ) b\n    WHERE NOT EXISTS (SELECT 1 FROM public.bens e WHERE e.sala_id = _sala_id\n      AND public.chave_codigo_red_importacao(e.codigo_red) = public.chave_codigo_red_importacao(b.codigo_red));\n  GET DIAGNOSTICS quantidade = ROW_COUNT;\n  RETURN jsonb_build_object('numero', lote.numero, 'novos', quantidade, 'repetidos', jsonb_array_length(_bens) - quantidade);\nEND;\n$function$\n",
       "argumentos": "_sala_id uuid, _arquivo text, _bens jsonb"
     },
     {
+      "nome": "incluir_bens_fornecedor",
+      "retorno": "integer",
+      "definicao": "CREATE OR REPLACE FUNCTION public.incluir_bens_fornecedor(_itens jsonb)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE n integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para incluir bens';\n  END IF;\n  INSERT INTO public.bens(user_id, sala_id, codigo_red, descricao, ano_pedido, pedido, ano_empenho, empenho, nota_fiscal, fornecedor)\n  SELECT DISTINCT ON (ltrim(x.codigo_red,'0')) auth.uid(), NULL, x.codigo_red, coalesce(nullif(btrim(x.descricao),''),'Sem descrição'),\n    nullif(x.ano_pedido,''), nullif(x.pedido,''), nullif(x.ano_empenho,''), nullif(x.empenho,''), nullif(x.nota_fiscal,''), nullif(x.fornecedor,'')\n  FROM jsonb_to_recordset(_itens) AS x(codigo_red text, descricao text, ano_pedido text, pedido text, ano_empenho text, empenho text, nota_fiscal text, fornecedor text)\n  WHERE nullif(btrim(x.codigo_red),'') IS NOT NULL\n    AND NOT EXISTS (SELECT 1 FROM public.bens b WHERE ltrim(b.codigo_red,'0') = ltrim(x.codigo_red,'0'));\n  GET DIAGNOSTICS n = ROW_COUNT;\n  RETURN n;\nEND $function$\n",
+      "argumentos": "_itens jsonb"
+    },
+    {
       "nome": "incluir_bens_no_termo",
       "retorno": "jsonb",
-      "definicao": "CREATE OR REPLACE FUNCTION public.incluir_bens_no_termo(_termo uuid, _sala uuid, _itens uuid[])\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  documento jsonb;\n  novos jsonb;\n  quantidade integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para incluir bens em termos';\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 OR (SELECT count(DISTINCT x) FROM unnest(_itens) x) <> quantidade THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens diferentes';\n  END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR UPDATE;\n  SELECT i.termo_snapshot INTO documento FROM public.importacoes i\n    WHERE i.id = _termo AND i.sala_id = _sala FOR UPDATE;\n  IF NOT FOUND OR documento IS NULL OR jsonb_typeof(documento) <> 'object'\n    OR jsonb_typeof(documento->'bens') IS DISTINCT FROM 'array' THEN\n    RAISE EXCEPTION 'O termo não possui documento válido nesta sala';\n  END IF;\n  IF jsonb_array_length(documento->'bens') = 0 THEN\n    RAISE EXCEPTION 'Os dados deste termo não estão disponíveis';\n  END IF;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um dos bens foi removido ou mudou de sala. Atualize a busca antes de incluir';\n  END IF;\n  SELECT coalesce(jsonb_agg(jsonb_build_object(\n    'codigo_red', b.codigo_red, 'descricao', b.descricao, 'valor', b.valor,\n    'incorporacao', b.incorporacao, 'tipo', b.tipo\n  ) ORDER BY b.codigo_red), '[]'::jsonb) INTO novos\n    FROM public.bens b WHERE b.id = ANY(_itens)\n    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(documento->'bens') item\n      WHERE item->>'codigo_red' = b.codigo_red);\n  UPDATE public.importacoes SET termo_snapshot = jsonb_set(documento, '{bens}', (documento->'bens') || novos)\n    WHERE id = _termo AND sala_id = _sala;\n  UPDATE public.bens SET importacao_id = _termo\n    WHERE id = ANY(_itens) AND sala_id = _sala AND importacao_id IS DISTINCT FROM _termo;\n  RETURN jsonb_build_object('quantidade', quantidade);\nEND;\n$function$\n",
+      "definicao": "CREATE OR REPLACE FUNCTION public.incluir_bens_no_termo(_termo uuid, _sala uuid, _itens uuid[], _aceitar_repetidos boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  documento jsonb;\n  novos jsonb;\n  quantidade integer;\n  conflito jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para incluir bens em termos';\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 OR (SELECT count(DISTINCT x) FROM unnest(_itens) x) <> quantidade THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens diferentes';\n  END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR UPDATE;\n  SELECT i.termo_snapshot INTO documento FROM public.importacoes i\n    WHERE i.id = _termo AND i.sala_id = _sala FOR UPDATE;\n  IF NOT FOUND OR documento IS NULL OR jsonb_typeof(documento) <> 'object'\n    OR jsonb_typeof(documento->'bens') IS DISTINCT FROM 'array' THEN\n    RAISE EXCEPTION 'O termo não possui documento válido nesta sala';\n  END IF;\n  IF jsonb_array_length(documento->'bens') = 0 THEN\n    RAISE EXCEPTION 'Os dados deste termo não estão disponíveis';\n  END IF;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um dos bens foi removido ou mudou de sala. Atualize a busca antes de incluir';\n  END IF;\n  conflito := public.bem_em_outro_termo_da_sala(_sala, _itens, _termo);\n  IF conflito IS NOT NULL AND NOT coalesce(_aceitar_repetidos, false) THEN\n    RAISE EXCEPTION 'O bem % já está no termo % desta sala. Um bem só pode estar em outro termo da mesma sala se tiver ido para outra sala e retornado depois', conflito->>'codigo_red', conflito->>'termo';\n  END IF;\n  SELECT coalesce(jsonb_agg(jsonb_build_object(\n    'codigo_red', b.codigo_red, 'descricao', b.descricao, 'valor', b.valor,\n    'incorporacao', b.incorporacao, 'tipo', b.tipo\n  ) ORDER BY b.codigo_red), '[]'::jsonb) INTO novos\n    FROM public.bens b WHERE b.id = ANY(_itens)\n    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(documento->'bens') item\n      WHERE item->>'codigo_red' = b.codigo_red);\n  UPDATE public.importacoes SET termo_snapshot = jsonb_set(documento, '{bens}', (documento->'bens') || novos)\n    WHERE id = _termo AND sala_id = _sala;\n  UPDATE public.bens SET importacao_id = _termo\n    WHERE id = ANY(_itens) AND sala_id = _sala AND importacao_id IS DISTINCT FROM _termo;\n  RETURN jsonb_build_object('quantidade', quantidade);\nEND;\n$function$\n",
+      "argumentos": "_termo uuid, _sala uuid, _itens uuid[], _aceitar_repetidos boolean"
+    },
+    {
+      "nome": "incluir_bens_no_termo",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.incluir_bens_no_termo(_termo uuid, _sala uuid, _itens uuid[])\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  documento jsonb;\n  novos jsonb;\n  quantidade integer;\n  conflito jsonb;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para incluir bens em termos';\n  END IF;\n  quantidade := coalesce(cardinality(_itens), 0);\n  IF quantidade < 1 OR quantidade > 500 OR (SELECT count(DISTINCT x) FROM unnest(_itens) x) <> quantidade THEN\n    RAISE EXCEPTION 'Selecione de 1 a 500 bens diferentes';\n  END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada'; END IF;\n  PERFORM b.id FROM public.bens b WHERE b.id = ANY(_itens) ORDER BY b.id FOR UPDATE;\n  SELECT i.termo_snapshot INTO documento FROM public.importacoes i\n    WHERE i.id = _termo AND i.sala_id = _sala FOR UPDATE;\n  IF NOT FOUND OR documento IS NULL OR jsonb_typeof(documento) <> 'object'\n    OR jsonb_typeof(documento->'bens') IS DISTINCT FROM 'array' THEN\n    RAISE EXCEPTION 'O termo não possui documento válido nesta sala';\n  END IF;\n  IF jsonb_array_length(documento->'bens') = 0 THEN\n    RAISE EXCEPTION 'Os dados deste termo não estão disponíveis';\n  END IF;\n  IF (SELECT count(*) FROM public.bens b WHERE b.id = ANY(_itens) AND b.sala_id = _sala) <> quantidade THEN\n    RAISE EXCEPTION 'Um dos bens foi removido ou mudou de sala. Atualize a busca antes de incluir';\n  END IF;\n  conflito := public.bem_em_outro_termo_da_sala(_sala, _itens, _termo);\n  IF conflito IS NOT NULL THEN\n    RAISE EXCEPTION 'O bem % já está no termo % desta sala. Um bem só pode estar em outro termo da mesma sala se tiver ido para outra sala e retornado depois', conflito->>'codigo_red', conflito->>'termo';\n  END IF;\n  SELECT coalesce(jsonb_agg(jsonb_build_object(\n    'codigo_red', b.codigo_red, 'descricao', b.descricao, 'valor', b.valor,\n    'incorporacao', b.incorporacao, 'tipo', b.tipo\n  ) ORDER BY b.codigo_red), '[]'::jsonb) INTO novos\n    FROM public.bens b WHERE b.id = ANY(_itens)\n    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(documento->'bens') item\n      WHERE item->>'codigo_red' = b.codigo_red);\n  UPDATE public.importacoes SET termo_snapshot = jsonb_set(documento, '{bens}', (documento->'bens') || novos)\n    WHERE id = _termo AND sala_id = _sala;\n  UPDATE public.bens SET importacao_id = _termo\n    WHERE id = ANY(_itens) AND sala_id = _sala AND importacao_id IS DISTINCT FROM _termo;\n  RETURN jsonb_build_object('quantidade', quantidade);\nEND;\n$function$\n",
       "argumentos": "_termo uuid, _sala uuid, _itens uuid[]"
     },
     {
@@ -269,6 +299,12 @@
       "argumentos": "_importacao_id uuid, _recebedor text, _cpf text"
     },
     {
+      "nome": "sincronizar_dados_bem_nos_termos",
+      "retorno": "trigger",
+      "definicao": "CREATE OR REPLACE FUNCTION public.sincronizar_dados_bem_nos_termos()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  IF NEW.sala_id IS NULL THEN RETURN NEW; END IF;\n\n  -- Mantém os termos de outras salas como histórico e não inclui ou remove bens.\n  -- Executa também ao salvar sem alterações para corrigir uma cópia desatualizada.\n  UPDATE public.importacoes AS i\n  SET termo_snapshot = jsonb_set(\n    i.termo_snapshot,\n    '{bens}',\n    (\n      SELECT jsonb_agg(\n        CASE\n          WHEN public.chave_codigo_red_importacao(item.bem->>'codigo_red') = public.chave_codigo_red_importacao(NEW.codigo_red)\n          THEN item.bem || jsonb_build_object(\n            'descricao', NEW.descricao,\n            'valor', NEW.valor,\n            'incorporacao', NEW.incorporacao,\n            'tipo', NEW.tipo\n          )\n          ELSE item.bem\n        END ORDER BY item.ordem\n      )\n      FROM jsonb_array_elements(\n        CASE WHEN jsonb_typeof(i.termo_snapshot->'bens') = 'array'\n          THEN i.termo_snapshot->'bens' ELSE '[]'::jsonb END\n      ) WITH ORDINALITY AS item(bem, ordem)\n    ),\n    false\n  )\n  WHERE i.sala_id = NEW.sala_id\n    AND EXISTS (\n      SELECT 1\n      FROM jsonb_array_elements(\n        CASE WHEN jsonb_typeof(i.termo_snapshot->'bens') = 'array'\n          THEN i.termo_snapshot->'bens' ELSE '[]'::jsonb END\n      ) AS item(bem)\n      WHERE public.chave_codigo_red_importacao(item.bem->>'codigo_red') = public.chave_codigo_red_importacao(NEW.codigo_red)\n    );\n  RETURN NEW;\nEND;\n$function$\n",
+      "argumentos": ""
+    },
+    {
       "nome": "sincronizar_status_bem",
       "retorno": "trigger",
       "definicao": "CREATE OR REPLACE FUNCTION public.sincronizar_status_bem()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  NEW.status := CASE WHEN NEW.conferido THEN 'LOCALIZADO' ELSE 'NÃO LOCALIZADO' END;\n  RETURN NEW;\nEND;\n$function$\n",
@@ -279,6 +315,18 @@
       "retorno": "jsonb",
       "definicao": "CREATE OR REPLACE FUNCTION public.transferir_bens(_destino uuid, _itens jsonb, _pedido uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  destino public.salas%ROWTYPE;\n  dept public.departamentos%ROWTYPE;\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\n  nome_responsavel text;\n  cpf_responsavel text;\n  snapshot_itens jsonb;\n  origens text;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para transferir bens'; END IF;\n  IF _pedido IS NULL OR _destino IS NULL THEN RAISE EXCEPTION 'Informe o local de destino'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT * INTO lote FROM public.importacoes WHERE id = _pedido;\n  IF FOUND THEN\n    IF lote.user_id <> auth.uid() OR lote.sala_id <> _destino OR lote.arquivo NOT LIKE 'Transferência %' THEN RAISE EXCEPTION 'Pedido inválido'; END IF;\n    RETURN to_jsonb(lote);\n  END IF;\n  IF jsonb_typeof(_itens) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Selecione os bens para transferir'; END IF;\n  quantidade := jsonb_array_length(_itens);\n  IF quantidade < 1 OR quantidade > 500 THEN RAISE EXCEPTION 'Selecione de 1 a 500 bens por transferência'; END IF;\n  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_itens) x WHERE jsonb_typeof(x) IS DISTINCT FROM 'object' OR x->>'id' IS NULL OR NOT (x ? 'sala_id')) THEN RAISE EXCEPTION 'Lista de bens inválida'; END IF;\n  IF (SELECT count(DISTINCT x.id) FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid)) <> quantidade THEN RAISE EXCEPTION 'Existem bens repetidos na seleção'; END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _destino OR s.id IN (SELECT x.sala_id FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid)) ORDER BY s.id FOR UPDATE;\n  SELECT * INTO destino FROM public.salas WHERE id = _destino;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local de destino não encontrado'; END IF;\n  PERFORM b.id FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id ORDER BY b.id FOR UPDATE OF b;\n  IF (SELECT count(*) FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id AND b.sala_id IS NOT DISTINCT FROM x.sala_id WHERE b.sala_id IS DISTINCT FROM _destino) <> quantidade THEN\n    RAISE EXCEPTION 'Um bem foi removido, mudou de sala ou já está no destino. Filtre novamente antes de salvar';\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id GROUP BY b.codigo_red HAVING count(*) > 1) THEN RAISE EXCEPTION 'Há códigos RED repetidos na seleção. Confira os locais de origem'; END IF;\n  IF EXISTS (SELECT 1 FROM public.bens d JOIN public.bens b ON b.codigo_red=d.codigo_red JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id WHERE d.sala_id=_destino) THEN RAISE EXCEPTION 'O destino já contém um dos códigos RED selecionados'; END IF;\n  SELECT * INTO dept FROM public.departamentos WHERE id=destino.departamento_id;\n  SELECT p.nome,p.cpf INTO nome_responsavel,cpf_responsavel FROM public.user_salas us JOIN public.profiles p ON p.id=us.user_id WHERE us.sala_id=_destino AND p.nome IS NOT NULL ORDER BY p.created_at DESC,p.id LIMIT 1;\n  SELECT jsonb_agg(jsonb_build_object('codigo_red',b.codigo_red,'descricao',b.descricao,'valor',b.valor,'incorporacao',b.incorporacao,'tipo',b.tipo) ORDER BY b.codigo_red), string_agg(DISTINCT coalesce(s.nome,'Sem sala'),', ' ORDER BY coalesce(s.nome,'Sem sala')) INTO snapshot_itens,origens FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id LEFT JOIN public.salas s ON s.id=b.sala_id;\n  INSERT INTO public.importacoes(id,sala_id,user_id,arquivo,termo_ano,termo_snapshot) VALUES (_pedido,_destino,auth.uid(),'Transferência de bens',extract(year from timezone('America/Sao_Paulo',now()))::integer,\n    jsonb_build_object('local',destino.nome,'endereco',coalesce(destino.endereco,''),'historico','Transferência de '||quantidade||' bem(ns). Origem: '||origens||'. Destino: '||destino.nome||'.','data_origem',to_char(timezone('America/Sao_Paulo',now()),'DD/MM/YYYY'),'departamento',coalesce(dept.departamento,''),'diretor',coalesce(dept.diretor,''),'almoxarifado',coalesce(dept.almoxarifado,''),'endereco_departamento',coalesce(dept.endereco,''),'responsavel',coalesce(nome_responsavel,destino.responsavel,''),'cpf',coalesce(cpf_responsavel,''),'bens',snapshot_itens)) RETURNING * INTO lote;\n  UPDATE public.bens b SET sala_id=_destino,importacao_id=lote.id,conferido=false,conferencia_finalizada=false FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) WHERE b.id=x.id;\n  UPDATE public.solicitacoes_bens s SET ativa=false,updated_at=now() WHERE s.ativa AND s.bem_id IN (SELECT x.id FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid));\n  RETURN to_jsonb(lote);\nEND;\n$function$\n",
       "argumentos": "_destino uuid, _itens jsonb, _pedido uuid"
+    },
+    {
+      "nome": "transferir_bens",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.transferir_bens(_destino uuid, _itens jsonb, _pedido uuid, _aceitar_repetidos boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  destino public.salas%ROWTYPE;\n  dept public.departamentos%ROWTYPE;\n  lote public.importacoes%ROWTYPE;\n  quantidade integer;\n  nome_responsavel text;\n  cpf_responsavel text;\n  snapshot_itens jsonb;\n  origens text;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN RAISE EXCEPTION 'Sem permissão para transferir bens'; END IF;\n  IF _pedido IS NULL OR _destino IS NULL THEN RAISE EXCEPTION 'Informe o local de destino'; END IF;\n  PERFORM pg_advisory_xact_lock(hashtextextended(_pedido::text, 0));\n  SELECT * INTO lote FROM public.importacoes WHERE id = _pedido;\n  IF FOUND THEN\n    IF lote.user_id <> auth.uid() OR lote.sala_id <> _destino OR lote.arquivo NOT LIKE 'Transferência %' THEN RAISE EXCEPTION 'Pedido inválido'; END IF;\n    RETURN to_jsonb(lote);\n  END IF;\n  IF jsonb_typeof(_itens) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Selecione os bens para transferir'; END IF;\n  quantidade := jsonb_array_length(_itens);\n  IF quantidade < 1 OR quantidade > 500 THEN RAISE EXCEPTION 'Selecione de 1 a 500 bens por transferência'; END IF;\n  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_itens) x WHERE jsonb_typeof(x) IS DISTINCT FROM 'object' OR x->>'id' IS NULL OR NOT (x ? 'sala_id')) THEN RAISE EXCEPTION 'Lista de bens inválida'; END IF;\n  IF (SELECT count(DISTINCT x.id) FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid)) <> quantidade THEN RAISE EXCEPTION 'Existem bens repetidos na seleção'; END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _destino OR s.id IN (SELECT x.sala_id FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid)) ORDER BY s.id FOR UPDATE;\n  SELECT * INTO destino FROM public.salas WHERE id = _destino;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Local de destino não encontrado'; END IF;\n  PERFORM b.id FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id ORDER BY b.id FOR UPDATE OF b;\n  IF (SELECT count(*) FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id AND b.sala_id IS NOT DISTINCT FROM x.sala_id WHERE (b.sala_id IS DISTINCT FROM _destino OR coalesce(_aceitar_repetidos, false))) <> quantidade THEN\n    RAISE EXCEPTION 'Um bem foi removido, mudou de sala ou já está no destino. Filtre novamente antes de salvar';\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id GROUP BY b.codigo_red HAVING count(*) > 1) THEN RAISE EXCEPTION 'Há códigos RED repetidos na seleção. Confira os locais de origem'; END IF;\n  IF EXISTS (SELECT 1 FROM public.bens d JOIN public.bens b ON b.codigo_red=d.codigo_red JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id WHERE d.sala_id=_destino AND d.id <> b.id) THEN RAISE EXCEPTION 'O destino já contém um dos códigos RED selecionados'; END IF;\n  IF NOT coalesce(_aceitar_repetidos, false) AND public.bem_em_outro_termo_da_sala(_destino, ARRAY(SELECT x.id FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid)), _pedido) IS NOT NULL THEN RAISE EXCEPTION 'Um dos bens já consta em outro termo desta sala. Clique em Aceitar bens em termos diferentes para autorizar'; END IF;\n  SELECT * INTO dept FROM public.departamentos WHERE id=destino.departamento_id;\n  SELECT p.nome,p.cpf INTO nome_responsavel,cpf_responsavel FROM public.user_salas us JOIN public.profiles p ON p.id=us.user_id WHERE us.sala_id=_destino AND p.nome IS NOT NULL ORDER BY p.created_at DESC,p.id LIMIT 1;\n  SELECT jsonb_agg(jsonb_build_object('codigo_red',b.codigo_red,'descricao',b.descricao,'valor',b.valor,'incorporacao',b.incorporacao,'tipo',b.tipo) ORDER BY b.codigo_red), string_agg(DISTINCT coalesce(s.nome,'Sem sala'),', ' ORDER BY coalesce(s.nome,'Sem sala')) INTO snapshot_itens,origens FROM public.bens b JOIN jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) ON x.id=b.id LEFT JOIN public.salas s ON s.id=b.sala_id;\n  INSERT INTO public.importacoes(id,sala_id,user_id,arquivo,termo_ano,termo_snapshot) VALUES (_pedido,_destino,auth.uid(),'Transferência de bens',extract(year from timezone('America/Sao_Paulo',now()))::integer,\n    jsonb_build_object('local',destino.nome,'endereco',coalesce(destino.endereco,''),'historico','Transferência de '||quantidade||' bem(ns). Origem: '||origens||'. Destino: '||destino.nome||'.','data_origem',to_char(timezone('America/Sao_Paulo',now()),'DD/MM/YYYY'),'departamento',coalesce(dept.departamento,''),'diretor',coalesce(dept.diretor,''),'almoxarifado',coalesce(dept.almoxarifado,''),'endereco_departamento',coalesce(dept.endereco,''),'responsavel',coalesce(nome_responsavel,destino.responsavel,''),'cpf',coalesce(cpf_responsavel,''),'bens',snapshot_itens)) RETURNING * INTO lote;\n  UPDATE public.bens b SET sala_id=_destino,importacao_id=lote.id,conferido=false,conferencia_finalizada=false FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid) WHERE b.id=x.id;\n  UPDATE public.solicitacoes_bens s SET ativa=false,updated_at=now() WHERE s.ativa AND s.bem_id IN (SELECT x.id FROM jsonb_to_recordset(_itens) AS x(id uuid, sala_id uuid));\n  RETURN to_jsonb(lote);\nEND;\n$function$\n",
+      "argumentos": "_destino uuid, _itens jsonb, _pedido uuid, _aceitar_repetidos boolean"
+    },
+    {
+      "nome": "unificar_termos",
+      "retorno": "jsonb",
+      "definicao": "CREATE OR REPLACE FUNCTION public.unificar_termos(_sala uuid, _termos uuid[])\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  destino public.importacoes%ROWTYPE;\n  origem public.importacoes%ROWTYPE;\n  itens jsonb;\n  ids uuid[];\n  movidos integer := 0;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para unificar termos';\n  END IF;\n  IF _sala IS NULL OR coalesce(cardinality(_termos), 0) <> 2 OR _termos[1] IS NULL OR _termos[2] IS NULL OR _termos[1] = _termos[2] THEN\n    RAISE EXCEPTION 'Selecione exatamente dois termos diferentes';\n  END IF;\n  IF NOT public.pode_ver_sala(auth.uid(), _sala) THEN RAISE EXCEPTION 'Sala indisponível para sua conta'; END IF;\n  PERFORM s.id FROM public.salas s WHERE s.id = _sala FOR UPDATE;\n  PERFORM b.id FROM public.bens b WHERE b.sala_id = _sala OR b.importacao_id = ANY(_termos) ORDER BY b.id FOR UPDATE;\n  PERFORM i.id FROM public.importacoes i WHERE i.id = ANY(_termos) ORDER BY i.id FOR UPDATE;\n  IF (SELECT count(*) FROM public.importacoes i WHERE i.id = ANY(_termos) AND i.sala_id = _sala\n      AND jsonb_typeof(i.termo_snapshot) = 'object' AND jsonb_typeof(i.termo_snapshot->'bens') = 'array') <> 2 THEN\n    RAISE EXCEPTION 'Os dois termos precisam pertencer a esta sala. Atualize a lista';\n  END IF;\n  SELECT * INTO destino FROM public.importacoes WHERE id = ANY(_termos) ORDER BY numero DESC LIMIT 1;\n  SELECT * INTO origem FROM public.importacoes WHERE id = ANY(_termos) AND id <> destino.id;\n  IF EXISTS (SELECT 1 FROM public.bens b WHERE b.importacao_id = origem.id AND b.sala_id IS DISTINCT FROM _sala) THEN\n    RAISE EXCEPTION 'O termo % tem bens em outra sala. Confira as movimentações antes de unificar', lpad(origem.numero::text, 5, '0');\n  END IF;\n  SELECT coalesce(array_agg(b.id ORDER BY b.id), ARRAY[]::uuid[]) INTO ids\n  FROM public.bens b WHERE b.sala_id = _sala AND (\n    b.importacao_id = ANY(_termos) OR EXISTS (\n      SELECT 1 FROM public.importacoes i\n      CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(i.termo_snapshot->'bem_ids') = 'array' THEN i.termo_snapshot->'bem_ids' ELSE '[]'::jsonb END) x(id)\n      WHERE i.id = ANY(_termos) AND i.termo_snapshot->>'tipo_documento' = 'novo_termo' AND x.id = b.id::text\n    )\n  );\n  SELECT coalesce(jsonb_agg(escolhidos.item ORDER BY escolhidos.chave), '[]'::jsonb) INTO itens\n  FROM (\n    SELECT DISTINCT ON (chave) item, chave FROM (\n      SELECT x.item, public.chave_codigo_red_importacao(x.item->>'codigo_red') AS chave, 1 AS prioridade\n      FROM jsonb_array_elements(destino.termo_snapshot->'bens') x(item)\n      UNION ALL\n      SELECT x.item, public.chave_codigo_red_importacao(x.item->>'codigo_red'), 2\n      FROM jsonb_array_elements(origem.termo_snapshot->'bens') x(item)\n      UNION ALL\n      SELECT jsonb_build_object('codigo_red', b.codigo_red, 'descricao', b.descricao, 'valor', b.valor, 'incorporacao', b.incorporacao, 'tipo', b.tipo), public.chave_codigo_red_importacao(b.codigo_red), 3\n      FROM public.bens b WHERE b.id = ANY(ids)\n    ) todos ORDER BY chave, prioridade\n  ) escolhidos;\n  UPDATE public.importacoes SET termo_snapshot = jsonb_set(jsonb_set(termo_snapshot, '{bens}', itens), '{bem_ids}', to_jsonb(ids)) WHERE id = destino.id;\n  UPDATE public.bens SET importacao_id = destino.id WHERE id = ANY(ids) AND importacao_id IS DISTINCT FROM destino.id;\n  GET DIAGNOSTICS movidos = ROW_COUNT;\n  -- Movimentações anteriores do mesmo bem continuam no histórico, sem apagar registros de estorno.\n  UPDATE public.transferencias_bens_itens t SET transferencia_id = destino.id, numero = destino.numero, termo_ano = destino.termo_ano\n    WHERE t.transferencia_id = origem.id AND NOT EXISTS (\n      SELECT 1 FROM public.transferencias_bens_itens d WHERE d.transferencia_id = destino.id AND d.bem_id = t.bem_id\n    );\n  UPDATE public.transferencias_bens_itens SET origem_importacao_id = destino.id WHERE origem_importacao_id = origem.id;\n  IF EXISTS (SELECT 1 FROM public.bens WHERE importacao_id = origem.id) THEN RAISE EXCEPTION 'Há bens vinculados ao termo anterior. Nenhuma alteração foi realizada'; END IF;\n  DELETE FROM public.entregas_termos WHERE importacao_id = origem.id;\n  DELETE FROM public.importacoes WHERE id = origem.id;\n  RETURN jsonb_build_object('destino', destino.id, 'numero', destino.numero, 'removido', origem.numero, 'movidos', movidos, 'quantidade', cardinality(ids));\nEND;\n$function$\n",
+      "argumentos": "_sala uuid, _termos uuid[]"
     },
     {
       "nome": "vincular_dados_fornecedor",
@@ -912,6 +960,60 @@
           "tipo": "uuid",
           "default": null,
           "tipo_udt": "uuid"
+        },
+        {
+          "nome": "arquivo_path",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "arquivo_nome",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "criado_por",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": null,
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "criado_em",
+          "nulo": "NO",
+          "tipo": "timestamp with time zone",
+          "default": "now()",
+          "tipo_udt": "timestamptz"
+        }
+      ]
+    },
+    {
+      "tabela": "notas_fiscais_pdfs",
+      "colunas": [
+        {
+          "nome": "id",
+          "nulo": "NO",
+          "tipo": "uuid",
+          "default": "gen_random_uuid()",
+          "tipo_udt": "uuid"
+        },
+        {
+          "nome": "fornecedor",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
+        },
+        {
+          "nome": "numero",
+          "nulo": "NO",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
         },
         {
           "nome": "arquivo_path",
@@ -1827,6 +1929,28 @@
       "roles": [
         "authenticated"
       ],
+      "using": null,
+      "policy": "editores anexam notas em pdf",
+      "tabela": "notas_fiscais_pdfs",
+      "comando": "INSERT",
+      "permissiva": "PERMISSIVE",
+      "with_check": "(can_edit(auth.uid()) AND (criado_por = auth.uid()) AND (split_part(arquivo_path, '/'::text, 2) = (auth.uid())::text))"
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
+      "using": "can_edit(auth.uid())",
+      "policy": "editores consultam notas em pdf",
+      "tabela": "notas_fiscais_pdfs",
+      "comando": "SELECT",
+      "permissiva": "PERMISSIVE",
+      "with_check": null
+    },
+    {
+      "roles": [
+        "authenticated"
+      ],
       "using": "((id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role))",
       "policy": "own or admin read profiles",
       "tabela": "profiles",
@@ -2067,15 +2191,22 @@
       "trigger": "registrar_item_transferido"
     },
     {
-      "acao": "EXECUTE FUNCTION sincronizar_status_bem()",
+      "acao": "EXECUTE FUNCTION sincronizar_dados_bem_nos_termos()",
       "evento": "UPDATE",
+      "quando": "AFTER",
+      "tabela": "bens",
+      "trigger": "sincronizar_dados_bem_nos_termos"
+    },
+    {
+      "acao": "EXECUTE FUNCTION sincronizar_status_bem()",
+      "evento": "INSERT",
       "quando": "BEFORE",
       "tabela": "bens",
       "trigger": "sincronizar_status_bem"
     },
     {
       "acao": "EXECUTE FUNCTION sincronizar_status_bem()",
-      "evento": "INSERT",
+      "evento": "UPDATE",
       "quando": "BEFORE",
       "tabela": "bens",
       "trigger": "sincronizar_status_bem"
@@ -2103,20 +2234,20 @@
     },
     {
       "acao": "EXECUTE FUNCTION numerar_recebimento_veiculo()",
-      "evento": "INSERT",
+      "evento": "UPDATE",
       "quando": "BEFORE",
       "tabela": "recebimentos_veiculos",
       "trigger": "numerar_recebimento_veiculo_trigger"
     },
     {
       "acao": "EXECUTE FUNCTION numerar_recebimento_veiculo()",
-      "evento": "UPDATE",
+      "evento": "INSERT",
       "quando": "BEFORE",
       "tabela": "recebimentos_veiculos",
       "trigger": "numerar_recebimento_veiculo_trigger"
     }
   ],
-  "gerado_em": "2026-10-22T11:27:33.745935+00:00",
+  "gerado_em": "2026-10-29T14:32:28.505523+00:00",
   "rls_ativo": {
     "bens": true,
     "salas": true,
@@ -2131,6 +2262,7 @@
     "entregas_termos": true,
     "chat_push_config": true,
     "solicitacoes_bens": true,
+    "notas_fiscais_pdfs": true,
     "retiradas_veiculos": true,
     "checklists_veiculos": true,
     "notas_fiscais_danfes": true,
@@ -2144,26 +2276,27 @@
     "transferencias_numeros_reservados": true
   },
   "contagem_linhas": {
-    "bens": 29520,
-    "salas": 79,
-    "profiles": 9,
-    "user_roles": 9,
-    "user_salas": 9,
-    "importacoes": 4,
+    "bens": 31307,
+    "salas": 108,
+    "profiles": 29,
+    "user_roles": 29,
+    "user_salas": 22,
+    "importacoes": 69,
     "departamentos": 0,
-    "notas_fiscais": 2,
+    "notas_fiscais": 5,
     "chat_conversas": 0,
     "chat_mensagens": 0,
-    "entregas_termos": 1,
+    "entregas_termos": 13,
     "chat_push_config": 0,
     "solicitacoes_bens": 0,
-    "retiradas_veiculos": 1,
-    "checklists_veiculos": 0,
-    "notas_fiscais_danfes": 0,
+    "notas_fiscais_pdfs": 1,
+    "retiradas_veiculos": 4,
+    "checklists_veiculos": 2,
+    "notas_fiscais_danfes": 4,
     "chat_push_assinaturas": 0,
-    "recebimentos_veiculos": 3,
-    "termos_numeracao_contador": 0,
-    "transferencias_bens_itens": 1,
+    "recebimentos_veiculos": 8,
+    "termos_numeracao_contador": 1,
+    "transferencias_bens_itens": 4,
     "solicitacoes_bens_leituras": 0,
     "comissao_recebimento_veiculos": 1,
     "recebimentos_veiculos_contadores": 0,
@@ -2220,6 +2353,10 @@
     },
     {
       "coluna": "id",
+      "tabela": "notas_fiscais_pdfs"
+    },
+    {
+      "coluna": "id",
       "tabela": "profiles"
     },
     {
@@ -2243,11 +2380,11 @@
       "tabela": "solicitacoes_bens"
     },
     {
-      "coluna": "admin_id",
+      "coluna": "solicitacao_id",
       "tabela": "solicitacoes_bens_leituras"
     },
     {
-      "coluna": "solicitacao_id",
+      "coluna": "admin_id",
       "tabela": "solicitacoes_bens_leituras"
     },
     {
@@ -2355,5 +2492,5 @@
       "trigger": "on_auth_user_created"
     }
   ],
-  "geckoai_sincronizado_em": "2026-10-22T11:27:34.865Z"
+  "geckoai_sincronizado_em": "2026-10-29T14:32:31.713Z"
 }
