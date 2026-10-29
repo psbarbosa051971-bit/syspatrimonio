@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      notas_fiscais_pdfs: {
+        Row: {
+          id: string
+          fornecedor: string
+          numero: string
+          arquivo_path: string
+          arquivo_nome: string
+          criado_por: string
+          criado_em: string
+        }
+        Insert: {
+          id?: string
+          fornecedor: string
+          numero: string
+          arquivo_path: string
+          arquivo_nome: string
+          criado_por: string
+          criado_em?: string
+        }
+        Update: {
+          id?: string
+          fornecedor?: string
+          numero?: string
+          arquivo_path?: string
+          arquivo_nome?: string
+          criado_por?: string
+          criado_em?: string
+        }
+        Relationships: []
+      }
       bens: {
         Row: {
           ano_empenho: string | null

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Truck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { ItemFornecedor } from "@/lib/html-fornecedor";
+import { parsearFornecedorHtml, type ItemFornecedor } from "@/lib/html-fornecedor";
 import { extrairFornecedorPdf } from "@/lib/pdf-fornecedor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,17 +19,19 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
   const ler = async (f?: File) => {
     if (!f) return;
     setItens([]); setFaltantes([]); setSel(0);
-    if (!/\.pdf$/i.test(f.name)) {
-      toast.error("Selecione somente um arquivo PDF.");
+    if (!/\.(pdf|html?)$/i.test(f.name)) {
+      toast.error("Selecione um arquivo HTML ou PDF do Sonner.");
       return;
     }
     setLendo(true);
     try {
-      const lidos = await extrairFornecedorPdf(f);
-      if (!lidos.length) toast.error("Nenhum bem encontrado no PDF por fornecedor. Use um PDF com texto selecionável do Sonner.");
+      const lidos = /\.pdf$/i.test(f.name)
+        ? await extrairFornecedorPdf(f)
+        : parsearFornecedorHtml(await f.text());
+      if (!lidos.length) toast.error("Nenhum bem encontrado no relatório por fornecedor. Use HTML ou PDF com texto selecionável do Sonner.");
       setItens(lidos);
     } catch (erro) {
-      toast.error(erro instanceof Error ? erro.message : "Não foi possível ler o PDF por fornecedor.");
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível ler o relatório por fornecedor.");
     } finally {
       setLendo(false);
     }
@@ -83,9 +85,9 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
       <Dialog open={aberto} onOpenChange={setAberto}>
         <DialogContent className="max-w-4xl">
           <DialogHeader><DialogTitle>Bens Incorporados - por Fornecedor</DialogTitle></DialogHeader>
-          <Input type="file" accept=".pdf,application/pdf" aria-label="Arquivo PDF por fornecedor" disabled={lendo || salvando}
+          <Input type="file" accept=".html,.htm,text/html,.pdf,application/pdf" aria-label="Arquivo HTML ou PDF por fornecedor" disabled={lendo || salvando}
             onChange={(e) => { const arquivo = e.target.files?.[0]; e.target.value = ""; void ler(arquivo); }} />
-          <p className="text-sm text-muted-foreground">{lendo ? "Lendo PDF..." : "Anexe somente o relatório do Sonner em PDF com texto selecionável."}</p>
+          <p className="text-sm text-muted-foreground">{lendo ? "Lendo relatório..." : "Anexe o relatório do Sonner em HTML ou PDF com texto selecionável."}</p>
           {atual && <>
             <div className="grid gap-2 rounded border p-3 sm:grid-cols-3">
               <p className="sm:col-span-3 text-sm font-semibold">Código RED. {atual.codigo_red} — {atual.descricao}</p>
@@ -123,7 +125,7 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
       <Dialog open={faltantes.length > 0} onOpenChange={(o) => { if (!o) setFaltantes([]); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Números não encontrados no sistema</DialogTitle></DialogHeader>
-          <p className="text-sm">{faltantes.length} número(s) do PDF não existem no sistema. Deseja incluí-los?</p>
+          <p className="text-sm">{faltantes.length} número(s) do relatório não existem no sistema. Deseja incluí-los?</p>
           <div className="max-h-60 overflow-auto rounded border p-2 text-xs">
             {faltantes.map((f) => <div key={f.codigo_red}>{f.codigo_red} — {f.descricao}</div>)}
           </div>

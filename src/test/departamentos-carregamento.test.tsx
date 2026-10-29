@@ -145,14 +145,17 @@ async function importarParaLiberarUnidade() {
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
-  it("aceita somente PDF e rejeita HTML antes de ler ou gravar dados", async () => {
+  it("restaura HTML junto com PDF e encaminha o HTML para leitura", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
-    const input = screen.getByLabelText("Arquivo PDF do Sonner");
-    expect(input).toHaveAttribute("accept", ".pdf,application/pdf");
-    expect(screen.queryByRole("button", { name: "Importar HTML do Sonner" })).not.toBeInTheDocument();
-    fireEvent.change(input, { target: { files: [new File(["<html></html>"], "termo.html", { type: "text/html" })] } });
-    expect(mocks.erroToast).toHaveBeenCalledWith("Selecione somente um arquivo PDF.");
+    const input = screen.getByLabelText("Arquivo HTML ou PDF do Sonner");
+    expect(input).toHaveAttribute("accept", ".html,.htm,text/html,.pdf,application/pdf");
+    const arquivo = new File([], "termo.html", { type: "text/html" });
+    const ler = vi.fn().mockRejectedValue(new Error("Falha de leitura do HTML"));
+    Object.defineProperty(arquivo, "text", { value: ler });
+    fireEvent.change(input, { target: { files: [arquivo] } });
+    await waitFor(() => expect(ler).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.erroToast).toHaveBeenCalled());
     expect(mocks.extrairHtml).not.toHaveBeenCalled();
     expect(mocks.consultarImportacao).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -214,7 +217,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     const acoes = screen.getByRole("region", { name: "Ações da sala" });
     const botoes = within(acoes).getAllByRole("button");
     expect(botoes.slice(0, 6).map((botao) => botao.textContent?.trim())).toEqual([
-      "Anexar PDF do Sonner", "Importar por fornecedor", "Gerar transferência",
+      "Anexar HTML ou PDF do Sonner", "Importar por fornecedor", "Gerar transferência",
       "Estornar transferência", "Termo de Responsabilidade", "Imprimir termo de Responsabilidade",
     ]);
     const compartilhar = within(acoes).getByRole("button", { name: "Compartilhar Relatório" });
@@ -452,7 +455,7 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(screen.queryByRole("dialog", { name: "Dados do recebimento" })).not.toBeInTheDocument();
     }
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar PDF do Sonner" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar HTML ou PDF do Sonner" })).toBeEnabled());
     if (resposta === "Sim") {
       expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
         _sala_id: "sala", _arquivo: "termo.pdf", _bens: extraidos, _existentes: [], _gerar_termo: true,
@@ -505,7 +508,7 @@ describe("Carregamento dos registros em Departamentos", () => {
       const pergunta = await screen.findByRole("alertdialog", { name: "Deseja imprimir o termo de Responsabilidade dessa importação?" });
       fireEvent.click(within(pergunta).getByRole("button", { name: "Cancelar" }));
     }
-    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar PDF do Sonner" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar HTML ou PDF do Sonner" })).toBeEnabled());
     if (resposta === "OK") {
       expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
         _sala_id: "sala", _bens: extraidos, _existentes: existentes, _gerar_termo: true,
@@ -537,7 +540,7 @@ describe("Carregamento dos registros em Departamentos", () => {
       });
     }
     fireEvent.click(within(numeracao).getByRole("button", { name: resposta }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar PDF do Sonner" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Anexar HTML ou PDF do Sonner" })).toBeEnabled());
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Dados do recebimento" })).not.toBeInTheDocument();
     if (resposta === "Não") {

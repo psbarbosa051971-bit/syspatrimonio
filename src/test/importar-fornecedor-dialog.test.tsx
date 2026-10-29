@@ -20,22 +20,22 @@ async function abrirImportacao(onFornecedorChange: (fornecedor: string) => void)
   render(<ImportarFornecedorDialog onFornecedorChange={onFornecedorChange} />);
   fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
   const arquivo = new File(["%PDF-"], "fornecedores.pdf", { type: "application/pdf" });
-  const input = screen.getByLabelText("Arquivo PDF por fornecedor");
-  expect(input).toHaveAttribute("accept", ".pdf,application/pdf");
+  const input = screen.getByLabelText("Arquivo HTML ou PDF por fornecedor");
+  expect(input).toHaveAttribute("accept", ".html,.htm,text/html,.pdf,application/pdf");
   fireEvent.change(input, { target: { files: [arquivo] } });
   await screen.findByLabelText("Fornecedor");
 }
 
 describe("Fornecedor compartilhado com Notas Fiscais", () => {
-  it("rejeita arquivos HTML sem tentar importar", () => {
+  it("restaura a importação HTML por fornecedor sem exigir PDF", async () => {
     render(<ImportarFornecedorDialog />);
     fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
-    fireEvent.change(screen.getByLabelText("Arquivo PDF por fornecedor"), {
-      target: { files: [new File(["<html></html>"], "fornecedor.html", { type: "text/html" })] },
-    });
+    const arquivo = new File([], "fornecedor.html", { type: "text/html" });
+    Object.defineProperty(arquivo, "text", { value: async () => '<table><tr><td>Fornecedor: Fornecedor HTML</td></tr><tr><td>123</td><td>Mesa HTML</td><td>2026</td><td>1</td><td>2026</td><td>2</td></tr></table>' });
+    fireEvent.change(screen.getByLabelText("Arquivo HTML ou PDF por fornecedor"), { target: { files: [arquivo] } });
+    expect(await screen.findByLabelText("Fornecedor")).toHaveValue("Fornecedor HTML");
     expect(mocks.parsear).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Fornecedor")).not.toBeInTheDocument();
   });
 
   it("envia o fornecedor do bem carregado sem exigir a vinculação aos patrimônios", async () => {
