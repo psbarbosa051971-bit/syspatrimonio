@@ -11,6 +11,8 @@ import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidad
 import { Printer, Merge } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type Props = {
   salaId: string | null; atualizar: number; selecionado: string | null;
@@ -27,6 +29,21 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   const [tentativa, setTentativa] = useState(0);
   const [termoImpressao, setTermoImpressao] = useState("");
   const [termoEntrega, setTermoEntrega] = useState<TermoDaSala | null>(null);
+  const [numeroBaixa, setNumeroBaixa] = useState("");
+  const [erroBaixa, setErroBaixa] = useState("");
+  const [baixa, setBaixa] = useState(false);
+  function abrirBaixa(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErroBaixa("");
+    const numero = numeroBaixa.trim().match(/^(\d+)(?:\s*\/\s*(\d{4}))?$/);
+    if (!numero) { setErroBaixa("Digite o número do termo, por exemplo: 113 ou 113/2026."); return; }
+    const encontrados = termos.filter((termo) => Number(termo.numero) === Number(numero[1]) &&
+      (!numero[2] || numeroDoTermo(termo).split("/")[1] === numero[2]));
+    if (!encontrados.length) { setErroBaixa("Termo não encontrado nesta sala."); return; }
+    if (encontrados.length > 1) { setErroBaixa("Informe também o ano do termo, por exemplo: 113/2026."); return; }
+    if (!resumoTermoDaSala(encontrados[0]).dados) { setErroBaixa("Os itens deste termo não estão disponíveis."); return; }
+    setBaixa(true); setTermoEntrega(encontrados[0]);
+  }
   const [marcados, setMarcados] = useState<string[]>([]);
   const [unificando, setUnificando] = useState(false);
   async function unificar() {
@@ -47,6 +64,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   useEffect(() => {
     let ativo = true;
     setTermos([]); setMarcados([]); setErro(false); setTermoImpressao(""); setTermoEntrega(null); setEntregas({});
+    setNumeroBaixa(""); setErroBaixa(""); setBaixa(false);
     if (!salaId) { setCarregando(false); return; }
     setCarregando(true);
     async function carregar() {
@@ -80,7 +98,19 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   return <Card className="min-w-0 lg:col-span-2">
     <CardHeader className="pb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle>Termos criados da sala</CardTitle>
+        <div className="flex flex-wrap items-center gap-4">
+          <CardTitle>Termos criados da sala</CardTitle>
+          <form onSubmit={abrirBaixa} className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="numero-baixa-termo" className="whitespace-nowrap font-semibold">Baixa de termo</Label>
+              <Input id="numero-baixa-termo" className="h-9 w-36" placeholder="Ex.: 113/2026" autoComplete="off" value={numeroBaixa}
+                onChange={(event) => { setNumeroBaixa(event.target.value); setErroBaixa(""); }}
+                disabled={!salaId || aguardandoDados || falhaCarga} aria-invalid={!!erroBaixa} aria-describedby={erroBaixa ? "erro-baixa-termo" : undefined} />
+              <Button type="submit" size="sm" disabled={!salaId || aguardandoDados || falhaCarga || !numeroBaixa.trim()}>Abrir termo</Button>
+            </div>
+            {erroBaixa && <p id="erro-baixa-termo" role="alert" className="text-xs text-destructive">{erroBaixa}</p>}
+          </form>
+        </div>
         <div className="flex flex-wrap gap-2">
           {salaId && <Button size="sm" disabled={marcados.length !== 2 || unificando} onClick={unificar} title="Marque dois termos na coluna Unificar"><Merge className="mr-2 h-4 w-4" />{unificando ? "Unificando..." : "Unificar termos"}</Button>}
         {selecionado && <>
@@ -116,7 +146,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
                   <td className="whitespace-nowrap text-right">{resumo.dados ? moeda(resumo.total) : "—"}</td>
                   <td>{numeroDoTermo(termo).split("/")[1]}</td><td>{resumo.tipos}</td><td className="whitespace-nowrap font-semibold">{resumo.classificacao}</td>
                   <td className="text-center"><input type="checkbox" className="h-4 w-4 accent-primary" aria-label={`Selecionar termo ${numeroDoTermo(termo)} para unificar`} checked={marcados.includes(termo.id)} disabled={!marcados.includes(termo.id) && marcados.length >= 2} onChange={(e) => setMarcados((atuais) => e.target.checked ? [...atuais, termo.id] : atuais.filter((id) => id !== termo.id))} /></td>
-                  <td className="text-right"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button><Button type="button" size="sm" variant="outline" aria-label={`Status do termo ${numeroDoTermo(termo)}`} onClick={() => setTermoEntrega(termo)}>Status</Button>{salaId && <ExcluirTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onExcluir={() => {
+                  <td className="text-right"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" disabled={!resumo.dados} aria-label={`Imprimir termo ${numeroDoTermo(termo)}`} onClick={() => setTermoImpressao(termo.id)}><Printer className="mr-2 h-4 w-4" />Imprimir termo</Button><Button type="button" size="sm" variant="outline" aria-label={`Status do termo ${numeroDoTermo(termo)}`} onClick={() => { setBaixa(false); setTermoEntrega(termo); }}>Status</Button>{salaId && <ExcluirTermoDialog key={`${salaId}:${termo.id}`} salaId={salaId} termo={termo} onExcluir={() => {
                     setTermos((atuais) => atuais.filter((item) => item.id !== termo.id));
                     if (selecionado === termo.id) onLimpar();
                     if (termoImpressao === termo.id) setTermoImpressao("");
@@ -135,7 +165,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
       </div>
     </CardContent>
     {termoEntrega && salaId && <EntregaTermoDialog
-      key={`${salaId}:${termoEntrega.id}`} termo={termoEntrega} entrega={entregas[termoEntrega.id] ?? null}
+      key={`${salaId}:${termoEntrega.id}`} termo={termoEntrega} entrega={entregas[termoEntrega.id] ?? null} baixa={baixa}
       onFechar={() => setTermoEntrega(null)}
       onSalvar={(entrega) => setEntregas((atuais) => ({ ...atuais, [entrega.importacao_id]: entrega }))} />}
     {termoImpressao && salaId && <TermosResponsabilidadeDialog
