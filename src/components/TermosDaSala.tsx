@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { numeroDoTermo } from "@/lib/termo-responsabilidade";
 import { bensAtuaisDoTermo, resumoTermoDaSala, termoSemMovimentacao, type TermoDaSala } from "@/lib/termos-da-sala";
@@ -32,17 +32,48 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   const [numeroBaixa, setNumeroBaixa] = useState("");
   const [erroBaixa, setErroBaixa] = useState("");
   const [baixa, setBaixa] = useState(false);
-  function abrirBaixa(event: React.FormEvent<HTMLFormElement>) {
+  const [buscandoBaixa, setBuscandoBaixa] = useState(false);
+  const buscaBaixaRef = useRef(0);
+  async function abrirBaixa(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (buscandoBaixa) return;
     setErroBaixa("");
     const numero = numeroBaixa.trim().match(/^(\d+)(?:\s*\/\s*(\d{4}))?$/);
     if (!numero) { setErroBaixa("Digite o número do termo, por exemplo: 113 ou 113/2026."); return; }
-    const encontrados = termos.filter((termo) => Number(termo.numero) === Number(numero[1]) &&
-      (!numero[2] || numeroDoTermo(termo).split("/")[1] === numero[2]));
-    if (!encontrados.length) { setErroBaixa("Termo não encontrado nesta sala."); return; }
-    if (encontrados.length > 1) { setErroBaixa("Informe também o ano do termo, por exemplo: 113/2026."); return; }
-    if (!resumoTermoDaSala(encontrados[0]).dados) { setErroBaixa("Os itens deste termo não estão disponíveis."); return; }
-    setBaixa(true); setTermoEntrega(encontrados[0]);
+    const busca = ++buscaBaixaRef.current;
+    setBuscandoBaixa(true);
+    try {
+      const encontrados: TermoDaSala[] = [];
+      for (let inicio = 0; ; inicio += 100) {
+        const { data, error } = await supabase.from("importacoes")
+          .select("id,numero,termo_ano,created_at,arquivo,termo_snapshot")
+          .eq("numero", Number(numero[1])).range(inicio, inicio + 99);
+        if (busca !== buscaBaixaRef.current) return;
+        if (error) throw error;
+        encontrados.push(...(data ?? []).filter((termo) =>
+          !numero[2] || numeroDoTermo(termo).split("/")[1] === numero[2]));
+        if (!data || data.length < 100) break;
+      }
+      if (!encontrados.length) { setErroBaixa("Termo não encontrado nas salas às quais você tem acesso."); return; }
+      if (encontrados.length > 1) { setErroBaixa("Informe também o ano do termo, por exemplo: 113/2026."); return; }
+      const termo = encontrados[0];
+      if (!resumoTermoDaSala(termo).dados) { setErroBaixa("Os itens deste termo não estão disponíveis."); return; }
+      const { data: registros, error } = await supabase.from("entregas_termos")
+        .select("*").in("importacao_id", [termo.id]);
+      if (busca !== buscaBaixaRef.current) return;
+      if (error) throw error;
+      setEntregas((atuais) => {
+        const atualizados = { ...atuais };
+        delete atualizados[termo.id];
+        for (const entrega of registros ?? []) atualizados[entrega.importacao_id] = entrega;
+        return atualizados;
+      });
+      setBaixa(true); setTermoEntrega(termo);
+    } catch {
+      if (busca === buscaBaixaRef.current) setErroBaixa("Não foi possível buscar o termo. Tente novamente.");
+    } finally {
+      if (busca === buscaBaixaRef.current) setBuscandoBaixa(false);
+    }
   }
   const [marcados, setMarcados] = useState<string[]>([]);
   const [unificando, setUnificando] = useState(false);
@@ -64,8 +95,11 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   useEffect(() => {
     let ativo = true;
     setTermos([]); setMarcados([]); setErro(false); setTermoImpressao(""); setTermoEntrega(null); setEntregas({});
-    setNumeroBaixa(""); setErroBaixa(""); setBaixa(false);
-    if (!salaId) { setCarregando(false); return; }
+    setNumeroBaixa(""); setErroBaixa(""); setBaixa(false); setBuscandoBaixa(false);
+    if (!salaId) {
+      setCarregando(false);
+      return () => { buscaBaixaRef.current += 1; };
+    }
     setCarregando(true);
     async function carregar() {
       const todos: TermoDaSala[] = [];
@@ -89,7 +123,7 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
     }
     carregar().catch(() => { if (ativo) setErro(true); })
       .finally(() => { if (ativo) setCarregando(false); });
-    return () => { ativo = false; };
+    return () => { ativo = false; buscaBaixaRef.current += 1; };
   }, [salaId, atualizar, tentativa]);
   const termosComBens = termos.map((termo) => ({ termo, quantidade: bensAtuaisDoTermo(bensDaSala, termo).length }))
     .filter(({ quantidade }) => quantidade > 0);
@@ -105,9 +139,10 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
               <Label htmlFor="numero-baixa-termo" className="whitespace-nowrap font-semibold">Baixa de termo</Label>
               <Input id="numero-baixa-termo" className="h-9 w-36" placeholder="Ex.: 112" inputMode="numeric" autoComplete="off" value={numeroBaixa}
                 onChange={(event) => { setNumeroBaixa(event.target.value); setErroBaixa(""); }}
-                disabled={!salaId || aguardandoDados || falhaCarga} aria-invalid={!!erroBaixa} aria-describedby={erroBaixa ? "erro-baixa-termo" : undefined} />
-              <Button type="submit" size="sm" disabled={!salaId || aguardandoDados || falhaCarga || !numeroBaixa.trim()}>Abrir termo</Button>
+                disabled={buscandoBaixa} aria-invalid={!!erroBaixa} aria-describedby={erroBaixa ? "erro-baixa-termo" : "ajuda-baixa-termo"} />
+              <Button type="submit" size="sm" disabled={buscandoBaixa || !numeroBaixa.trim()}>{buscandoBaixa ? "Buscando..." : "Abrir termo"}</Button>
             </div>
+            <p id="ajuda-baixa-termo" className="text-xs text-muted-foreground">Busca pelo número em todas as salas às quais você tem acesso.</p>
             {erroBaixa && <p id="erro-baixa-termo" role="alert" className="text-xs text-destructive">{erroBaixa}</p>}
           </form>
         </div>
@@ -164,8 +199,8 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         <div><p className="text-xs font-bold uppercase">Valor total na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{moeda(valorSala)}</p></div>
       </div>
     </CardContent>
-    {termoEntrega && salaId && <EntregaTermoDialog
-      key={`${salaId}:${termoEntrega.id}`} termo={termoEntrega} entrega={entregas[termoEntrega.id] ?? null} baixa={baixa}
+    {termoEntrega && <EntregaTermoDialog
+      key={termoEntrega.id} termo={termoEntrega} entrega={entregas[termoEntrega.id] ?? null} baixa={baixa}
       onFechar={() => setTermoEntrega(null)}
       onSalvar={(entrega) => setEntregas((atuais) => ({ ...atuais, [entrega.importacao_id]: entrega }))} />}
     {termoImpressao && salaId && <TermosResponsabilidadeDialog

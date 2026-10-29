@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), salvar: vi.fn(), entregas: [] as Record<string, unknown>[] }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), buscar: vi.fn(), salvar: vi.fn(), entregas: [] as Record<string, unknown>[] }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
 vi.mock("@/components/IncluirBensTermoDialog", () => ({ IncluirBensTermoDialog: () => null }));
@@ -41,6 +41,7 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.entregas = [];
+  mocks.buscar.mockImplementation(async (numero: number) => ({ data: termos.filter((termo) => termo.numero === numero), error: null }));
   mocks.salvar.mockImplementation(async (dados: Record<string, unknown>) => {
     const registro = { ...dados };
     mocks.entregas = [registro];
@@ -49,9 +50,18 @@ beforeEach(() => {
   mocks.from.mockImplementation((tabela: string) => {
     const query: Record<string, unknown> = {};
     let dadosSalvar: Record<string, unknown> = {};
-    for (const method of ["select", "eq", "not", "order"]) query[method] = () => query;
-    query.range = () => Promise.resolve({ data: termos, error: null });
-    query.in = () => Promise.resolve({ data: tabela === "entregas_termos" ? mocks.entregas : [], error: null });
+    let numero: number | undefined;
+    let sala: string | undefined;
+    for (const method of ["select", "not", "order"]) query[method] = () => query;
+    query.eq = (coluna: string, valor: string | number) => {
+      if (coluna === "numero") numero = Number(valor);
+      if (coluna === "sala_id") sala = String(valor);
+      return query;
+    };
+    query.range = () => numero === undefined ? Promise.resolve({ data: termos, error: null }) : mocks.buscar(numero, sala);
+    query.in = (_coluna: string, ids: string[]) => Promise.resolve({
+      data: tabela === "entregas_termos" ? mocks.entregas.filter((entrega) => ids.includes(String(entrega.importacao_id))) : [], error: null,
+    });
     query.upsert = (dados: Record<string, unknown>) => { dadosSalvar = dados; return query; };
     query.single = () => mocks.salvar(dadosSalvar);
     return query;
@@ -67,7 +77,7 @@ describe("impressão em Termos criados da sala", () => {
     expect(campo).toHaveAttribute("inputmode", "numeric");
     fireEvent.change(campo, { target: { value: numero } });
     fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
-    const dialogo = screen.getByRole("dialog", { name: "Termo de responsabilidade 20/2026" });
+    const dialogo = await screen.findByRole("dialog", { name: "Termo de responsabilidade 20/2026" });
     expect(within(dialogo).getByRole("columnheader", { name: "Patrimônio" })).toBeInTheDocument();
     expect(within(dialogo).getByRole("columnheader", { name: "Aquisição" })).toBeInTheDocument();
     expect(within(dialogo).getByText("123")).toBeInTheDocument();
@@ -85,7 +95,7 @@ describe("impressão em Termos criados da sala", () => {
     await screen.findByRole("button", { name: "Status do termo 20/2026" });
     fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "20" } });
     fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
-    fireEvent.change(screen.getByLabelText("Entregue por"), { target: { value: "Maria" } });
+    fireEvent.change(await screen.findByLabelText("Entregue por"), { target: { value: "Maria" } });
     fireEvent.change(screen.getByLabelText("Recebido Por"), { target: { value: "João" } });
     fireEvent.change(screen.getByLabelText("CPF"), { target: { value: "52998224725" } });
     fireEvent.change(screen.getByLabelText("Data Entrega"), { target: { value: "2026-10-20" } });
@@ -98,7 +108,7 @@ describe("impressão em Termos criados da sala", () => {
     }));
     expect(screen.getByRole("button", { name: "Status do termo 20/2026" }).closest("tr")).toHaveClass("termo-entregue");
     fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
-    expect(screen.getByLabelText("Recebido Por")).toHaveValue("João");
+    expect(await screen.findByLabelText("Recebido Por")).toHaveValue("João");
     expect(screen.getByLabelText("CPF")).toHaveValue("529.982.247-25");
   });
 
@@ -112,10 +122,10 @@ describe("impressão em Termos criados da sala", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Digite o número do termo");
     fireEvent.change(campo, { target: { value: "20/2025" } });
     fireEvent.click(abrir);
-    expect(screen.getByRole("alert")).toHaveTextContent("Termo não encontrado nesta sala");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Termo não encontrado nas salas às quais você tem acesso");
     fireEvent.change(campo, { target: { value: "10" } });
     fireEvent.click(abrir);
-    expect(screen.getByRole("alert")).toHaveTextContent("Os itens deste termo não estão disponíveis");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Os itens deste termo não estão disponíveis");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -124,10 +134,56 @@ describe("impressão em Termos criados da sala", () => {
     await screen.findByRole("button", { name: "Status do termo 20/2026" });
     fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "20" } });
     fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
     rerender(<TermosDaSala {...props} salaId="outra-sala" />);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByLabelText("Baixa de termo")).toHaveValue("");
+  });
+
+  it.each(["sala", null])("busca o termo 112 de outra sala sem depender da sala aberta (%s)", async (salaId) => {
+    const termoOutraSala = { ...termos[0], id: "termo-outra-sala", numero: 112,
+      termo_snapshot: { local: "Outra sala", bens: [{ codigo_red: "789", descricao: "Armário", valor: 50 }] } };
+    mocks.buscar.mockResolvedValue({ data: [termoOutraSala], error: null });
+    mocks.entregas = [{ importacao_id: "termo-outra-sala", entregue_por: "Ana", recebido_por: "Carlos",
+      cpf: "52998224725", data_entrega: "2026-10-20", status: "Entregue" }];
+    render(<TermosDaSala {...props} salaId={salaId} erroBens />);
+    fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "112" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
+    const dialogo = await screen.findByRole("dialog", { name: "Termo de responsabilidade 112/2026" });
+    expect(mocks.buscar).toHaveBeenCalledWith(112, undefined);
+    expect(within(dialogo).getByText("Armário")).toBeInTheDocument();
+    expect(within(dialogo).getByLabelText("Recebido Por")).toHaveValue("Carlos");
+    fireEvent.change(within(dialogo).getByLabelText("Entregue por"), { target: { value: "Maria" } });
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Salvar entrega" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mocks.salvar).toHaveBeenCalledWith(expect.objectContaining({
+      importacao_id: "termo-outra-sala", entregue_por: "Maria", recebido_por: "Carlos", status: "Entregue",
+    }));
+  });
+
+  it("pede o ano quando a busca global encontra mais de um termo com o mesmo número", async () => {
+    mocks.buscar.mockResolvedValue({ data: [termos[0], { ...termos[0], id: "ano-anterior", termo_ano: 2025 }], error: null });
+    render(<TermosDaSala {...props} />);
+    await screen.findByRole("button", { name: "Status do termo 20/2026" });
+    fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Informe também o ano do termo");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "20/2025" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
+    expect(await screen.findByRole("dialog", { name: "Termo de responsabilidade 20/2025" })).toBeInTheDocument();
+  });
+
+  it("permite repetir a busca global quando ocorre uma falha", async () => {
+    mocks.buscar.mockResolvedValueOnce({ data: null, error: { message: "Falha de conexão" } });
+    render(<TermosDaSala {...props} />);
+    await screen.findByRole("button", { name: "Status do termo 20/2026" });
+    fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível buscar o termo");
+    expect(screen.getByLabelText("Baixa de termo")).toHaveValue("20");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
+    expect(await screen.findByRole("dialog", { name: "Termo de responsabilidade 20/2026" })).toBeInTheDocument();
   });
 
   it("oculta termos sem bens atuais mesmo quando o documento salvo contém bens", async () => {
