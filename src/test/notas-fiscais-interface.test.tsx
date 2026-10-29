@@ -23,7 +23,7 @@ beforeEach(() => {
     static revokeObjectURL = vi.fn();
   });
   mocks.rpc.mockImplementation((nome: string) => {
-    const data = nome === "fornecedores_notas_fiscais" ? [{ fornecedor: "Fornecedor A" }] : [{ id: "bem-1", codigo_red: "1234", descricao: "Mesa cadastrada", valor: 201, incorporacao: "2026" }];
+    const data = nome === "fornecedores_notas_fiscais" ? [{ fornecedor: "Fornecedor A" }] : [{ id: "bem-1", codigo_red: "1234", descricao: "Mesa cadastrada", valor: 201, incorporacao: "2026", empenho: "7438", ano_empenho: "2026" }];
     return { order: vi.fn().mockReturnThis(), range: vi.fn().mockResolvedValue({ data, error: null }) };
   });
   mocks.insert.mockResolvedValue({ error: null });
@@ -41,7 +41,13 @@ describe("Notas Fiscais com PDF direto", () => {
     await consultar();
     expect(screen.getByRole("dialog", { name: "Notas Fiscais" })).toHaveClass("h-dvh", "w-full", "max-w-none");
     expect(mocks.rpc).toHaveBeenCalledWith("bens_da_nota_fiscal", { _fornecedor: "Fornecedor A", _numero: "614" });
-    expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    const descricao = screen.getByText("Mesa cadastrada");
+    expect(descricao).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").map((celula) => celula.textContent)).toEqual([
+      "Patrimônio", "Descrição do bem", "Empenho", "Ano empenho", "Incorporação", "Valor",
+    ]);
+    expect(descricao.nextElementSibling).toHaveTextContent("7438");
+    expect(descricao.nextElementSibling?.nextElementSibling).toHaveTextContent("2026");
     expect(screen.getByLabelText(/Importar PDF da nota/)).toHaveAttribute("accept", ".pdf,application/pdf");
     expect(screen.queryByLabelText(/Anexar XML/)).not.toBeInTheDocument();
   });

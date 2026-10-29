@@ -34,8 +34,15 @@ describe("Fornecedor compartilhado com Notas Fiscais", () => {
     Object.defineProperty(arquivo, "text", { value: async () => '<table><tr><td>Fornecedor: Fornecedor HTML</td></tr><tr><td>123</td><td>Mesa HTML</td><td>2026</td><td>1</td><td>2026</td><td>2</td></tr></table>' });
     fireEvent.change(screen.getByLabelText("Arquivo HTML ou PDF por fornecedor"), { target: { files: [arquivo] } });
     expect(await screen.findByLabelText("Fornecedor")).toHaveValue("Fornecedor HTML");
+    expect(screen.getByLabelText("Empenho")).toHaveValue("2");
+    expect(screen.getByLabelText("Ano empenho")).toHaveValue("2026");
     expect(mocks.parsear).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: [{ codigo_red: "123", vinculados: 1 }], error: null });
+    fireEvent.click(screen.getByRole("button", { name: "Vincular aos patrimônios" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("vincular_dados_fornecedor", {
+      _itens: [expect.objectContaining({ codigo_red: "123", empenho: "2", ano_empenho: "2026" })],
+    }));
   });
 
   it("envia o fornecedor do bem carregado sem exigir a vinculação aos patrimônios", async () => {
