@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { cpfValido, formatarCpf, normalizarCpf } from "@/lib/cpf";
 import { numeroDoTermo } from "@/lib/termo-responsabilidade";
+import { confirmarSenhaEntrega, salvarEntregaConfirmada } from "@/lib/entregas-termos.functions";
+import { ImprimirEntregaTermo } from "@/components/ImprimirEntregaTermo";
+import { Pencil, LockKeyhole } from "lucide-react";
 import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +28,29 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
   const [entregaHoje, setEntregaHoje] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [desbloqueado, setDesbloqueado] = useState(false);
+  const [pedirSenha, setPedirSenha] = useState(false);
+  const [senha, setSenha] = useState("");
+  const [verificando, setVerificando] = useState(false);
+  const [erroSenha, setErroSenha] = useState("");
+  const bloqueado = entrega?.status === "Entregue" && !desbloqueado;
+  const verificandoRef = useRef(false);
+  const senhaConfirmadaRef = useRef("");
   const salvandoRef = useRef(false);
+
+  async function desbloquear(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (verificandoRef.current || !senha) return;
+    verificandoRef.current = true; setVerificando(true); setErroSenha("");
+    try {
+      await confirmarSenhaEntrega({ data: { senha } });
+      senhaConfirmadaRef.current = senha;
+      setDesbloqueado(true); setPedirSenha(false); setSenha("");
+    } catch {
+      setErroSenha("Não foi possível confirmar sua senha. Confira a senha da sua conta conectada e tente novamente.");
+      setSenha("");
+    } finally { verificandoRef.current = false; setVerificando(false); }
+  }
   const entregue = status === "Entregue";
   const resumo = resumoTermoDaSala(termo);
   const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -34,7 +59,7 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
 
   async function salvar(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (salvandoRef.current) return;
+    if (salvandoRef.current || bloqueado) return;
     setErro("");
     if (entregue && (!entreguePor.trim() || !recebidoPor.trim() || !dataEntrega || !cpf.trim())) {
       setErro("Preencha todos os campos para registrar o termo como Entregue."); return;
@@ -44,14 +69,26 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
     }
     salvandoRef.current = true; setSalvando(true);
     try {
-      const { data, error } = await supabase.from("entregas_termos").upsert({
-        importacao_id: termo.id, entregue_por: entreguePor.trim(), recebido_por: recebidoPor.trim(),
-        cpf: normalizarCpf(cpf), data_entrega: dataEntrega || null, status,
-        atualizado_em: new Date().toISOString(),
-      }, { onConflict: "importacao_id" }).select("*").single();
-      if (error) throw error;
-      if (!data) throw new Error("Entrega não retornada.");
-      onSalvar(data); toast.success("Status de entrega do termo salvo."); onFechar();
+      let registro: Entrega;
+      if (entrega?.status === "Entregue") {
+        registro = await salvarEntregaConfirmada({ data: {
+          senha: senhaConfirmadaRef.current, importacaoId: termo.id,
+          entreguePor: entreguePor.trim(), recebidoPor: recebidoPor.trim(),
+          cpf: normalizarCpf(cpf), dataEntrega: dataEntrega || null,
+          status: status === "Entregue" ? "Entregue" : "Aguardando Entrega",
+        } });
+      } else {
+        const { data, error } = await supabase.from("entregas_termos").upsert({
+          importacao_id: termo.id, entregue_por: entreguePor.trim(), recebido_por: recebidoPor.trim(),
+          cpf: normalizarCpf(cpf), data_entrega: dataEntrega || null, status,
+          atualizado_em: new Date().toISOString(),
+        }, { onConflict: "importacao_id" }).select("*").single();
+        if (error) throw error;
+        if (!data) throw new Error("Entrega não retornada.");
+        registro = data;
+      }
+      senhaConfirmadaRef.current = "";
+      onSalvar(registro); toast.success("Status de entrega do termo salvo."); onFechar();
     } catch {
       setErro("Não foi possível salvar a entrega. Seus dados foram mantidos; tente novamente.");
     } finally { salvandoRef.current = false; setSalvando(false); }
@@ -87,8 +124,19 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
           </div>
         </>}
       </section>
+      {bloqueado && <p className="flex items-center gap-2 text-sm text-muted-foreground"><LockKeyhole className="h-4 w-4 shrink-0" />Termo já entregue. Para alterar os dados, clique em Editar e confirme a senha da sua conta.</p>}
+      {bloqueado && pedirSenha && <form onSubmit={desbloquear} className="space-y-3 rounded-md border p-3">
+        <Label htmlFor="senha-editar-entrega">Senha do usuário conectado</Label>
+        <Input id="senha-editar-entrega" type="password" autoComplete="current-password" autoFocus required maxLength={72}
+          value={senha} disabled={verificando} onChange={(event) => { setSenha(event.target.value); setErroSenha(""); }} />
+        {erroSenha && <p role="alert" className="text-sm text-destructive">{erroSenha}</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" disabled={verificando} onClick={() => { setPedirSenha(false); setSenha(""); setErroSenha(""); }}>Voltar</Button>
+          <Button type="submit" disabled={verificando || !senha}>{verificando ? "Verificando..." : "Confirmar senha"}</Button>
+        </div>
+      </form>}
       <form onSubmit={salvar} className="space-y-4">
-        <fieldset disabled={salvando} className={baixa ? "grid gap-2 md:grid-cols-3" : "space-y-4"}>
+        <fieldset disabled={salvando || bloqueado} className={baixa ? "grid gap-2 md:grid-cols-3" : "space-y-4"}>
           <div className={`flex items-center gap-2 ${baixa ? "md:col-span-3 md:row-start-4" : ""}`}>
             <input id="termo-entrega-hoje" type="checkbox" className="h-4 w-4 accent-primary" checked={entregaHoje} onChange={(event) => {
               const marcado = event.target.checked;
@@ -126,9 +174,13 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
           </div>
         </fieldset>
         {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" disabled={salvando} onClick={onFechar}>Cancelar</Button>
-          <Button type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Salvar entrega"}</Button>
+          <ImprimirEntregaTermo termo={termo} entreguePor={entreguePor} recebidoPor={recebidoPor} cpf={cpf}
+            dataEntrega={dataEntrega} status={status} disabled={salvando} />
+          {bloqueado
+            ? <Button type="button" disabled={pedirSenha} onClick={() => { setPedirSenha(true); setErroSenha(""); }}><Pencil className="mr-2 h-4 w-4" />Editar</Button>
+            : <Button type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Salvar entrega"}</Button>}
         </div>
       </form>
     </DialogContent>

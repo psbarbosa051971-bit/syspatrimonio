@@ -1,8 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), buscar: vi.fn(), salvar: vi.fn(), entregas: [] as Record<string, unknown>[] }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), buscar: vi.fn(), salvar: vi.fn(), confirmarSenha: vi.fn(), salvarConfirmada: vi.fn(), entregas: [] as Record<string, unknown>[] }));
+vi.mock("@/lib/entregas-termos.functions", () => ({
+  confirmarSenhaEntrega: mocks.confirmarSenha,
+  salvarEntregaConfirmada: mocks.salvarConfirmada,
+}));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
 vi.mock("@/components/IncluirBensTermoDialog", () => ({ IncluirBensTermoDialog: () => null }));
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({
@@ -41,6 +45,11 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.entregas = [];
+  mocks.confirmarSenha.mockResolvedValue({ ok: true });
+  mocks.salvarConfirmada.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+    importacao_id: data.importacaoId, entregue_por: data.entreguePor, recebido_por: data.recebidoPor,
+    cpf: data.cpf, data_entrega: data.dataEntrega, status: data.status,
+  }));
   mocks.buscar.mockImplementation(async (numero: number) => ({ data: termos.filter((termo) => termo.numero === numero), error: null }));
   mocks.salvar.mockImplementation(async (dados: Record<string, unknown>) => {
     const registro = { ...dados };
@@ -69,6 +78,35 @@ beforeEach(() => {
 });
 
 describe("impressão em Termos criados da sala", () => {
+  it("imprime pelo ícone ao lado de Cancelar com os dados preenchidos sem salvar a entrega", async () => {
+    render(<TermosDaSala {...props} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Status do termo 20/2026" }));
+    fireEvent.change(screen.getByLabelText("Entregue por"), { target: { value: "Maria <script>alert(1)</script>" } });
+    fireEvent.change(screen.getByLabelText("Recebido Por"), { target: { value: "João" } });
+    fireEvent.change(screen.getByLabelText("CPF"), { target: { value: "52998224725" } });
+    fireEvent.change(screen.getByLabelText("Data Entrega"), { target: { value: "2026-10-20" } });
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Entregue" } });
+    const imprimir = screen.getByRole("button", { name: "Imprimir termo de responsabilidade" });
+    expect(screen.getByRole("button", { name: "Cancelar" }).nextElementSibling).toBe(imprimir);
+    fireEvent.click(imprimir);
+    const frame = screen.getByTitle("Impressão do termo 20/2026") as HTMLIFrameElement;
+    const html = frame.getAttribute("srcdoc")!;
+    expect(html).toContain("TERMO DE RESPONSABILIDADE Nº 20/2026");
+    expect(html).toContain("Mesa");
+    expect(html).toContain("Maria &lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("João");
+    expect(html).toContain("529.982.247-25");
+    expect(html).toContain("DATA DE RECEBIMENTO 20/10/2026");
+    expect(html).toContain("<strong>STATUS:</strong> Entregue");
+    const print = vi.spyOn(frame.contentWindow!, "print").mockImplementation(() => {});
+    vi.spyOn(frame.contentWindow!, "focus").mockImplementation(() => {});
+    fireEvent.load(frame);
+    expect(print).toHaveBeenCalled();
+    expect(mocks.salvar).not.toHaveBeenCalled();
+    expect(mocks.salvarConfirmada).not.toHaveBeenCalled();
+  });
+
   it.each(["00020", "00020/2026"])("abre a baixa por %s e exibe os itens e totais do termo", async (numero) => {
     render(<TermosDaSala {...props} />);
     await screen.findByRole("button", { name: "Status do termo 20/2026" });
@@ -147,7 +185,10 @@ describe("impressão em Termos criados da sala", () => {
     expect(screen.getByRole("button", { name: "Status do termo 20/2026" }).closest("tr")).toHaveClass("termo-entregue");
     fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
     expect(await screen.findByLabelText("Recebido Por")).toHaveValue("João");
+    expect(screen.getByLabelText("Recebido Por")).toBeDisabled();
     expect(screen.getByLabelText("CPF")).toHaveValue("529.982.247-25");
+    expect(screen.getByRole("button", { name: "Editar" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Salvar entrega" })).not.toBeInTheDocument();
   });
 
   it("avisa quando o número é inválido, pertence a outro ano ou não tem itens disponíveis", async () => {
@@ -191,12 +232,18 @@ describe("impressão em Termos criados da sala", () => {
     expect(mocks.buscar).toHaveBeenCalledWith(112, undefined);
     expect(within(dialogo).getByText("Armário")).toBeInTheDocument();
     expect(within(dialogo).getByLabelText("Recebido Por")).toHaveValue("Carlos");
+    expect(within(dialogo).getByLabelText("Entregue por")).toBeDisabled();
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Editar" }));
+    fireEvent.change(within(dialogo).getByLabelText("Senha do usuário conectado"), { target: { value: "minha-senha" } });
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Confirmar senha" }));
+    await waitFor(() => expect(within(dialogo).getByLabelText("Entregue por")).toBeEnabled());
     fireEvent.change(within(dialogo).getByLabelText("Entregue por"), { target: { value: "Maria" } });
     fireEvent.click(within(dialogo).getByRole("button", { name: "Salvar entrega" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(mocks.salvar).toHaveBeenCalledWith(expect.objectContaining({
-      importacao_id: "termo-outra-sala", entregue_por: "Maria", recebido_por: "Carlos", status: "Entregue",
-    }));
+    expect(mocks.salvarConfirmada).toHaveBeenCalledWith({ data: expect.objectContaining({
+      importacaoId: "termo-outra-sala", entreguePor: "Maria", recebidoPor: "Carlos", status: "Entregue", senha: "minha-senha",
+    }) });
+    expect(mocks.salvar).not.toHaveBeenCalled();
   });
 
   it("pede o ano quando a busca global encontra mais de um termo com o mesmo número", async () => {
@@ -323,17 +370,35 @@ describe("impressão em Termos criados da sala", () => {
     expect(screen.getByLabelText("CPF")).toHaveValue("529.982.247-25");
   });
 
-  it("carrega a entrega já salva e permite voltar para aguardando", async () => {
+  it("bloqueia a entrega salva, rejeita senha incorreta e permite editar após confirmar a senha", async () => {
     mocks.entregas = [{ importacao_id: "novo", entregue_por: "Maria", recebido_por: "João",
       cpf: "52998224725", data_entrega: "2026-10-20", status: "Entregue" }];
+    mocks.confirmarSenha.mockRejectedValueOnce(new Error("Senha inválida"));
     render(<TermosDaSala {...props} />);
     const botao = await screen.findByRole("button", { name: "Status do termo 20/2026" });
     expect(botao.closest("tr")).toHaveClass("termo-entregue");
     fireEvent.click(botao);
+    for (const campo of ["Entregue por", "Recebido Por", "CPF", "Data Entrega", "Status", "Registrar entrega com a data de hoje"]) {
+      expect(screen.getByLabelText(campo)).toBeDisabled();
+    }
+    expect(screen.queryByRole("button", { name: "Salvar entrega" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Imprimir termo de responsabilidade" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    fireEvent.change(screen.getByLabelText("Senha do usuário conectado"), { target: { value: "errada" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar senha" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível confirmar sua senha");
+    expect(screen.getByLabelText("Status")).toBeDisabled();
+    expect(mocks.salvar).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Senha do usuário conectado"), { target: { value: "correta" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar senha" }));
+    await waitFor(() => expect(screen.getByLabelText("Status")).toBeEnabled());
     fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Aguardando Entrega" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar entrega" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mocks.salvarConfirmada).toHaveBeenCalledWith({ data: expect.objectContaining({ senha: "correta", status: "Aguardando Entrega" }) });
     expect(botao.closest("tr")).toHaveClass("termo-aguardando");
+    fireEvent.click(botao);
+    expect(screen.getByLabelText("Status")).toBeEnabled();
   });
 
   it("não salva CPF inválido e mantém o formulário quando ocorre uma falha", async () => {
