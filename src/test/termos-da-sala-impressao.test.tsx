@@ -90,6 +90,44 @@ describe("impressão em Termos criados da sala", () => {
     }
   });
 
+  it("preenche a data local de hoje e o status Entregue ao marcar a caixa e salva a entrega", async () => {
+    render(<TermosDaSala {...props} />);
+    await screen.findByRole("button", { name: "Status do termo 20/2026" });
+    fireEvent.change(screen.getByLabelText("Baixa de termo"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir termo" }));
+    const caixa = await screen.findByRole("checkbox", { name: "Registrar entrega com a data de hoje" });
+    expect(caixa).not.toBeChecked();
+    expect(screen.getByLabelText("Data Entrega")).toHaveValue("");
+    expect(screen.getByLabelText("Status")).toHaveValue("Aguardando Entrega");
+    const hoje = new Date();
+    const dataLocal = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+    fireEvent.click(caixa);
+    expect(caixa).toBeChecked();
+    expect(screen.getByLabelText("Data Entrega")).toHaveValue(dataLocal);
+    expect(screen.getByLabelText("Status")).toHaveValue("Entregue");
+    expect(mocks.salvar).not.toHaveBeenCalled();
+    fireEvent.click(caixa);
+    expect(caixa).not.toBeChecked();
+    expect(screen.getByLabelText("Data Entrega")).toHaveValue(dataLocal);
+    expect(screen.getByLabelText("Status")).toHaveValue("Entregue");
+    fireEvent.click(caixa);
+    fireEvent.change(screen.getByLabelText("Data Entrega"), { target: { value: "2026-10-20" } });
+    expect(caixa).not.toBeChecked();
+    fireEvent.click(caixa);
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Aguardando Entrega" } });
+    expect(caixa).not.toBeChecked();
+    fireEvent.click(caixa);
+    fireEvent.change(screen.getByLabelText("Entregue por"), { target: { value: "Maria" } });
+    fireEvent.change(screen.getByLabelText("Recebido Por"), { target: { value: "João" } });
+    fireEvent.change(screen.getByLabelText("CPF"), { target: { value: "52998224725" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar entrega" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mocks.salvar).toHaveBeenCalledWith(expect.objectContaining({
+      importacao_id: "novo", entregue_por: "Maria", recebido_por: "João", cpf: "52998224725",
+      data_entrega: dataLocal, status: "Entregue",
+    }));
+  });
+
   it("salva a baixa na mesma entrega e recupera os dados ao reabrir pelo número", async () => {
     render(<TermosDaSala {...props} />);
     await screen.findByRole("button", { name: "Status do termo 20/2026" });

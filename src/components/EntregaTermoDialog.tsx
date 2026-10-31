@@ -22,6 +22,7 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
   const [cpf, setCpf] = useState(formatarCpf(entrega?.cpf ?? ""));
   const [dataEntrega, setDataEntrega] = useState(entrega?.data_entrega ?? "");
   const [status, setStatus] = useState(entrega?.status ?? "Aguardando Entrega");
+  const [entregaHoje, setEntregaHoje] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const salvandoRef = useRef(false);
@@ -88,6 +89,18 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
       </section>
       <form onSubmit={salvar} className="space-y-4">
         <fieldset disabled={salvando} className={baixa ? "grid gap-2 md:grid-cols-3" : "space-y-4"}>
+          <div className={`flex items-center gap-2 ${baixa ? "md:col-span-3 md:row-start-4" : ""}`}>
+            <input id="termo-entrega-hoje" type="checkbox" className="h-4 w-4 accent-primary" checked={entregaHoje} onChange={(event) => {
+              const marcado = event.target.checked;
+              setEntregaHoje(marcado);
+              if (marcado) {
+                const hoje = new Date();
+                setDataEntrega(`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`);
+                setStatus("Entregue");
+              }
+            }} />
+            <Label htmlFor="termo-entrega-hoje">Registrar entrega com a data de hoje</Label>
+          </div>
           <div className={`${campo} ${baixa ? "md:col-span-2" : ""}`}>
             <Label className={rotulo} htmlFor="termo-entregue-por">Entregue por</Label>
             <Input id="termo-entregue-por" value={entreguePor} onChange={(e) => setEntreguePor(e.target.value)} required={entregue} maxLength={200} />
@@ -102,11 +115,11 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
           </div>
           <div className={`${campo} ${baixa ? "md:col-span-2 md:row-start-3" : ""}`}>
             <Label className={rotulo} htmlFor="termo-data-entrega">Data Entrega</Label>
-            <Input id="termo-data-entrega" type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} required={entregue} />
+            <Input id="termo-data-entrega" type="date" value={dataEntrega} onChange={(e) => { setDataEntrega(e.target.value); setEntregaHoje(false); }} required={entregue} />
           </div>
           <div className={`${campo} ${baixa ? "md:col-start-3 md:row-start-2" : ""}`}>
             <Label className={rotulo} htmlFor="termo-entrega-status">Status</Label>
-            <select id="termo-entrega-status" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select id="termo-entrega-status" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={status} onChange={(e) => { setStatus(e.target.value); setEntregaHoje(false); }}>
               <option value="Aguardando Entrega">Aguardando Entrega</option>
               <option value="Entregue">Entregue</option>
             </select>
