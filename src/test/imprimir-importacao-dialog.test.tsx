@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), imprimir: vi.fn(), getSession: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc, auth: { getSession: mocks.getSession } } }));
+vi.mock("@/lib/entregas-termos.functions", () => ({ confirmarSenhaEntrega: vi.fn(), salvarEntregaConfirmada: vi.fn() }));
 import { ImprimirImportacaoDialog } from "@/components/ImprimirImportacaoDialog";
 
 const snapshot = { local: "Sala teste", responsavel: "Ana Responsável", cpf: "11144477735", bens: [{ codigo_red: "123", descricao: "Mesa", valor: 10 }] };
@@ -18,6 +19,7 @@ beforeEach(() => {
     const consulta: Record<string, unknown> = {};
     consulta["select"] = () => consulta;
     consulta["eq"] = () => consulta;
+    consulta["maybeSingle"] = async () => ({ data: null, error: null });
     consulta["single"] = async () => ({ data: tabela === "importacoes" ? registro : { nome: "João Operador", login: "joao", email: "joao@teste.com" }, error: null });
     return consulta;
   });

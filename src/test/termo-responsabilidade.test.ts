@@ -92,6 +92,21 @@ describe("termo de responsabilidade por importação HTML", () => {
     expect(html).toContain("DATA DE RECEBIMENTO ____/____/________");
   });
 
+  it("usa os dados salvos da entrega sem alterar o responsável pela sala", () => {
+    const html = htmlDoTermo(registro(), {
+      entregue_por: "João <teste>", recebido_por: "Maria Recebedora", cpf: "52998224725",
+      data_entrega: "2026-10-20", status: "Entregue",
+    });
+    expect(html).toContain("João &lt;teste&gt;");
+    expect(html).not.toContain("João <teste>");
+    expect(html).toContain("Maria Recebedora");
+    expect(html).toContain("529.982.247-25");
+    expect(html).toContain("Responsável cadastrado");
+    expect(html).toContain("DATA DE RECEBIMENTO 20/10/2026");
+    expect(html).toContain("<strong>STATUS:</strong> Entregue");
+    expect(htmlDoTermo(registro(), null)).toBe(htmlDoTermo(registro()));
+  });
+
   it("gera somente uma via em paisagem com fonte menor nas colunas dos bens", () => {
     const html = htmlDoTermo(registro());
     expect(html.match(/class="folha"/g)).toHaveLength(1);

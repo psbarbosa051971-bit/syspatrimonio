@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Printer } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
+import { DadosEntregaTermo } from "@/components/DadosEntregaTermo";
 import { supabase } from "@/integrations/supabase/client";
 import { cpfValido, formatarCpf, normalizarCpf } from "@/lib/cpf";
 import { ajustarViasDoTermo, htmlDoTermo, lerDadosTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
@@ -29,6 +31,14 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
   const [pronto, setPronto] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const imprimirAoAbrir = useRef(false);
+  const [entrega, setEntrega] = useState<Tables<"entregas_termos"> | null | undefined>(undefined);
+  const atualizarEntrega = useCallback((registro: Tables<"entregas_termos"> | null) => {
+    setEntrega(registro);
+    if (termo) {
+      setHtml(htmlDoTermo(termo, registro));
+      setPronto(false);
+    }
+  }, [termo]);
 
   useEffect(() => {
     if (etapa !== "formulario") return;
@@ -147,12 +157,13 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
           </div>
         </form> : <Button variant="outline" onClick={() => setTentativa((valor) => valor + 1)}>Tentar novamente</Button>)}
         {etapa === "documento" && <>
-          <Button className="self-end" disabled={!pronto} onClick={imprimir}><Printer className="mr-2 h-4 w-4" />Imprimir / Salvar PDF</Button>
-          <iframe ref={frame} title="Termo desta importação" srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[60vh] w-full rounded-md border bg-background" onLoad={() => {
+          {termo && <DadosEntregaTermo key={termo.id} termo={termo} onAtualizar={atualizarEntrega} />}
+          <Button className="self-end" disabled={!pronto || entrega === undefined} onClick={imprimir}><Printer className="mr-2 h-4 w-4" />Imprimir / Salvar PDF</Button>
+          {entrega !== undefined && <iframe ref={frame} title="Termo desta importação" srcDoc={html} sandbox="allow-same-origin allow-modals" className="h-[60vh] w-full shrink-0 rounded-md border bg-background" onLoad={() => {
             if (frame.current?.contentDocument) ajustarViasDoTermo(frame.current.contentDocument);
             setPronto(true);
             if (imprimirAoAbrir.current) { imprimirAoAbrir.current = false; imprimir(); }
-          }} />
+          }} />}
         </>}
         {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
       </DialogContent>

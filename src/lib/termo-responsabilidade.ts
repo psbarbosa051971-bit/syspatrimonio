@@ -128,8 +128,21 @@ export function htmlDosTermos(termos: TermoResponsabilidade[], layout: "lado-a-l
   </style></head><body>${folhas}</body></html>`;
 }
 
-export function htmlDoTermo(termo: TermoResponsabilidade): string {
-  return htmlDosTermos([termo], "vias-paisagem");
+export function htmlDoTermo(termo: TermoResponsabilidade, entrega?: Pick<Tables<"entregas_termos">,
+  "entregue_por" | "recebido_por" | "cpf" | "data_entrega" | "status"> | null): string {
+  if (!entrega) return htmlDosTermos([termo], "vias-paisagem");
+  const dados = lerDadosTermo(termo.termo_snapshot);
+  const atualizado = { ...termo, termo_snapshot: {
+    ...dados, entregador: entrega.entregue_por,
+    responsavel_recebimento: entrega.recebido_por, cpf_recebimento: entrega.cpf,
+  } };
+  const data = entrega.data_entrega && /^\d{4}-\d{2}-\d{2}$/.test(entrega.data_entrega)
+    ? entrega.data_entrega.split("-").reverse().join("/") : "____/____/________";
+  const status = entrega.status === "Entregue" ? "Entregue" : "Aguardando Entrega";
+  return htmlDosTermos([atualizado], "vias-paisagem").replace(
+    "<p>DATA DE RECEBIMENTO ____/____/________</p>",
+    `<p>DATA DE RECEBIMENTO ${data}</p><p><strong>STATUS:</strong> ${status}</p>`,
+  );
 }
 
 /** Executar após o iframe carregar: ajusta todo o conteúdo sem cortar bens ou assinaturas. */

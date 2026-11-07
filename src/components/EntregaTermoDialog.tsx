@@ -15,14 +15,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 type Entrega = Tables<"entregas_termos">;
 type Props = {
-  termo: TermoDaSala; entrega: Entrega | null; baixa?: boolean;
+  termo: TermoDaSala; entrega: Entrega | null; baixa?: boolean; embutido?: boolean;
   onFechar: () => void; onSalvar: (entrega: Entrega) => void;
 };
 
-export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, onSalvar }: Props) {
-  const [entreguePor, setEntreguePor] = useState(entrega?.entregue_por ?? "");
-  const [recebidoPor, setRecebidoPor] = useState(entrega?.recebido_por ?? "");
-  const [cpf, setCpf] = useState(formatarCpf(entrega?.cpf ?? ""));
+export function EntregaTermoDialog({ termo, entrega, baixa = false, embutido = false, onFechar, onSalvar }: Props) {
+  const dadosIniciais = embutido ? resumoTermoDaSala(termo).dados : null;
+  const [entreguePor, setEntreguePor] = useState(entrega?.entregue_por ?? dadosIniciais?.entregador ?? "");
+  const [recebidoPor, setRecebidoPor] = useState(entrega?.recebido_por ?? dadosIniciais?.responsavel_recebimento ?? "");
+  const [cpf, setCpf] = useState(formatarCpf(entrega?.cpf ?? dadosIniciais?.cpf_recebimento ?? ""));
   const [dataEntrega, setDataEntrega] = useState(entrega?.data_entrega ?? "");
   const [status, setStatus] = useState(entrega?.status ?? "Aguardando Entrega");
   const [entregaHoje, setEntregaHoje] = useState(false);
@@ -88,19 +89,23 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
         registro = data;
       }
       senhaConfirmadaRef.current = "";
-      onSalvar(registro); toast.success("Status de entrega do termo salvo."); onFechar();
+      setDesbloqueado(false); setPedirSenha(false);
+      onSalvar(registro); toast.success("Status de entrega do termo salvo.");
+      if (!embutido) onFechar();
     } catch {
       setErro("Não foi possível salvar a entrega. Seus dados foram mantidos; tente novamente.");
     } finally { salvandoRef.current = false; setSalvando(false); }
   }
 
-  return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvandoRef.current) onFechar(); }}>
-    <DialogContent className={baixa ? "max-h-[90dvh] overflow-y-auto sm:max-w-4xl" : "max-h-[90dvh] overflow-y-auto sm:max-w-lg"}>
+  const conteudo = <>
       <section className={baixa ? "mt-3 border border-foreground p-3" : ""}>
-        <DialogHeader>
+        {embutido ? <header className="space-y-1">
+          <h3 className="font-semibold">Dados da entrega do termo {numeroDoTermo(termo)}</h3>
+          <p className="text-sm text-muted-foreground">Registre a entrega deste termo. Para marcar como Entregue, preencha todos os campos, incluindo o CPF de quem recebeu.</p>
+        </header> : <DialogHeader>
           <DialogTitle className={baixa ? "text-center text-base uppercase" : ""}>{baixa ? "Termo de responsabilidade" : "Entrega do termo"} {numeroDoTermo(termo)}</DialogTitle>
           <DialogDescription className={baixa ? "sr-only" : ""}>Registre a entrega deste termo. Para marcar como Entregue, preencha todos os campos, incluindo o CPF de quem recebeu.</DialogDescription>
-        </DialogHeader>
+        </DialogHeader>}
         {baixa && <>
           <div className="mt-3 min-h-[220px] max-h-[40dvh] overflow-auto">
             <table className="w-full text-xs">
@@ -175,7 +180,7 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
         </fieldset>
         {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" disabled={salvando} onClick={onFechar}>Cancelar</Button>
+          {!embutido && <Button type="button" variant="outline" disabled={salvando} onClick={onFechar}>Cancelar</Button>}
           <ImprimirEntregaTermo termo={termo} entreguePor={entreguePor} recebidoPor={recebidoPor} cpf={cpf}
             dataEntrega={dataEntrega} status={status} disabled={salvando} />
           {bloqueado
@@ -183,6 +188,12 @@ export function EntregaTermoDialog({ termo, entrega, baixa = false, onFechar, on
             : <Button type="submit" disabled={salvando}>{salvando ? "Salvando..." : "Salvar entrega"}</Button>}
         </div>
       </form>
+  </>;
+
+  if (embutido) return <section className="space-y-3 rounded-md border p-3" aria-label={`Dados da entrega do termo ${numeroDoTermo(termo)}`}>{conteudo}</section>;
+  return <Dialog open onOpenChange={(aberto) => { if (!aberto && !salvandoRef.current) onFechar(); }}>
+    <DialogContent className={baixa ? "max-h-[90dvh] overflow-y-auto sm:max-w-4xl" : "max-h-[90dvh] overflow-y-auto sm:max-w-lg"}>
+      {conteudo}
     </DialogContent>
   </Dialog>;
 }

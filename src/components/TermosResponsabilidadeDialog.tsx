@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Printer } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
+import { DadosEntregaTermo } from "@/components/DadosEntregaTermo";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ajustarViasDoTermo, htmlDoTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
@@ -19,6 +21,7 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
   const [tentativa, setTentativa] = useState(0);
   const [numero, setNumero] = useState("");
   const [termo, setTermo] = useState<TermoResponsabilidade | null>(null);
+  const [entrega, setEntrega] = useState<Tables<"entregas_termos"> | null | undefined>(undefined);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const [pronto, setPronto] = useState(false);
@@ -54,7 +57,7 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
   useEffect(() => {
     if (!open || !selecionado || confirmado !== selecionado || !salaId) return;
     let ativo = true;
-    setTermo(null); setPronto(false); setErro("");
+    setTermo(null); setEntrega(undefined); setPronto(false); setErro("");
     supabase.from("importacoes").select("id,numero,termo_ano,created_at,arquivo,termo_snapshot")
       .eq("id", selecionado).eq("sala_id", salaId).single()
       .then(({ data, error }) => {
@@ -66,10 +69,10 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
   }, [open, selecionado, confirmado, salaId, tentativa]);
 
   const documento = useMemo(() => {
-    if (!termo) return { html: "", erro: "" };
-    try { return { html: htmlDoTermo(termo), erro: "" }; }
+    if (!termo || entrega === undefined) return { html: "", erro: "" };
+    try { return { html: htmlDoTermo(termo, entrega), erro: "" }; }
     catch (e) { return { html: "", erro: e instanceof Error ? e.message : "Termo inválido." }; }
-  }, [termo]);
+  }, [termo, entrega]);
 
   function escolher(id: string) {
     setSelecionado(id); setConfirmado(id === recente ? id : ""); setNumero(""); setTermo(null); setPronto(false); setErro("");
@@ -95,8 +98,8 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className={`flex max-h-[92vh] w-[95vw] flex-col overflow-y-auto ${documento.html ? "max-w-5xl" : "max-w-xl"}`}>
       <DialogHeader>
-        <DialogTitle>{consultarPorNumero ? "Termo de Responsabilidade" : "Termos de responsabilidade"}</DialogTitle>
-        <DialogDescription>{consultarPorNumero ? "Informe o número do termo deste Local Físico e clique em Imprimir para abrir o documento." : pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado. Ao imprimir ou salvar em PDF, será gerada uma única via em A4 paisagem. Os dados originais são preservados."}</DialogDescription>
+        <DialogTitle>{termo ? `Termo de responsabilidade ${numeroDoTermo(termo)}` : consultarPorNumero ? "Termo de Responsabilidade" : "Termos de responsabilidade"}</DialogTitle>
+        <DialogDescription>{termo ? "Confira os dados da entrega abaixo e clique em Salvar entrega para registrá-los neste termo. A impressão utiliza os dados salvos, em uma única via A4 paisagem." : consultarPorNumero ? "Informe o número do termo deste Local Físico e clique em Imprimir para abrir o documento." : pedirNumero ? "Para uma importação anterior, informe o número do termo e pressione Enter para visualizar a impressão." : "Confira o termo do HTML recém-importado. Ao imprimir ou salvar em PDF, será gerada uma única via em A4 paisagem. Os dados originais são preservados."}</DialogDescription>
       </DialogHeader>
       {carregando ? <p className="text-sm text-muted-foreground">Carregando termos...</p> : registros.length > 0 ? <>
         <div className="flex flex-wrap items-end gap-3">
@@ -114,7 +117,8 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
             <Input id="numero-termo" autoFocus className="w-48 text-base md:text-base" placeholder="Ex.: 15 ou 15/2026" value={numero} onChange={(e) => { setNumero(e.target.value); setErro(""); }} />
           </div><Button type="submit">{consultarPorNumero ? "Imprimir" : "Visualizar impressão"}</Button>
         </form>}
-        {documento.html && <iframe ref={frame} title={`Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}`} sandbox="allow-same-origin allow-modals" srcDoc={documento.html} onLoad={() => { if (frame.current?.contentDocument) ajustarViasDoTermo(frame.current.contentDocument); setPronto(true); try { frame.current?.contentWindow?.focus(); frame.current?.contentWindow?.print(); } catch { /* impressão manual pelo botão */ } }} className="h-[58vh] w-full rounded-md border bg-background" />}
+        {termo && <DadosEntregaTermo key={termo.id} termo={termo} onAtualizar={setEntrega} />}
+        {documento.html && <iframe ref={frame} title={`Termo de responsabilidade ${termo ? numeroDoTermo(termo) : ""}`} sandbox="allow-same-origin allow-modals" srcDoc={documento.html} onLoad={() => { if (frame.current?.contentDocument) ajustarViasDoTermo(frame.current.contentDocument); setPronto(true); try { frame.current?.contentWindow?.focus(); frame.current?.contentWindow?.print(); } catch { /* impressão manual pelo botão */ } }} className="h-[58vh] w-full shrink-0 rounded-md border bg-background" />}
         {confirmado === selecionado && !termo && !erro && <p className="text-sm text-muted-foreground">Preparando documento...</p>}
       </> : !erro && <p className="text-sm text-muted-foreground">Nenhum termo gerado para este local. Faça uma nova importação HTML para criar um termo numerado. As importações anteriores a esta função não possuem cópia dos dados originais.</p>}
       {(erro || documento.erro) && <p role="alert" className="text-sm text-destructive">{erro || documento.erro}</p>}

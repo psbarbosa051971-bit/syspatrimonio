@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), consultas: vi.fn() }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), consultas: vi.fn(), salvar: vi.fn(), entrega: null as Record<string, unknown> | null }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@/lib/entregas-termos.functions", () => ({ confirmarSenhaEntrega: vi.fn(), salvarEntregaConfirmada: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 
@@ -17,15 +18,21 @@ const snapshot = {
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.from.mockImplementation(() => {
+  mocks.entrega = null;
+  mocks.salvar.mockImplementation(async (dados: Record<string, unknown>) => ({ data: dados, error: null }));
+  mocks.from.mockImplementation((tabela: string) => {
     let id = "";
+    let dadosSalvar: Record<string, unknown> = {};
     const query: Record<string, unknown> = {};
     for (const method of ["select", "not", "order", "range"]) query[method] = () => query;
     query["eq"] = (campo: string, valor: string) => {
       if (campo === "id") id = valor;
       return query;
     };
+    query["maybeSingle"] = () => Promise.resolve({ data: mocks.entrega, error: null });
+    query["upsert"] = (dados: Record<string, unknown>) => { dadosSalvar = dados; return query; };
     query["single"] = () => {
+      if (tabela === "entregas_termos") return mocks.salvar(dadosSalvar);
       mocks.consultas(id);
       return Promise.resolve({ data: { ...registros.find((r) => r.id === id), termo_snapshot: snapshot }, error: null });
     };
@@ -44,6 +51,40 @@ function enviar(numero: string) {
 }
 
 describe("visualização de termos recentes e anteriores", () => {
+  it("mostra os campos da entrega no próprio termo e atualiza a impressão ao salvar", async () => {
+    abrir("nova");
+    await screen.findByTitle("Termo de responsabilidade 20/2026");
+    for (const campo of ["Entregue por", "CPF", "Data Entrega", "Status"]) {
+      expect(screen.getByLabelText(campo)).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Entregue por"), { target: { value: "João Entregador" } });
+    fireEvent.change(screen.getByLabelText("Recebido Por"), { target: { value: "Maria Recebedora" } });
+    fireEvent.change(screen.getByLabelText("CPF"), { target: { value: "52998224725" } });
+    fireEvent.change(screen.getByLabelText("Data Entrega"), { target: { value: "2026-10-20" } });
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "Entregue" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar entrega" }));
+    await waitFor(() => expect(mocks.salvar).toHaveBeenCalledWith(expect.objectContaining({
+      importacao_id: "nova", entregue_por: "João Entregador", cpf: "52998224725",
+      data_entrega: "2026-10-20", status: "Entregue",
+    })));
+    await waitFor(() => expect(screen.getByTitle("Termo de responsabilidade 20/2026").getAttribute("srcdoc")).toContain("DATA DE RECEBIMENTO 20/10/2026"));
+    expect(screen.getByTitle("Termo de responsabilidade 20/2026").getAttribute("srcdoc")).toContain("<strong>STATUS:</strong> Entregue");
+    expect(screen.getByLabelText("Entregue por")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
+  });
+
+  it("carrega a entrega já registrada ao reabrir o termo", async () => {
+    mocks.entrega = { importacao_id: "nova", entregue_por: "João", recebido_por: "Maria",
+      cpf: "52998224725", data_entrega: "2026-10-20", status: "Entregue" };
+    abrir("nova");
+    await screen.findByTitle("Termo de responsabilidade 20/2026");
+    expect(screen.getByLabelText("Entregue por")).toHaveValue("João");
+    expect(screen.getByLabelText("CPF")).toHaveValue("529.982.247-25");
+    expect(screen.getByLabelText("Data Entrega")).toHaveValue("2026-10-20");
+    expect(screen.getByLabelText("Status")).toHaveValue("Entregue");
+  });
+
   it("mantém a visualização direta do HTML recém-importado", async () => {
     abrir("nova");
     expect(await screen.findByTitle("Termo de responsabilidade 20/2026")).toBeInTheDocument();
