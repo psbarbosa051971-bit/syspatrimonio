@@ -29,7 +29,7 @@ import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
 import { htmlPesquisaDinamica } from "@/lib/pesquisa-dinamica-impressao";
-import { carregarStatusTermosRelatorio } from "@/lib/status-termos-relatorio";
+import { carregarPlacasRelatorio } from "@/lib/placas-relatorio";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { TermosPorLote } from "@/components/TermosPorLote";
@@ -289,10 +289,10 @@ function DepartamentosPage() {
     janela.opener = null;
     setPreparandoImpressao(true);
     try {
-      const statusTermos = await carregarStatusTermosRelatorio(bensOrdenados, resultadoPesquisa ? null : termoSelecionado);
+      const placas = await carregarPlacasRelatorio(bensOrdenados);
       if (janela.closed) return;
       const html = htmlPesquisaDinamica({ ...resultado, bens: bensOrdenados }, {
-        busca: buscaBens.trim(), ano: filtroAnoIncorporacao, statusTermos,
+        busca: buscaBens.trim(), ano: filtroAnoIncorporacao, placas,
         titulo: resultadoPesquisa ? undefined : "RELATÓRIO DE BENS DA SALA",
       });
       janela.document.open();
@@ -300,7 +300,7 @@ function DepartamentosPage() {
       janela.document.close();
     } catch {
       janela.close();
-      toast.error("Não foi possível consultar o status dos termos para imprimir. Tente novamente.");
+      toast.error("Não foi possível consultar as placas para imprimir. Tente novamente.");
     } finally {
       setPreparandoImpressao(false);
     }

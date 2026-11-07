@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   bens: [] as Record<string, unknown>[],
   termos: [] as Record<string, unknown>[],
   entregas: [] as Record<string, unknown>[],
+  recebimentos: [] as Record<string, unknown>[],
   salas: [] as { id: string; departamento_id: string; nome: string; endereco: string | null; unidade: string | null }[],
 }));
 vi.mock("@tanstack/react-router", () => ({
@@ -71,6 +72,7 @@ beforeEach(() => {
   mocks.bens = [bem, outroBem];
   mocks.termos = [];
   mocks.entregas = [];
+  mocks.recebimentos = [];
   mocks.rpc.mockImplementation((_funcao: string, { _termo }: { _termo: string }) => ({
     range: async (inicio: number, fim: number) => {
       if (mocks.falharSalas) return { data: null, error: { message: "Falha de conexão" } };
@@ -89,7 +91,7 @@ beforeEach(() => {
       || (tabela === "departamentos" && mocks.falharDepartamentos);
     const resultado = falha
       ? { data: null, error: { message: "Falha de conexão" } }
-      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : tabela === "importacoes" ? mocks.termos : tabela === "entregas_termos" ? mocks.entregas : mocks.bens, error: null };
+      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : tabela === "importacoes" ? mocks.termos : tabela === "entregas_termos" ? mocks.entregas : tabela === "recebimentos_veiculos" ? mocks.recebimentos : mocks.bens, error: null };
     const consulta: Record<string, unknown> = {};
     let alteracao: { unidade: string } | null = null;
     let salaId = "";
@@ -661,16 +663,12 @@ describe("Carregamento dos registros em Departamentos", () => {
     }
   });
 
-  it("imprime o status de Termos criados da sala para cada bem filtrado", async () => {
+  it("imprime a placa no lugar do status do termo para cada bem filtrado", async () => {
     mocks.bens = [
-      { ...bem, importacao_id: "entregue", status: "NÃO LOCALIZADO" },
-      { ...outroBem, importacao_id: "pendente", status: "LOCALIZADO" },
+      { ...bem, status: "NÃO LOCALIZADO" },
+      { ...outroBem, status: "LOCALIZADO" },
     ];
-    mocks.termos = ["entregue", "pendente"].map((id, indice) => ({
-      id, sala_id: "sala", numero: indice + 1, termo_ano: 2026,
-      created_at: "2026-01-01T00:00:00Z", arquivo: "Importação", termo_snapshot: { bens: [] },
-    }));
-    mocks.entregas = [{ importacao_id: "entregue", status: "Entregue" }];
+    mocks.recebimentos = [{ bem_id: bem.id, dados: { placa: "ABC1D23" } }];
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     const documento = { open: vi.fn(), write: vi.fn(), close: vi.fn() };
@@ -681,9 +679,10 @@ describe("Carregamento dos registros em Departamentos", () => {
       const html = documento.write.mock.calls[0][0] as string;
       const impresso = new DOMParser().parseFromString(html, "text/html");
       const linhas = impresso.querySelectorAll("tbody tr");
-      expect(impresso.querySelector("thead")?.textContent).toContain("STATUS DO TERMO");
-      expect(linhas[0].querySelectorAll("td")[4].textContent).toBe("Entregue");
-      expect(linhas[1].querySelectorAll("td")[4].textContent).toBe("Aguardando Entrega");
+      expect(impresso.querySelector("thead")?.textContent).toContain("PLACA");
+      expect(linhas[0].querySelectorAll("td")[4].textContent).toBe("ABC1D23");
+      expect(linhas[1].querySelectorAll("td")[4].textContent).toBe("—");
+      expect(html).not.toContain("STATUS DO TERMO");
       expect(html).not.toContain("NÃO LOCALIZADO");
       expect(html).not.toContain(">LOCALIZADO<");
     } finally {
