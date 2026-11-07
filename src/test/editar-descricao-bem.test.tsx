@@ -5,10 +5,19 @@ import type { Tables } from "@/integrations/supabase/types";
 const mocks = vi.hoisted(() => ({
   atualizar: vi.fn(), eq: vi.fn(), gravar: vi.fn(), sucesso: vi.fn(), erro: vi.fn(), salvarEntrega: vi.fn(),
   termos: [] as Record<string, unknown>[], entrega: null as Record<string, unknown> | null,
+  carregarSala: vi.fn(), rpc: vi.fn(),
+}));
+vi.mock("@/components/ImprimirImportacaoDialog", () => ({
+  ImprimirImportacaoDialog: ({ importacaoId, onClose }: { importacaoId: string; onClose: () => void }) =>
+    <div><p>Termo criado: {importacaoId}</p><button onClick={onClose}>Fechar novo termo</button></div>,
 }));
 vi.mock("@/lib/entregas-termos.functions", () => ({ confirmarSenhaEntrega: vi.fn(), salvarEntregaConfirmada: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: (tabela: string) => {
+  supabase: { rpc: mocks.rpc, from: (tabela: string) => {
+    if (tabela === "salas") {
+      const query = { select: () => query, eq: () => query, single: mocks.carregarSala };
+      return query;
+    }
     if (tabela === "importacoes") {
       const query = { select: () => query, eq: () => query, not: () => query, order: () => query,
         range: () => Promise.resolve({ data: mocks.termos, error: null }) };
@@ -41,6 +50,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.termos = [];
   mocks.entrega = null;
+  mocks.carregarSala.mockResolvedValue({ data: { id: "sala-1", nome: "Sala do bem" }, error: null });
+  mocks.rpc.mockReset();
+  mocks.rpc.mockResolvedValue({ data: null, error: null });
   mocks.salvarEntrega.mockImplementation(async (dados: Record<string, unknown>) => ({ data: dados, error: null }));
   mocks.gravar.mockResolvedValue({ data: { ...bem, descricao: "VEÍCULO FIAT" }, error: null });
 });
@@ -200,6 +212,64 @@ describe("dados da entrega na edição do bem", () => {
     fireEvent.change(screen.getByLabelText("Entregue por"), { target: { value: "João" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar entrega" }));
     await waitFor(() => expect(mocks.salvarEntrega).toHaveBeenCalledWith(expect.objectContaining({ importacao_id: "termo-118" })));
+  });
+});
+
+describe("criação de termo na edição do bem", () => {
+  it("cria um termo só para o bem sem termo e atualiza a entrega no formulário", async () => {
+    mocks.rpc.mockImplementation(async () => {
+      mocks.termos = [termoDoBem];
+      return { data: termoDoBem, error: null };
+    });
+    await abrir();
+    fireEvent.click(await screen.findByRole("button", { name: "Criar número de termo" }));
+    expect(await screen.findByText("Novo termo de responsabilidade")).toBeInTheDocument();
+    expect(screen.getByText("Local Físico: Sala do bem")).toBeInTheDocument();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Criar termo" }));
+    expect(await screen.findByText("Termo criado: termo-118")).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledWith("criar_termo_bens_sala", {
+      _sala: "sala-1", _itens: ["bem-1"], _pedido: expect.any(String),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Fechar novo termo" }));
+    expect(await screen.findByText("Termo de responsabilidade 118/2026")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Entregue por")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Criar número de termo" })).not.toBeInTheDocument();
+    expect(mocks.atualizar).not.toHaveBeenCalled();
+  });
+
+  it("permite cancelar a criação sem gerar número", async () => {
+    await abrir();
+    fireEvent.click(await screen.findByRole("button", { name: "Criar número de termo" }));
+    await screen.findByText("Novo termo de responsabilidade");
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(await screen.findByRole("button", { name: "Criar número de termo" })).toBeEnabled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("mantém a opção disponível quando a consulta da sala falha", async () => {
+    mocks.carregarSala.mockResolvedValueOnce({ data: null, error: { message: "Falha" } });
+    await abrir();
+    fireEvent.click(await screen.findByRole("button", { name: "Criar número de termo" }));
+    await waitFor(() => expect(mocks.erro).toHaveBeenCalledWith(
+      "Não foi possível carregar a sala para criar o termo. Tente novamente.",
+    ));
+    expect(screen.getByRole("button", { name: "Criar número de termo" })).toBeEnabled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("não oferece outro termo quando o bem já possui um", async () => {
+    mocks.termos = [termoDoBem];
+    await abrir();
+    await screen.findByLabelText("Entregue por");
+    expect(screen.queryByRole("button", { name: "Criar número de termo" })).not.toBeInTheDocument();
+  });
+
+  it("orienta vincular uma sala antes de criar termo", async () => {
+    render(<EditarDescricaoBem bem={{ ...bem, sala_id: null }} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Editar descrição do bem — 123" }));
+    expect(await screen.findByText("Vincule este bem a uma sala antes de criar o termo.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Criar número de termo" })).not.toBeInTheDocument();
   });
 });
 
