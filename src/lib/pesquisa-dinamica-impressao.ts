@@ -11,7 +11,7 @@ const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currenc
 /** Recebe exatamente os bens visíveis, incluindo eventuais filtros adicionais. */
 export function htmlPesquisaDinamica(
   resultado: ResultadoPesquisaDinamica,
-  filtros: { busca?: string; ano?: string } = {},
+  filtros: { busca?: string; ano?: string; titulo?: string } = {},
 ): string {
   const emitido = new Date().toLocaleString("pt-BR");
   const total = resultado.bens.reduce((soma, bem) => soma + Number(bem.valor), 0);
@@ -45,7 +45,7 @@ export function htmlPesquisaDinamica(
     </section>`;
   }).join("");
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
-    <title>Relatório da pesquisa dinâmica — SysPatrimônio</title>
+    <title>${escapar(filtros.titulo ?? "Relatório da pesquisa dinâmica")} — SysPatrimônio</title>
     <style>
       @page { size: A4 landscape; margin: 12mm; }
       * { box-sizing: border-box; }
@@ -81,8 +81,8 @@ export function htmlPesquisaDinamica(
       }
     </style></head><body>
     <div class="acoes"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div>
-    <main><h1>PREFEITURA MUNICIPAL DE ITAJUBÁ</h1><h2>RELATÓRIO DA PESQUISA DINÂMICA</h2>
-    <p><strong>Pesquisa:</strong> ${escapar(resultado.termo)}</p>
+    <main><h1>PREFEITURA MUNICIPAL DE ITAJUBÁ</h1><h2>${escapar(filtros.titulo ?? "RELATÓRIO DA PESQUISA DINÂMICA")}</h2>
+    ${resultado.termo ? `<p><strong>Pesquisa:</strong> ${escapar(resultado.termo)}</p>` : ""}
     ${filtros.busca ? `<p><strong>Filtro dos bens:</strong> ${escapar(filtros.busca)}</p>` : ""}
     ${filtros.ano ? `<p><strong>Ano de incorporação:</strong> ${escapar(filtros.ano)}</p>` : ""}
     <p>Emitido em: ${escapar(emitido)} · SysPatrimônio · Somente os resultados filtrados.</p>

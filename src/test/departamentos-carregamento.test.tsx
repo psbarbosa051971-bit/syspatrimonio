@@ -622,6 +622,55 @@ describe("Carregamento dos registros em Departamentos", () => {
     },
   );
 
+  it("imprime os bens filtrados da sala pelo ícone à direita da exclusão, sem exigir seleção", async () => {
+    mocks.bens = [bem, outroBem,
+      { ...bem, id: "mesa-2024", codigo_red: "789", descricao: "Mesa antiga", incorporacao: "02/2024" },
+      { ...bem, id: "mesa-2025", codigo_red: "999", descricao: "Mesa auxiliar", valor: 30 },
+    ];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), { target: { value: "mesa" } });
+    fireEvent.change(screen.getByLabelText("Ano de incorporação"), { target: { value: "2025" } });
+    fireEvent.click(screen.getByRole("button", { name: "Classificar PATRIMÔNIO em ordem decrescente" }));
+    const imprimir = screen.getByRole("button", { name: "Imprimir registros filtrados dos bens da sala" });
+    const excluir = screen.getByRole("button", { name: "Excluir selecionados" });
+    expect(excluir.nextElementSibling).toBe(imprimir);
+    expect(excluir).toBeDisabled();
+    expect(imprimir).toBeEnabled();
+    const documento = { open: vi.fn(), write: vi.fn(), close: vi.fn() };
+    const abrirJanela = vi.spyOn(window, "open").mockReturnValue({ document: documento, opener: null } as unknown as Window);
+    try {
+      fireEvent.click(imprimir);
+      expect(abrirJanela).toHaveBeenCalledWith("", "_blank");
+      const html = documento.write.mock.calls[0][0] as string;
+      expect(html).toContain("RELATÓRIO DE BENS DA SALA");
+      expect(html).toContain("Sala existente");
+      expect(html).toContain("Filtro dos bens:</strong> mesa");
+      expect(html).toContain("Ano de incorporação:</strong> 2025");
+      expect(html).toContain("QUANTIDADE DE BENS: 2");
+      expect(html).toContain("40,00");
+      expect(html.indexOf("Mesa auxiliar")).toBeLessThan(html.indexOf("Mesa cadastrada"));
+      expect(html).not.toContain("Cadeira azul");
+      expect(html).not.toContain("Mesa antiga");
+      fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), { target: { value: "inexistente" } });
+      expect(imprimir).toBeDisabled();
+    } finally {
+      abrirJanela.mockRestore();
+    }
+  });
+
+  it("avisa quando o navegador bloqueia a janela de impressão dos bens da sala", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const abrirJanela = vi.spyOn(window, "open").mockReturnValue(null);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Imprimir registros filtrados dos bens da sala" }));
+      expect(mocks.erroToast).toHaveBeenCalledWith("Permita abrir novas janelas neste site para imprimir o relatório.");
+    } finally {
+      abrirJanela.mockRestore();
+    }
+  });
+
   it("mostra pesquisa sem resultados e permite voltar pelo botão Atualizar", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");

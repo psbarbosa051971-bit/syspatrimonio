@@ -275,9 +275,15 @@ function DepartamentosPage() {
   const todosFiltradosSelecionados = idsBensFiltrados.length > 0 && idsBensFiltrados.every((id) => selecionados.includes(id));
 
   function imprimirPesquisa() {
-    if (!resultadoPesquisa || !bensFiltrados.length) return;
-    const html = htmlPesquisaDinamica({ ...resultadoPesquisa, bens: bensFiltrados }, {
+    if (!bensOrdenados.length) return;
+    const resultado = resultadoPesquisa ?? {
+      termo: termoSelecionado ? `Termo ${numeroDoTermo(termoSelecionado)}` : "",
+      bens: bensOrdenados,
+      locais: salaSel ? { [salaSel.id]: [departamentoSel?.departamento, salaSel.nome].filter(Boolean).join(" — ") } : {},
+    };
+    const html = htmlPesquisaDinamica({ ...resultado, bens: bensOrdenados }, {
       busca: buscaBens.trim(), ano: filtroAnoIncorporacao,
+      titulo: resultadoPesquisa ? undefined : "RELATÓRIO DE BENS DA SALA",
     });
     const janela = window.open("", "_blank");
     if (!janela) {
@@ -1367,6 +1373,18 @@ function DepartamentosPage() {
                     onClick={removerSelecionados}
                   >
                     <Trash2 className="mr-1 h-4 w-4" /> Excluir selecionados
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label="Imprimir registros filtrados dos bens da sala"
+                    title="Imprimir registros filtrados dos bens da sala"
+                    disabled={carregandoBens || importando || localizando || !bensFiltrados.length}
+                    onClick={imprimirPesquisa}
+                  >
+                    <Printer className="h-4 w-4" />
                   </Button>
                 </div>
               )}

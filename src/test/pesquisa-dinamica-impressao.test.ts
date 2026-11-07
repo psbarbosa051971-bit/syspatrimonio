@@ -24,6 +24,19 @@ describe("Relatório A4 da pesquisa dinâmica", () => {
     expect(html).toContain("display: table-header-group");
   });
 
+  it("reutiliza o relatório para bens da sala com título próprio e sem pesquisa vazia", () => {
+    const html = htmlPesquisaDinamica({ ...resultado, termo: "" }, {
+      titulo: "RELATÓRIO DE BENS DA SALA", busca: "mesa", ano: "2026",
+    });
+    const documento = new DOMParser().parseFromString(html, "text/html");
+    expect(documento.title).toBe("RELATÓRIO DE BENS DA SALA — SysPatrimônio");
+    expect(documento.querySelector("h2")?.textContent).toBe("RELATÓRIO DE BENS DA SALA");
+    expect(html).not.toContain("<strong>Pesquisa:</strong>");
+    expect(html).toContain("Arquivo central");
+    expect(html).toContain("Filtro dos bens:</strong> mesa");
+    expect(html).toContain("Ano de incorporação:</strong> 2026");
+  });
+
   it("respeita os bens já filtrados e identifica os filtros adicionais", () => {
     const html = htmlPesquisaDinamica({ ...resultado, bens: [] }, { busca: "azul", ano: "2026" });
     expect(html).toContain("Filtro dos bens:</strong> azul");
