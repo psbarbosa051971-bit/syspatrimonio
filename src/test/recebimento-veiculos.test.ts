@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
+import { descricaoDetalhada, ehVeiculo, espacarDescricaoVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 
 describe("recebimento de veículos", () => {
   it.each([
@@ -39,6 +39,20 @@ describe("recebimento de veículos", () => {
     expect(extrairDadosVeiculo("VEÍCULO MOTOR ECON. 1.0 FLEX")).toEqual({
       modelo: "VEÍCULO MOTOR ECON. 1.0 FLEX", dados: {},
     });
+  });
+
+  it("separa rótulos colados sem alterar os identificadores do veículo", () => {
+    const original = "VEÍCULO/MODELO: CHEVROLETMODELO ONIX 1.0 MT TRANSMISSÃO MANUAL COR BRANCA FLEXANO/MOD: 2026/2027CHASSI: 9BGEA48A0VG146283MOTOR Nº: LIJ*262164496*RENAVAM: 104735PLACA: UVP6H48KM: 11";
+    const corrigido = "VEÍCULO/MODELO: CHEVROLET MODELO ONIX 1.0 MT TRANSMISSÃO MANUAL COR BRANCA FLEX ANO/MOD: 2026/2027 CHASSI: 9BGEA48A0VG146283 MOTOR Nº: LIJ*262164496* RENAVAM: 104735 PLACA: UVP6H48 KM: 11";
+    expect(espacarDescricaoVeiculo(original)).toBe(corrigido);
+    expect(espacarDescricaoVeiculo(corrigido)).toBe(corrigido);
+    expect(espacarDescricaoVeiculo("VEÍCULO ANO/MODELO: 2026/2027 MOTOR 1.0 FLEX")).toBe("VEÍCULO ANO/MODELO: 2026/2027 MOTOR 1.0 FLEX");
+    const extraido = extrairDadosVeiculo(original);
+    expect(extraido.dados).toEqual({
+      ano_modelo: "2026/2027", chassi: "9BGEA48A0VG146283", motor: "LIJ*262164496*", placa: "UVP6H48", km: "11",
+    });
+    // Não descarta o Renavam curto, que não atende à validação dos identificadores.
+    expect(extraido.modelo).toBe("VEÍCULO/MODELO: CHEVROLET MODELO ONIX 1.0 MT TRANSMISSÃO MANUAL COR BRANCA FLEX RENAVAM: 104735");
   });
 
   it("mantém descrições sem identificadores reconhecidos", () => {

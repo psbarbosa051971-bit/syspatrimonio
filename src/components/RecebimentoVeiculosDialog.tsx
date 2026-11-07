@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
-import { conclusaoPadraoRecebimento, descricaoDetalhada, ehVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
+import { conclusaoPadraoRecebimento, descricaoDetalhada, ehVeiculo, espacarDescricaoVeiculo, extrairDadosVeiculo, gruposChecklist, lerDadosRecebimento } from "@/lib/recebimento-veiculos";
 import { ChaveAcessoNfe } from "@/components/ChaveAcessoNfe";
 import { CampoEmissaoNfe } from "@/components/CampoEmissaoNfe";
 import { CampoValorReais } from "@/components/CampoValorReais";
@@ -138,7 +138,9 @@ export function RecebimentoVeiculosDialog({ bem, onClose, onSaved }: Props) {
         setDados({
           ...preenchidos, ...comissaoDoTermo,
           retirada_diretor: preenchidos.retirada_diretor?.trim() || DIRETOR_PADRAO, secretaria: salvos.secretaria ?? "",
-          modelo_veiculo: salvos.modelo_veiculo?.trim() || extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
+          modelo_veiculo: salvos.modelo_veiculo?.trim()
+            ? espacarDescricaoVeiculo(salvos.modelo_veiculo.trim())
+            : extrairDadosVeiculo(limparDescricao(bem.descricao)).modelo,
           nota_fiscal: salvos.nota_fiscal ?? salvos.material ?? "",
         });
         setCarregando(false);

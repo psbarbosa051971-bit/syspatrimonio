@@ -56,6 +56,23 @@ async function aguardarCarga() {
 }
 
 describe("formulário de recebimento de veículos", () => {
+  it.each([false, true])("corrige os espaços do modelo ao abrir o recebimento (modelo salvo: %s)", async (salvo) => {
+    const descricao = "VEÍCULO/MODELO: CHEVROLETMODELO ONIX 1.0 MT TRANSMISSÃO MANUAL COR BRANCA FLEXANO/MOD: 2026/2027CHASSI: 9BGEA48A0VG146283MOTOR Nº: LIJ*262164496*RENAVAM: 104735PLACA: UVP6H48KM: 11";
+    if (salvo) mocks.carregar.mockResolvedValue({ data: { dados: { modelo_veiculo: descricao } }, error: null });
+    render(<RecebimentoVeiculosDialog bem={{ ...bem, descricao }} onClose={vi.fn()} />);
+    await aguardarCarga();
+    const modelo = screen.getByLabelText("Modelo do veículo") as HTMLTextAreaElement;
+    expect(modelo.value).toContain("CHEVROLET MODELO ONIX");
+    expect(modelo.value).not.toMatch(/CHEVROLETMODELO|FLEXANO|2027CHASSI|146283MOTOR|496\*RENAVAM|104735PLACA|UVP6H48KM/);
+    if (salvo) {
+      expect(modelo.value).toContain("9BGEA48A0VG146283 MOTOR Nº: LIJ*262164496* RENAVAM: 104735 PLACA: UVP6H48 KM: 11");
+    } else {
+      expect(screen.getByLabelText("Chassi")).toHaveValue("9BGEA48A0VG146283");
+      expect(screen.getByLabelText("Motor")).toHaveValue("LIJ*262164496*");
+      expect(screen.getByLabelText("Placa")).toHaveValue("UVP6H48");
+    }
+  });
+
   it("traz os dados fixos do documento salvos e não mostra Via do documento", async () => {
     mocks.carregarComissao.mockResolvedValue({ data: { dados: { endereco_orgao: "AVENIDA DR JERSON DIAS, 500", cnpj_orgao: "18.025.940/0001-09", portaria: "200/2026" } }, error: null });
     render(<RecebimentoVeiculosDialog bem={bem} onClose={vi.fn()} />);
