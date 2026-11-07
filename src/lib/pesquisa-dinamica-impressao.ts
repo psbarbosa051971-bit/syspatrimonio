@@ -1,7 +1,6 @@
 import type { ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
 import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
-import { statusBem } from "@/lib/status-bem";
 
 const escapar = (valor: unknown) => String(valor ?? "").replace(/[&<>"']/g, (caractere) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -11,7 +10,7 @@ const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currenc
 /** Recebe exatamente os bens visíveis, incluindo eventuais filtros adicionais. */
 export function htmlPesquisaDinamica(
   resultado: ResultadoPesquisaDinamica,
-  filtros: { busca?: string; ano?: string; titulo?: string } = {},
+  filtros: { busca?: string; ano?: string; titulo?: string; statusTermos?: Record<string, string> } = {},
 ): string {
   const emitido = new Date().toLocaleString("pt-BR");
   const total = resultado.bens.reduce((soma, bem) => soma + Number(bem.valor), 0);
@@ -29,7 +28,7 @@ export function htmlPesquisaDinamica(
       <td>${escapar(limparDescricao(bem.descricao))}</td>
       <td>${escapar(bem.incorporacao || "—")}</td>
       <td>${escapar(bem.tipo || "—")}</td>
-      <td>${escapar(statusBem(bem))}</td>
+      <td>${escapar(filtros.statusTermos?.[bem.id] ?? "Sem termo")}</td>
       <td>${escapar(bem.pedido || "—")}</td>
       <td>${escapar(bem.nota_fiscal || "—")}</td>
       <td>${escapar(bem.fornecedor || "—")}</td>
@@ -42,7 +41,7 @@ export function htmlPesquisaDinamica(
         <col style="width:7%"><col style="width:12%"><col style="width:10%">
       </colgroup><thead><tr class="titulo-sala"><th colspan="9"><h3>${escapar(nome)}</h3></th></tr>
         <tr><th>PATRIMÔNIO</th><th class="descricao">DESCRIÇÃO DO BEM</th>
-        <th>INCORPORAÇÃO</th><th>TIPO</th><th>STATUS</th><th>PEDIDO</th>
+        <th>INCORPORAÇÃO</th><th>TIPO</th><th>STATUS DO TERMO</th><th>PEDIDO</th>
         <th>NOTA FISCAL</th><th>FORNECEDOR</th><th class="valor">VALOR</th></tr></thead>
       <tbody>${linhas}</tbody></table>
       <div class="totais subtotal" aria-label="Total da sala: ${escapar(nome)}"><span>${String(bens.length).padStart(2, "0")} ITEM(NS)</span>

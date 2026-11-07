@@ -10,18 +10,29 @@ const bem = {
 const resultado = { termo: "mesa", bens: [bem], locais: { "sala-1": "Arquivo central" } };
 
 describe("Relatório A4 da pesquisa dinâmica", () => {
-  it("inclui os resultados recebidos, local, status, quantidade e valor total", () => {
-    const html = htmlPesquisaDinamica(resultado);
+  it("inclui o status de entrega do termo em vez do status de localização do bem", () => {
+    const html = htmlPesquisaDinamica(resultado, { statusTermos: { "bem-1": "Entregue" } });
     expect(html).toContain("size: A4 landscape");
     expect(html).toContain("RELATÓRIO DA PESQUISA DINÂMICA");
     expect(html).toContain("987.654");
     expect(html).toContain("Mesa de aço");
     expect(html).toContain("Arquivo central");
-    expect(html).toContain("NÃO LOCALIZADO");
+    expect(html).toContain("STATUS DO TERMO");
+    expect(html).toContain("Entregue");
+    expect(html).not.toContain("NÃO LOCALIZADO");
     expect(html).toContain("QUANTIDADE DE BENS: 1");
     expect(html).toContain("1.250,75");
     expect(html).toContain("window.print()");
     expect(html).toContain("display: table-header-group");
+  });
+
+  it("exibe Aguardando Entrega ou Sem termo sem reutilizar o status de localização", () => {
+    const pendente = new DOMParser().parseFromString(htmlPesquisaDinamica(resultado, {
+      statusTermos: { "bem-1": "Aguardando Entrega" },
+    }), "text/html");
+    expect(pendente.querySelectorAll("tbody td")[4].textContent).toBe("Aguardando Entrega");
+    const semTermo = new DOMParser().parseFromString(htmlPesquisaDinamica(resultado), "text/html");
+    expect(semTermo.querySelectorAll("tbody td")[4].textContent).toBe("Sem termo");
   });
 
   it("reutiliza o relatório para bens da sala com título próprio e sem pesquisa vazia", () => {
@@ -45,7 +56,7 @@ describe("Relatório A4 da pesquisa dinâmica", () => {
     const cabecalhos = [...documento.querySelectorAll("thead tr:last-child th")]
       .map((celula) => celula.textContent);
     expect(cabecalhos).toEqual([
-      "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "STATUS",
+      "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "STATUS DO TERMO",
       "PEDIDO", "NOTA FISCAL", "FORNECEDOR", "VALOR",
     ]);
     const celulas = documento.querySelectorAll("tbody tr:first-child td");

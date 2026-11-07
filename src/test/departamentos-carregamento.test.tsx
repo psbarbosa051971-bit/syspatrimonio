@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   falharDepartamentos: false,
   bens: [] as Record<string, unknown>[],
   termos: [] as Record<string, unknown>[],
+  entregas: [] as Record<string, unknown>[],
   salas: [] as { id: string; departamento_id: string; nome: string; endereco: string | null; unidade: string | null }[],
 }));
 vi.mock("@tanstack/react-router", () => ({
@@ -69,6 +70,7 @@ beforeEach(() => {
   mocks.salas = [sala];
   mocks.bens = [bem, outroBem];
   mocks.termos = [];
+  mocks.entregas = [];
   mocks.rpc.mockImplementation((_funcao: string, { _termo }: { _termo: string }) => ({
     range: async (inicio: number, fim: number) => {
       if (mocks.falharSalas) return { data: null, error: { message: "Falha de conexão" } };
@@ -87,7 +89,7 @@ beforeEach(() => {
       || (tabela === "departamentos" && mocks.falharDepartamentos);
     const resultado = falha
       ? { data: null, error: { message: "Falha de conexão" } }
-      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : tabela === "importacoes" ? mocks.termos : tabela === "entregas_termos" ? [] : mocks.bens, error: null };
+      : { data: tabela === "departamentos" ? [departamento] : tabela === "salas" ? mocks.salas : tabela === "importacoes" ? mocks.termos : tabela === "entregas_termos" ? mocks.entregas : mocks.bens, error: null };
     const consulta: Record<string, unknown> = {};
     let alteracao: { unidade: string } | null = null;
     let salaId = "";
@@ -286,7 +288,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     await screen.findByText("Mesa cadastrada");
     const cabecalho = screen.getByRole("columnheader", { name: "SEL." }).closest("thead")!;
     expect(within(cabecalho).getAllByRole("columnheader").map((coluna) => coluna.textContent)).toEqual([
-      "SEL.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "STATUS", "VALOR", "",
+      "SEL.", "TRAN", "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "VALOR", "",
     ]);
     expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-[10px]");
     expect(cabecalho.closest("table")).toHaveClass("text-xs", "[&_td]:text-xs");
@@ -355,7 +357,6 @@ describe("Carregamento dos registros em Departamentos", () => {
     ["DESCRIÇÃO DO BEM", ["2", "10"]],
     ["INCORPORAÇÃO", ["2", "10"]],
     ["TIPO", ["2", "10"]],
-    ["STATUS", ["10", "2"]],
   ] as const)("classifica %s nos dois sentidos sem perder seleções", async (campo, esperados) => {
     mocks.bens = [
       { ...bem, codigo_red: "10", conferido: true },
@@ -605,7 +606,7 @@ describe("Carregamento dos registros em Departamentos", () => {
       const abrirJanela = vi.spyOn(window, "open").mockReturnValue({ document: documento, opener: null } as unknown as Window);
       fireEvent.click(imprimir);
       expect(abrirJanela).toHaveBeenCalledWith("", "_blank");
-      expect(documento.write).toHaveBeenCalledWith(expect.stringContaining("size: A4 landscape"));
+      await waitFor(() => expect(documento.write).toHaveBeenCalledWith(expect.stringContaining("size: A4 landscape")));
       const html = documento.write.mock.calls[0][0] as string;
       expect(html).toContain("Módulo de aço");
       expect(html).toContain("Arquivo central");
@@ -642,6 +643,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     try {
       fireEvent.click(imprimir);
       expect(abrirJanela).toHaveBeenCalledWith("", "_blank");
+      await waitFor(() => expect(documento.write).toHaveBeenCalled());
       const html = documento.write.mock.calls[0][0] as string;
       expect(html).toContain("RELATÓRIO DE BENS DA SALA");
       expect(html).toContain("Sala existente");
@@ -654,6 +656,36 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(html).not.toContain("Mesa antiga");
       fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), { target: { value: "inexistente" } });
       expect(imprimir).toBeDisabled();
+    } finally {
+      abrirJanela.mockRestore();
+    }
+  });
+
+  it("imprime o status de Termos criados da sala para cada bem filtrado", async () => {
+    mocks.bens = [
+      { ...bem, importacao_id: "entregue", status: "NÃO LOCALIZADO" },
+      { ...outroBem, importacao_id: "pendente", status: "LOCALIZADO" },
+    ];
+    mocks.termos = ["entregue", "pendente"].map((id, indice) => ({
+      id, sala_id: "sala", numero: indice + 1, termo_ano: 2026,
+      created_at: "2026-01-01T00:00:00Z", arquivo: "Importação", termo_snapshot: { bens: [] },
+    }));
+    mocks.entregas = [{ importacao_id: "entregue", status: "Entregue" }];
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const documento = { open: vi.fn(), write: vi.fn(), close: vi.fn() };
+    const abrirJanela = vi.spyOn(window, "open").mockReturnValue({ document: documento, opener: null } as unknown as Window);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Imprimir registros filtrados dos bens da sala" }));
+      await waitFor(() => expect(documento.write).toHaveBeenCalled());
+      const html = documento.write.mock.calls[0][0] as string;
+      const impresso = new DOMParser().parseFromString(html, "text/html");
+      const linhas = impresso.querySelectorAll("tbody tr");
+      expect(impresso.querySelector("thead")?.textContent).toContain("STATUS DO TERMO");
+      expect(linhas[0].querySelectorAll("td")[4].textContent).toBe("Entregue");
+      expect(linhas[1].querySelectorAll("td")[4].textContent).toBe("Aguardando Entrega");
+      expect(html).not.toContain("NÃO LOCALIZADO");
+      expect(html).not.toContain(">LOCALIZADO<");
     } finally {
       abrirJanela.mockRestore();
     }
@@ -708,15 +740,15 @@ describe("Carregamento dos registros em Departamentos", () => {
       const descricao = await screen.findByText("Mesa cadastrada");
       const linhaNaoLocalizada = descricao.closest("tr")!;
       expect(linhaNaoLocalizada).toHaveClass("bem-nao-localizado");
-      expect(within(linhaNaoLocalizada).getByText("NÃO LOCALIZADO")).toBeInTheDocument();
+      expect(within(linhaNaoLocalizada).queryByText("NÃO LOCALIZADO")).not.toBeInTheDocument();
       expect(within(linhaNaoLocalizada).getByText("Aquisição")).toBeInTheDocument();
       const linhaLocalizada = screen.getByText("Cadeira azul").closest("tr")!;
       expect(linhaLocalizada).toHaveClass("bem-localizado");
-      expect(within(linhaLocalizada).getByText("LOCALIZADO")).toBeInTheDocument();
+      expect(within(linhaLocalizada).queryByText("LOCALIZADO")).not.toBeInTheDocument();
       expect(within(linhaLocalizada).getByText("Aquisição")).toBeInTheDocument();
       const linhaPendente = screen.getByText("Armário a conferir").closest("tr")!;
       expect(linhaPendente).toHaveClass("bem-nao-localizado");
-      expect(within(linhaPendente).getByText("NÃO LOCALIZADO")).toBeInTheDocument();
+      expect(within(linhaPendente).queryByText("NÃO LOCALIZADO")).not.toBeInTheDocument();
       expect(within(linhaPendente).getByText("Aquisição")).toBeInTheDocument();
       fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), {
         target: { value: "nao localizado" },

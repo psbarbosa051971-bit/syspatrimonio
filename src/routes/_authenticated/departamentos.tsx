@@ -29,6 +29,7 @@ import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
 import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
 import { htmlPesquisaDinamica } from "@/lib/pesquisa-dinamica-impressao";
+import { carregarStatusTermosRelatorio } from "@/lib/status-termos-relatorio";
 import { ExcluirImportacoesDialog } from "@/components/ExcluirImportacoesDialog";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
 import { TermosPorLote } from "@/components/TermosPorLote";
@@ -105,13 +106,12 @@ export const Route = createFileRoute("/_authenticated/departamentos")({
 type Departamento = Tables<"departamentos">;
 type Sala = Tables<"salas">;
 type Bem = Tables<"bens">;
-type CampoOrdenacaoBem = "codigo_red" | "descricao" | "incorporacao" | "tipo" | "status";
+type CampoOrdenacaoBem = "codigo_red" | "descricao" | "incorporacao" | "tipo";
 const colunasOrdenaveis: { campo: CampoOrdenacaoBem; titulo: string; classe: string }[] = [
   { campo: "codigo_red", titulo: "PATRIMÔNIO", classe: "h-8 w-36 py-1" },
   { campo: "descricao", titulo: "DESCRIÇÃO DO BEM", classe: "h-8 py-1" },
   { campo: "incorporacao", titulo: "INCORPORAÇÃO", classe: "h-8 w-36 py-1" },
   { campo: "tipo", titulo: "TIPO", classe: "h-8 w-28 py-1" },
-  { campo: "status", titulo: "STATUS", classe: "h-8 w-36 py-1" },
 ];
 
 const formataMoeda = (v: number) =>
@@ -260,7 +260,6 @@ function DepartamentosPage() {
       switch (ordenacaoBens.campo) {
         case "codigo_red": return normalizarCodigoRed(bem.codigo_red);
         case "descricao": return limparDescricao(bem.descricao);
-        case "status": return statusBem(bem);
         case "incorporacao": {
           const texto = bem.incorporacao?.trim() ?? "";
           const data = texto.match(/^(\d{1,2})(?:\/(\d{1,2}))?\/(\d{4})$/);
@@ -274,26 +273,37 @@ function DepartamentosPage() {
   const idsBensFiltrados = bensFiltrados.map((bem) => bem.id);
   const todosFiltradosSelecionados = idsBensFiltrados.length > 0 && idsBensFiltrados.every((id) => selecionados.includes(id));
 
-  function imprimirPesquisa() {
-    if (!bensOrdenados.length) return;
+  const [preparandoImpressao, setPreparandoImpressao] = useState(false);
+  async function imprimirPesquisa() {
+    if (!bensOrdenados.length || preparandoImpressao) return;
     const resultado = resultadoPesquisa ?? {
       termo: termoSelecionado ? `Termo ${numeroDoTermo(termoSelecionado)}` : "",
       bens: bensOrdenados,
       locais: salaSel ? { [salaSel.id]: [departamentoSel?.departamento, salaSel.nome].filter(Boolean).join(" — ") } : {},
     };
-    const html = htmlPesquisaDinamica({ ...resultado, bens: bensOrdenados }, {
-      busca: buscaBens.trim(), ano: filtroAnoIncorporacao,
-      titulo: resultadoPesquisa ? undefined : "RELATÓRIO DE BENS DA SALA",
-    });
     const janela = window.open("", "_blank");
     if (!janela) {
       toast.error("Permita abrir novas janelas neste site para imprimir o relatório.");
       return;
     }
     janela.opener = null;
-    janela.document.open();
-    janela.document.write(html);
-    janela.document.close();
+    setPreparandoImpressao(true);
+    try {
+      const statusTermos = await carregarStatusTermosRelatorio(bensOrdenados, resultadoPesquisa ? null : termoSelecionado);
+      if (janela.closed) return;
+      const html = htmlPesquisaDinamica({ ...resultado, bens: bensOrdenados }, {
+        busca: buscaBens.trim(), ano: filtroAnoIncorporacao, statusTermos,
+        titulo: resultadoPesquisa ? undefined : "RELATÓRIO DE BENS DA SALA",
+      });
+      janela.document.open();
+      janela.document.write(html);
+      janela.document.close();
+    } catch {
+      janela.close();
+      toast.error("Não foi possível consultar o status dos termos para imprimir. Tente novamente.");
+    } finally {
+      setPreparandoImpressao(false);
+    }
   }
 
   // formulário de departamento (cabeçalho)
@@ -938,7 +948,7 @@ function DepartamentosPage() {
                   {localizando ? "Localizando..." : resultadoPesquisa ? "Atualizar" : "Localizar"}
                 </Button>
                 {resultadoPesquisa && <Button type="button" variant="secondary" className="shrink-0"
-                  onClick={imprimirPesquisa} disabled={localizando || !bensFiltrados.length}
+                  onClick={imprimirPesquisa} disabled={preparandoImpressao || localizando || !bensFiltrados.length}
                   aria-label="Imprimir resultado em A4" title="Imprimir resultado em A4">
                   <Printer className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">Imprimir A4</span>
@@ -1381,7 +1391,7 @@ function DepartamentosPage() {
                     className="h-8 w-8 shrink-0"
                     aria-label="Imprimir registros filtrados dos bens da sala"
                     title="Imprimir registros filtrados dos bens da sala"
-                    disabled={carregandoBens || importando || localizando || !bensFiltrados.length}
+                    disabled={preparandoImpressao || carregandoBens || importando || localizando || !bensFiltrados.length}
                     onClick={imprimirPesquisa}
                   >
                     <Printer className="h-4 w-4" />
@@ -1431,7 +1441,7 @@ function DepartamentosPage() {
                   {bensExibidos.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={9}
+                        colSpan={8}
                         className="text-center text-sm text-muted-foreground"
                       >
                         {resultadoPesquisa ? "Nenhum bem encontrado para esta pesquisa em todas as salas."
@@ -1454,7 +1464,7 @@ function DepartamentosPage() {
                   )}
                   {bensExibidos.length > 0 && bensFiltrados.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-4 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={8} className="py-4 text-center text-sm text-muted-foreground">
                         Nenhum bem encontrado para esta pesquisa.
                       </TableCell>
                     </TableRow>
@@ -1503,7 +1513,6 @@ function DepartamentosPage() {
                       </TableCell>
                       <TableCell className="py-1 whitespace-nowrap">{b.incorporacao ?? ""}</TableCell>
                       <TableCell className="py-1">{b.tipo ?? ""}</TableCell>
-                      <TableCell className="py-1 font-semibold" aria-live="polite">{statusBem(b)}</TableCell>
                       <TableCell className="py-1 text-right">
                         {formataMoeda(Number(b.valor))}
                       </TableCell>
