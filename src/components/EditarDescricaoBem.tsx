@@ -7,6 +7,7 @@ import { formatarCodigoRed } from "@/lib/codigo-red";
 import { limparDescricao } from "@/lib/pdf-parse";
 import { Button } from "@/components/ui/button";
 import { CampoValorReais } from "@/components/CampoValorReais";
+import { EntregaDoBem } from "@/components/EntregaDoBem";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -81,7 +82,7 @@ export function EditarDescricaoBem({ bem, onSaved }: { bem: Bem; onSaved: (bem: 
       <Pencil className="h-4 w-4" />
     </Button>
     <Dialog open={aberto} onOpenChange={(valor) => { if (!salvando) setAberto(valor); }}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Editar descrição do bem</DialogTitle>
           <DialogDescription>Patrimônio {formatarCodigoRed(bem.codigo_red)}. Ao salvar, os dados serão atualizados no cadastro do bem e nos termos de responsabilidade da mesma sala, inclusive os já criados.</DialogDescription>
@@ -120,6 +121,7 @@ export function EditarDescricaoBem({ bem, onSaved }: { bem: Bem; onSaved: (bem: 
             <Save className="mr-2 h-4 w-4" />{salvando ? "Salvando..." : "Salvar descrição"}
           </Button>
         </div>
+        {aberto && <EntregaDoBem bem={bem} />}
       </DialogContent>
     </Dialog>
   </>;
