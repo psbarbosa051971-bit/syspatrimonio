@@ -37,6 +37,36 @@ describe("Relatório A4 da pesquisa dinâmica", () => {
     expect(html).toContain("Ano de incorporação:</strong> 2026");
   });
 
+  it("inclui pedido, nota fiscal e fornecedor nas colunas do relatório filtrado", () => {
+    const html = htmlPesquisaDinamica({ ...resultado, bens: [{
+      ...bem, pedido: "123/2026", nota_fiscal: "4567", fornecedor: "Empresa A & B <Móveis>",
+    }] }, { titulo: "RELATÓRIO DE BENS DA SALA", busca: "mesa" });
+    const documento = new DOMParser().parseFromString(html, "text/html");
+    const cabecalhos = [...documento.querySelectorAll("thead tr:last-child th")]
+      .map((celula) => celula.textContent);
+    expect(cabecalhos).toEqual([
+      "PATRIMÔNIO", "DESCRIÇÃO DO BEM", "INCORPORAÇÃO", "TIPO", "STATUS",
+      "PEDIDO", "NOTA FISCAL", "FORNECEDOR", "VALOR",
+    ]);
+    const celulas = documento.querySelectorAll("tbody tr:first-child td");
+    expect(celulas).toHaveLength(9);
+    expect(celulas[5].textContent).toBe("123/2026");
+    expect(celulas[6].textContent).toBe("4567");
+    expect(celulas[7].textContent).toBe("Empresa A & B <Móveis>");
+    expect(html).toContain("Empresa A &amp; B &lt;Móveis&gt;");
+    expect(documento.querySelector(".titulo-sala th")?.getAttribute("colspan")).toBe("9");
+  });
+
+  it("mostra um traço quando pedido, nota fiscal ou fornecedor não estão preenchidos", () => {
+    const html = htmlPesquisaDinamica({ ...resultado, bens: [{
+      ...bem, pedido: null, nota_fiscal: "", fornecedor: null,
+    }] });
+    const documento = new DOMParser().parseFromString(html, "text/html");
+    const celulas = documento.querySelectorAll("tbody tr:first-child td");
+    expect([celulas[5].textContent, celulas[6].textContent, celulas[7].textContent])
+      .toEqual(["—", "—", "—"]);
+  });
+
   it("respeita os bens já filtrados e identifica os filtros adicionais", () => {
     const html = htmlPesquisaDinamica({ ...resultado, bens: [] }, { busca: "azul", ano: "2026" });
     expect(html).toContain("Filtro dos bens:</strong> azul");
@@ -96,7 +126,7 @@ describe("Relatório A4 da pesquisa dinâmica", () => {
     expect(grupos[0].querySelector("tbody")?.textContent).not.toContain("76.267");
     expect(grupos[1].querySelector("tbody")?.textContent).toContain("76.267");
     for (const grupo of grupos) {
-      expect(grupo.querySelectorAll("thead th")).toHaveLength(7);
+      expect(grupo.querySelectorAll("thead th")).toHaveLength(10);
       expect(grupo.querySelector(".subtotal")?.textContent).toContain("01 ITEM(NS)");
       expect(grupo.querySelector(".subtotal")?.textContent).toContain("3.341,73");
     }

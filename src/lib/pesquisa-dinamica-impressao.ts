@@ -30,15 +30,20 @@ export function htmlPesquisaDinamica(
       <td>${escapar(bem.incorporacao || "—")}</td>
       <td>${escapar(bem.tipo || "—")}</td>
       <td>${escapar(statusBem(bem))}</td>
+      <td>${escapar(bem.pedido || "—")}</td>
+      <td>${escapar(bem.nota_fiscal || "—")}</td>
+      <td>${escapar(bem.fornecedor || "—")}</td>
       <td class="valor">${escapar(moeda(Number(bem.valor)))}</td>
     </tr>`).join("");
     return `<section class="sala">
       <table aria-label="Bens da sala: ${escapar(nome)}"><colgroup>
-        <col style="width:9%"><col style="width:41%"><col style="width:11%">
-        <col style="width:9%"><col style="width:15%"><col style="width:15%">
-      </colgroup><thead><tr class="titulo-sala"><th colspan="6"><h3>${escapar(nome)}</h3></th></tr>
+        <col style="width:8%"><col style="width:28%"><col style="width:9%">
+        <col style="width:7%"><col style="width:12%"><col style="width:7%">
+        <col style="width:7%"><col style="width:12%"><col style="width:10%">
+      </colgroup><thead><tr class="titulo-sala"><th colspan="9"><h3>${escapar(nome)}</h3></th></tr>
         <tr><th>PATRIMÔNIO</th><th class="descricao">DESCRIÇÃO DO BEM</th>
-        <th>INCORPORAÇÃO</th><th>TIPO</th><th>STATUS</th><th class="valor">VALOR</th></tr></thead>
+        <th>INCORPORAÇÃO</th><th>TIPO</th><th>STATUS</th><th>PEDIDO</th>
+        <th>NOTA FISCAL</th><th>FORNECEDOR</th><th class="valor">VALOR</th></tr></thead>
       <tbody>${linhas}</tbody></table>
       <div class="totais subtotal" aria-label="Total da sala: ${escapar(nome)}"><span>${String(bens.length).padStart(2, "0")} ITEM(NS)</span>
         <span>VALOR TOTAL DA SALA: ${escapar(moeda(subtotal))}</span></div>
