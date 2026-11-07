@@ -9,6 +9,7 @@ vi.mock("@/lib/entregas-termos.functions", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
 vi.mock("@/components/IncluirBensTermoDialog", () => ({ IncluirBensTermoDialog: () => null }));
+vi.mock("@/components/TermosVeiculosDaSala", () => ({ TermosVeiculosDaSala: () => null }));
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({
   TermosResponsabilidadeDialog: ({ salaId, ultimaImportacao, onOpenChange }: {
     salaId: string; ultimaImportacao: string; onOpenChange: (open: boolean) => void;

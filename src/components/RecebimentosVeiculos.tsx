@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 type Bem = Tables<"bens">;
 type Termo = Tables<"recebimentos_veiculos"> & { bem: (Bem & { sala: { nome: string } | null }) | null };
 
-export function RecebimentosVeiculos() {
+export function RecebimentosVeiculos({ onSaved }: { onSaved?: () => void } = {}) {
   const [aberto, setAberto] = useState(false);
   const [aba, setAba] = useState("checklists");
   const [termos, setTermos] = useState<Termo[]>([]);
@@ -89,7 +89,7 @@ export function RecebimentosVeiculos() {
             <TabsTrigger value="novo" className="flex-1"><Plus className="mr-2 h-4 w-4" />Veículo já importado</TabsTrigger>
           </TabsList>
           <TabsContent value="checklists" className="min-h-0 space-y-3 overflow-y-auto">
-            <ChecklistsVeiculos onAssociated={(veiculo) => { setVersao((v) => v + 1); setAba("termos"); setBem(veiculo); }} />
+            <ChecklistsVeiculos onAssociated={(veiculo) => { setVersao((v) => v + 1); setAba("termos"); setBem(veiculo); onSaved?.(); }} />
           </TabsContent>
           <TabsContent value="termos" className="min-h-0 overflow-y-auto space-y-3">
             <Input aria-label="Filtrar termos de veículos" placeholder="Filtrar por número/ano, patrimônio, modelo ou secretaria…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
@@ -110,6 +110,6 @@ export function RecebimentosVeiculos() {
         </Tabs>
       </DialogContent>
     </Dialog>
-    {bem && <RecebimentoVeiculosDialog bem={bem} onClose={() => setBem(null)} onSaved={() => { setVersao((v) => v + 1); setAba("termos"); }} />}
+    {bem && <RecebimentoVeiculosDialog bem={bem} onClose={() => setBem(null)} onSaved={() => { setVersao((v) => v + 1); setAba("termos"); onSaved?.(); }} />}
   </>;
 }

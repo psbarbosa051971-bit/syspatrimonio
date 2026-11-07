@@ -973,7 +973,7 @@ function DepartamentosPage() {
               <img src="/images/sonner.jpg" alt="" width={32} height={28} className="h-7 w-8 rounded-sm object-contain" />
               <span>Sonner</span>
             </a>
-            <RecebimentosVeiculos />
+            <RecebimentosVeiculos onSaved={() => setTentativaBens((valor) => valor + 1)} />
             <NotasFiscais fornecedorImportado={fornecedorImportado} />
             <Button
               variant="ghost"
@@ -1505,7 +1505,7 @@ function DepartamentosPage() {
                         <div className="flex min-w-0 items-center gap-1">
                           <span className="min-w-0 flex-1 truncate">{limparDescricao(b.descricao)}</span>
                           <EditarDescricaoBem bem={b} onSaved={atualizarDescricaoBem} />
-                          <BotaoRecebimentoVeiculo bem={b} />
+                          <BotaoRecebimentoVeiculo bem={b} onSaved={() => setTentativaBens((valor) => valor + 1)} />
                         </div>
                         {resultadoPesquisa && <span className="block truncate text-sm text-muted-foreground" title={b.sala_id ? resultadoPesquisa.locais[b.sala_id] : "—"}>
                           Local Físico: {b.sala_id ? resultadoPesquisa.locais[b.sala_id] : "—"}
@@ -1707,7 +1707,7 @@ function DepartamentosPage() {
                   <TableCell>
                     {limparDescricao(b.descricao)}
                     <EditarDescricaoBem bem={b} onSaved={atualizarDescricaoBem} />
-                    <BotaoRecebimentoVeiculo bem={b} />
+                    <BotaoRecebimentoVeiculo bem={b} onSaved={() => setTentativaBens((valor) => valor + 1)} />
                   </TableCell>
                   <TableCell>{b.incorporacao ?? ""}</TableCell>
                   <TableCell>{b.tipo ?? ""}</TableCell>

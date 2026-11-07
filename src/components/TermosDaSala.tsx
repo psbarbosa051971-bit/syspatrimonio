@@ -8,6 +8,7 @@ import { EntregaTermoDialog } from "@/components/EntregaTermoDialog";
 import { ExcluirTermoDialog } from "@/components/ExcluirTermoDialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { TermosResponsabilidadeDialog } from "@/components/TermosResponsabilidadeDialog";
+import { TermosVeiculosDaSala } from "@/components/TermosVeiculosDaSala";
 import { Printer, Merge } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -198,6 +199,8 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         <div><p className="text-xs font-bold uppercase">Quantidade de bens na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{quantidadeBens}</p></div>
         <div><p className="text-xs font-bold uppercase">Valor total na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{moeda(valorSala)}</p></div>
       </div>
+      <TermosVeiculosDaSala salaId={salaId} bensDaSala={bensDaSala} atualizar={atualizar}
+        carregandoBens={carregandoBens} erroBens={erroBens} onAtualizar={onAtualizar} />
     </CardContent>
     {termoEntrega && <EntregaTermoDialog
       key={termoEntrega.id} termo={termoEntrega} entrega={entregas[termoEntrega.id] ?? null} baixa={baixa}

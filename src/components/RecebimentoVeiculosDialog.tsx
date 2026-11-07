@@ -49,14 +49,14 @@ export const COMISSAO_PADRAO: Record<string, string> = {
 export const CAMPOS_DOCUMENTO_FIXOS = ["orgao", "endereco_orgao", "cnpj_orgao", "portaria", "cidade"];
 const ehCampoPermanente = (chave: string) => /^(assinante|cargo)_[1-5]$/.test(chave) || CAMPOS_DOCUMENTO_FIXOS.includes(chave);
 
-export function BotaoRecebimentoVeiculo({ bem }: { bem: Bem }) {
+export function BotaoRecebimentoVeiculo({ bem, onSaved }: { bem: Bem; onSaved?: () => void }) {
   const [aberto, setAberto] = useState(false);
   if (!ehVeiculo(bem)) return null;
   return <>
     <Button type="button" size="icon" variant="outline" className="ml-2 h-7 w-7 shrink-0 align-middle text-primary"
       title="Recebimento de Veículos" aria-label={`Recebimento de Veículos — ${bem.codigo_red}`}
       onClick={() => setAberto(true)}><Car className="h-4 w-4" /></Button>
-    {aberto && <RecebimentoVeiculosDialog bem={bem} onClose={() => setAberto(false)} />}
+    {aberto && <RecebimentoVeiculosDialog bem={bem} onClose={() => setAberto(false)} onSaved={onSaved} />}
   </>;
 }
 
