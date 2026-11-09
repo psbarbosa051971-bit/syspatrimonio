@@ -2247,7 +2247,7 @@
       "trigger": "numerar_recebimento_veiculo_trigger"
     }
   ],
-  "gerado_em": "2026-11-07T14:33:48.551278+00:00",
+  "gerado_em": "2026-11-09T12:28:54.98665+00:00",
   "rls_ativo": {
     "bens": true,
     "salas": true,
@@ -2276,17 +2276,17 @@
     "transferencias_numeros_reservados": true
   },
   "contagem_linhas": {
-    "bens": 31911,
+    "bens": 31925,
     "salas": 108,
     "profiles": 29,
     "user_roles": 29,
     "user_salas": 22,
-    "importacoes": 70,
+    "importacoes": 74,
     "departamentos": 0,
     "notas_fiscais": 5,
     "chat_conversas": 0,
     "chat_mensagens": 0,
-    "entregas_termos": 19,
+    "entregas_termos": 22,
     "chat_push_config": 0,
     "solicitacoes_bens": 0,
     "notas_fiscais_pdfs": 3,
@@ -2492,5 +2492,5 @@
       "trigger": "on_auth_user_created"
     }
   ],
-  "geckoai_sincronizado_em": "2026-11-07T14:33:51.814Z"
+  "geckoai_sincronizado_em": "2026-11-09T12:28:58.587Z"
 }
