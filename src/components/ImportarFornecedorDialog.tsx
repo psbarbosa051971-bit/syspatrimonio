@@ -7,6 +7,7 @@ import { extrairFornecedorPdf } from "@/lib/pdf-fornecedor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoValorReais } from "@/components/CampoValorReais";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorChange?: (fornecedor: string) => void }) {
@@ -37,7 +38,7 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
     }
   };
 
-  const editar = (campo: keyof ItemFornecedor, v: string) =>
+  const editar = (campo: Exclude<keyof ItemFornecedor, "valor">, v: string) =>
     setItens((a) => a.map((it, i) => (i === sel ? { ...it, [campo]: v } : it)));
 
   const [faltantes, setFaltantes] = useState<ItemFornecedor[]>([]);
@@ -72,7 +73,7 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
     const fornecedor = atual?.fornecedor.trim();
     if (fornecedor) onFornecedorChange?.(fornecedor);
   }, [atual?.fornecedor, onFornecedorChange]);
-  const campos: [keyof ItemFornecedor, string][] = [
+  const campos: [Exclude<keyof ItemFornecedor, "valor">, string][] = [
     ["ano_pedido", "Ano pedido"], ["pedido", "Pedido"], ["ano_empenho", "Ano empenho"],
     ["empenho", "Empenho"], ["nota_fiscal", "Nota fiscal (Doc. Entrada)"], ["fornecedor", "Fornecedor"],
   ];
@@ -97,6 +98,11 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
                   <Input id={`f-${c}`} value={atual[c]} onChange={(e) => editar(c, e.target.value)} />
                 </div>
               ))}
+              <div>
+                <Label htmlFor="f-valor">Valor do bem (R$)</Label>
+                <CampoValorReais id="f-valor" value={atual.valor === undefined ? "" : String(atual.valor)}
+                  onChange={(v) => setItens((a) => a.map((it, i) => i === sel ? { ...it, valor: v === "" ? undefined : Number(v) } : it))} />
+              </div>
             </div>
             <div className="max-h-64 overflow-auto rounded border text-xs">
               <table className="w-full">
@@ -104,6 +110,7 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
                   <th className="p-1 text-left">Código</th><th className="p-1 text-left">Descrição</th>
                   <th className="p-1">Ano ped.</th><th className="p-1">Pedido</th><th className="p-1">Ano emp.</th>
                   <th className="p-1">Empenho</th><th className="p-1">NF</th><th className="p-1 text-left">Fornecedor</th>
+                  <th className="p-1 text-right">Valor (R$)</th>
                 </tr></thead>
                 <tbody>{itens.map((it, i) => (
                   <tr key={i} onClick={() => setSel(i)} className={`cursor-pointer border-t ${i === sel ? "bg-accent" : ""}`}>
@@ -111,6 +118,7 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
                     <td className="p-1 text-center">{it.ano_pedido}</td><td className="p-1 text-center">{it.pedido}</td>
                     <td className="p-1 text-center">{it.ano_empenho}</td><td className="p-1 text-center">{it.empenho}</td>
                     <td className="p-1 text-center">{it.nota_fiscal}</td><td className="p-1">{it.fornecedor}</td>
+                    <td className="p-1 text-right whitespace-nowrap">{it.valor === undefined ? "Não informado" : it.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                   </tr>
                 ))}</tbody>
               </table>

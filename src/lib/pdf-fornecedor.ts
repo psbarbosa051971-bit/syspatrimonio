@@ -1,6 +1,8 @@
 import { lerPaginasPdf, type TextoPdf } from "@/lib/pdf-parse";
 import type { ItemFornecedor } from "@/lib/html-fornecedor";
 
+type CampoTextoFornecedor = Exclude<keyof ItemFornecedor, "valor">;
+
 const texto = (s: string) => s.normalize("NFC").replace(/\s+/g, " ").trim();
 const chave = (s: string) => texto(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -13,7 +15,7 @@ export function parsearFornecedorPdf(paginas: TextoPdf[][]): ItemFornecedor[] {
   const itens: ItemFornecedor[] = [];
   let fornecedor = "";
   let atual: ItemFornecedor | null = null;
-  let colunas: { campo: keyof ItemFornecedor; x: number }[] = [];
+  let colunas: { campo: CampoTextoFornecedor; x: number }[] = [];
   for (const pagina of paginas) {
     const linhas: TextoPdf[][] = [];
     for (const item of [...pagina].sort((a, b) => b.transform[5]! - a.transform[5]! || a.transform[4]! - b.transform[4]!)) {
@@ -37,7 +39,7 @@ export function parsearFornecedorPdf(paginas: TextoPdf[][]): ItemFornecedor[] {
         const novas: typeof colunas = [];
         for (const item of linha) {
           const k = chave(item.str).replace(/\./g, "");
-          const campo: keyof ItemFornecedor | undefined = /cod.*red/.test(k) ? "codigo_red"
+          const campo: CampoTextoFornecedor | undefined = /cod.*red/.test(k) ? "codigo_red"
             : /descri/.test(k) ? "descricao"
             : /ano.*pedido/.test(k) ? "ano_pedido"
             : /^pedido$/.test(k) ? "pedido"

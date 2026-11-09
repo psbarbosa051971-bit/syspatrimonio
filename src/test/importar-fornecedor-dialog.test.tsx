@@ -31,17 +31,34 @@ describe("Fornecedor compartilhado com Notas Fiscais", () => {
     render(<ImportarFornecedorDialog />);
     fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
     const arquivo = new File([], "fornecedor.html", { type: "text/html" });
-    Object.defineProperty(arquivo, "text", { value: async () => '<table><tr><td>Fornecedor: Fornecedor HTML</td></tr><tr><td>123</td><td>Mesa HTML</td><td>2026</td><td>1</td><td>2026</td><td>2</td></tr></table>' });
+    Object.defineProperty(arquivo, "text", { value: async () => '<table><tr><td>Fornecedor: Fornecedor HTML</td></tr><tr><td>123</td><td>Mesa HTML</td><td>2026</td><td>1</td><td>2026</td><td>2</td><td>21/09/2026</td><td>Aquisição</td><td>R$ 1.234,56</td></tr></table>' });
     fireEvent.change(screen.getByLabelText("Arquivo HTML ou PDF por fornecedor"), { target: { files: [arquivo] } });
     expect(await screen.findByLabelText("Fornecedor")).toHaveValue("Fornecedor HTML");
     expect(screen.getByLabelText("Empenho")).toHaveValue("2");
     expect(screen.getByLabelText("Ano empenho")).toHaveValue("2026");
+    expect(screen.getByLabelText("Valor do bem (R$)")).toHaveValue("R$ 1.234,56");
     expect(mocks.parsear).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.rpc.mockResolvedValueOnce({ data: [{ codigo_red: "123", vinculados: 1 }], error: null });
     fireEvent.click(screen.getByRole("button", { name: "Vincular aos patrimônios" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("vincular_dados_fornecedor", {
-      _itens: [expect.objectContaining({ codigo_red: "123", empenho: "2", ano_empenho: "2026" })],
+      _itens: [expect.objectContaining({ codigo_red: "123", empenho: "2", ano_empenho: "2026", valor: 1234.56 })],
+    }));
+  });
+
+  it("envia o valor revisado também ao incluir um bem que ainda não existe", async () => {
+    await abrirImportacao(vi.fn());
+    fireEvent.change(screen.getByLabelText("Valor do bem (R$)"), { target: { value: "R$ 995,97" } });
+    mocks.rpc.mockResolvedValueOnce({ data: [{ codigo_red: "123", vinculados: 0 }, { codigo_red: "456", vinculados: 1 }], error: null });
+    fireEvent.click(screen.getByRole("button", { name: "Vincular aos patrimônios" }));
+    await screen.findByText("Números não encontrados no sistema");
+    expect(mocks.rpc).toHaveBeenCalledWith("vincular_dados_fornecedor", {
+      _itens: expect.arrayContaining([expect.objectContaining({ codigo_red: "123", valor: 995.97 })]),
+    });
+    mocks.rpc.mockResolvedValueOnce({ data: 1, error: null });
+    fireEvent.click(screen.getByRole("button", { name: "Sim", exact: true }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("incluir_bens_fornecedor", {
+      _itens: [expect.objectContaining({ codigo_red: "123", valor: 995.97 })],
     }));
   });
 
