@@ -4,6 +4,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { DadosEntregaTermo } from "@/components/DadosEntregaTermo";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { atualizarResponsaveisDosTermos } from "@/lib/responsavel-termo";
 import { ajustarViasDoTermo, htmlDoTermo, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -58,13 +59,16 @@ export function TermosResponsabilidadeDialog({ open, onOpenChange, salaId, ultim
     if (!open || !selecionado || confirmado !== selecionado || !salaId) return;
     let ativo = true;
     setTermo(null); setEntrega(undefined); setPronto(false); setErro("");
-    supabase.from("importacoes").select("id,numero,termo_ano,created_at,arquivo,termo_snapshot")
-      .eq("id", selecionado).eq("sala_id", salaId).single()
-      .then(({ data, error }) => {
-        if (!ativo) return;
-        if (error || !data) setErro("Não foi possível abrir o termo selecionado.");
-        else setTermo(data);
-      }, () => { if (ativo) setErro("Não foi possível abrir o termo selecionado."); });
+    async function carregarTermo() {
+      const { data, error } = await supabase.from("importacoes")
+        .select("id,numero,termo_ano,created_at,arquivo,termo_snapshot")
+        .eq("id", selecionado).eq("sala_id", salaId!).single();
+      if (!ativo) return;
+      if (error || !data) throw new Error("Não foi possível abrir o termo selecionado.");
+      const [atualizado] = await atualizarResponsaveisDosTermos([data], salaId!);
+      if (ativo) setTermo(atualizado!);
+    }
+    carregarTermo().catch(() => { if (ativo) setErro("Não foi possível abrir o termo com os dados do responsável pela sala. Feche e tente novamente."); });
     return () => { ativo = false; };
   }, [open, selecionado, confirmado, salaId, tentativa]);
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Printer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { atualizarResponsaveisDosTermos } from "@/lib/responsavel-termo";
 import { ajustarViasDoTermo, htmlDosTermos, numeroDoTermo, type TermoResponsabilidade } from "@/lib/termo-responsabilidade";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,8 @@ export function TermosPorLote() {
         termos.push(...(data ?? []));
       }
       if (termos.length !== ids.length) throw new Error("Algum termo não está mais disponível. Atualize a listagem e selecione novamente.");
-      const porId = new Map(termos.map((t) => [t.id, t]));
+      const atualizados = await atualizarResponsaveisDosTermos(termos);
+      const porId = new Map(atualizados.map((t) => [t.id, t]));
       const documento = htmlDosTermos(ids.map((id) => porId.get(id)!), "vias-paisagem");
       if (atual === versao.current) { imprimirAoAbrir.current = true; setHtml(documento); }
     } catch (e) { if (atual === versao.current) setErro(e instanceof Error ? e.message : "Não foi possível preparar a impressão."); }

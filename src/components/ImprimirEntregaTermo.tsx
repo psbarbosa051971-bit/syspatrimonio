@@ -3,6 +3,7 @@ import { Printer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { htmlDoTermo, numeroDoTermo } from "@/lib/termo-responsabilidade";
+import { atualizarResponsaveisDosTermos } from "@/lib/responsavel-termo";
 import { resumoTermoDaSala, type TermoDaSala } from "@/lib/termos-da-sala";
 
 type Props = {
@@ -15,9 +16,12 @@ export function ImprimirEntregaTermo({ termo, entreguePor, recebidoPor, cpf, dat
   const [documento, setDocumento] = useState<{ html: string; chave: number } | null>(null);
   const [preparando, setPreparando] = useState(false);
 
-  function preparar() {
+  async function preparar() {
+    if (preparando) return;
+    setPreparando(true);
     try {
-      const dados = resumoTermoDaSala(termo).dados;
+      const [atualizado] = await atualizarResponsaveisDosTermos([termo]);
+      const dados = resumoTermoDaSala(atualizado!).dados;
       if (!dados) throw new Error("Os dados deste termo não estão disponíveis.");
       let html = htmlDoTermo({ ...termo, termo_snapshot: {
         ...dados, entregador: entreguePor.trim(),
@@ -27,10 +31,10 @@ export function ImprimirEntregaTermo({ termo, entreguePor, recebidoPor, cpf, dat
       const data = /^\d{4}-\d{2}-\d{2}$/.test(dataEntrega) ? dataEntrega.split("-").reverse().join("/") : "____/____/________";
       const situacao = status === "Entregue" ? "Entregue" : "Aguardando Entrega";
       html = html.replace("<p>DATA DE RECEBIMENTO ____/____/________</p>", `<p>DATA DE RECEBIMENTO ${data}</p><p><strong>STATUS:</strong> ${situacao}</p>`);
-      setPreparando(true);
       setDocumento((anterior) => ({ html, chave: (anterior?.chave ?? 0) + 1 }));
     } catch {
-      toast.error("Não foi possível preparar o termo para impressão.");
+      setPreparando(false);
+      toast.error("Não foi possível preparar o termo com os dados do responsável pela sala. Tente novamente.");
     }
   }
 

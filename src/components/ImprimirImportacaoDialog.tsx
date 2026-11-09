@@ -61,8 +61,12 @@ export function ImprimirImportacaoDialog({ importacaoId, salaId, usuarioId, nome
       const dados = lerDadosTermo(importacao.data.termo_snapshot);
       if (!ativo) return;
       setDataTermo(new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }));
-      setTermo(importacao.data);
-      setResponsavelSala(typeof responsavel.data.responsavel === "string" ? responsavel.data.responsavel : "");
+      const nomeAtual = typeof responsavel.data.responsavel === "string" ? responsavel.data.responsavel.trim() : "";
+      const cpfAtual = typeof responsavel.data.cpf === "string" ? responsavel.data.cpf : "";
+      setTermo(nomeAtual ? { ...importacao.data, termo_snapshot: {
+        ...dados, responsavel: nomeAtual, cpf: cpfAtual,
+      } } : importacao.data);
+      setResponsavelSala(nomeAtual);
       setCpfSala(formatarCpf(typeof responsavel.data.cpf === "string" ? responsavel.data.cpf : ""));
       setRecebedor(dados.responsavel_recebimento || ""); setCpf(formatarCpf(dados.cpf_recebimento || ""));
       setEntregador(perfil.data?.nome?.trim() || perfil.data?.login || perfil.data?.email || nomeAlternativo);

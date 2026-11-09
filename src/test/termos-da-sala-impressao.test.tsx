@@ -8,6 +8,9 @@ vi.mock("@/lib/entregas-termos.functions", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+vi.mock("@/lib/responsavel-termo", () => ({
+  atualizarResponsaveisDosTermos: vi.fn(async (termos: unknown[]) => termos),
+}));
 vi.mock("@/components/IncluirBensTermoDialog", () => ({ IncluirBensTermoDialog: () => null }));
 vi.mock("@/components/TermosVeiculosDaSala", () => ({ TermosVeiculosDaSala: () => null }));
 vi.mock("@/components/TermosResponsabilidadeDialog", () => ({
@@ -90,7 +93,7 @@ describe("impressão em Termos criados da sala", () => {
     const imprimir = screen.getByRole("button", { name: "Imprimir termo de responsabilidade" });
     expect(screen.getByRole("button", { name: "Cancelar" }).nextElementSibling).toBe(imprimir);
     fireEvent.click(imprimir);
-    const frame = screen.getByTitle("Impressão do termo 20/2026") as HTMLIFrameElement;
+    const frame = await screen.findByTitle("Impressão do termo 20/2026") as HTMLIFrameElement;
     const html = frame.getAttribute("srcdoc")!;
     expect(html).toContain("TERMO DE RESPONSABILIDADE Nº 20/2026");
     expect(html).toContain("Mesa");

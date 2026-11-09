@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ from: vi.fn(), gte: vi.fn(), lt: vi.fn(), ids: vi.fn(), range: vi.fn() }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  from: mocks.from,
+  rpc: vi.fn(async () => ({ data: { responsavel: "Responsável do lote", cpf: "11144477735" }, error: null })),
+} }));
 import { TermosPorLote } from "@/components/TermosPorLote";
 
 const registros = [
@@ -21,7 +24,7 @@ beforeEach(() => {
     query.range = (...args: unknown[]) => { mocks.range(...args); return query; };
     query.in = (_campo: string, valores: string[]) => { ids = valores; mocks.ids(valores); return query; };
     query.then = (resolve: (v: unknown) => unknown) => Promise.resolve({
-      data: ids ? registros.filter((r) => ids!.includes(r.id)).map((r) => ({ ...r,
+      data: ids ? registros.filter((r) => ids!.includes(r.id)).map((r) => ({ ...r, sala_id: `sala-${r.id}`,
         termo_snapshot: { local: r.local, bens: [{ codigo_red: "123", descricao: "Mesa", valor: 20 }] },
       })) : registros, error: null,
     }).then(resolve);
@@ -72,6 +75,8 @@ describe("termos por lote", () => {
     expect(html).not.toContain("break-before: right");
     expect(html).toContain("Nº 11/2026");
     expect(html).not.toContain("Nº 10/2026");
+    expect(html).toContain("Responsável do lote");
+    expect(html).toContain("111.444.777-35");
     const print = vi.spyOn(iframe.contentWindow!, "print").mockImplementation(() => {});
     vi.spyOn(iframe.contentWindow!, "focus").mockImplementation(() => {});
     fireEvent.load(iframe);

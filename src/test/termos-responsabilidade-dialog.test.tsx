@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ from: vi.fn(), consultas: vi.fn(), salvar: vi.fn(), entrega: null as Record<string, unknown> | null }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  from: mocks.from,
+  rpc: vi.fn(async () => ({ data: { responsavel: "Responsável atual da sala", cpf: "11144477735" }, error: null })),
+} }));
 vi.mock("@/lib/entregas-termos.functions", () => ({ confirmarSenhaEntrega: vi.fn(), salvarEntregaConfirmada: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -85,11 +88,14 @@ describe("visualização de termos recentes e anteriores", () => {
     expect(screen.getByLabelText("Status")).toHaveValue("Entregue");
   });
 
-  it("mantém a visualização direta do HTML recém-importado", async () => {
+  it("mantém a visualização direta do HTML recém-importado com o responsável atual da sala", async () => {
     abrir("nova");
     expect(await screen.findByTitle("Termo de responsabilidade 20/2026")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Número do termo" })).not.toBeInTheDocument();
     expect(mocks.consultas).toHaveBeenCalledWith("nova");
+    const html = screen.getByTitle("Termo de responsabilidade 20/2026").getAttribute("srcdoc");
+    expect(html).toContain("Responsável atual da sala");
+    expect(html).toContain("111.444.777-35");
   });
 
   it("pede o número antes de abrir um termo de importação anterior", async () => {
