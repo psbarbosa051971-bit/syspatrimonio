@@ -217,7 +217,7 @@
     {
       "nome": "incluir_bens_fornecedor",
       "retorno": "integer",
-      "definicao": "CREATE OR REPLACE FUNCTION public.incluir_bens_fornecedor(_itens jsonb)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE n integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para incluir bens';\n  END IF;\n  INSERT INTO public.bens(user_id, sala_id, codigo_red, descricao, ano_pedido, pedido, ano_empenho, empenho, nota_fiscal, fornecedor)\n  SELECT DISTINCT ON (ltrim(x.codigo_red,'0')) auth.uid(), NULL, x.codigo_red, coalesce(nullif(btrim(x.descricao),''),'Sem descrição'),\n    nullif(x.ano_pedido,''), nullif(x.pedido,''), nullif(x.ano_empenho,''), nullif(x.empenho,''), nullif(x.nota_fiscal,''), nullif(x.fornecedor,'')\n  FROM jsonb_to_recordset(_itens) AS x(codigo_red text, descricao text, ano_pedido text, pedido text, ano_empenho text, empenho text, nota_fiscal text, fornecedor text)\n  WHERE nullif(btrim(x.codigo_red),'') IS NOT NULL\n    AND NOT EXISTS (SELECT 1 FROM public.bens b WHERE ltrim(b.codigo_red,'0') = ltrim(x.codigo_red,'0'));\n  GET DIAGNOSTICS n = ROW_COUNT;\n  RETURN n;\nEND $function$\n",
+      "definicao": "CREATE OR REPLACE FUNCTION public.incluir_bens_fornecedor(_itens jsonb)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE n integer;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para incluir bens';\n  END IF;\n  INSERT INTO public.bens(user_id, sala_id, codigo_red, descricao, ano_pedido, pedido, ano_empenho, empenho, nota_fiscal, fornecedor, valor)\n  SELECT DISTINCT ON (ltrim(x.codigo_red,'0')) auth.uid(), NULL, x.codigo_red, coalesce(nullif(btrim(x.descricao),''),'Sem descrição'),\n    nullif(x.ano_pedido,''), nullif(x.pedido,''), nullif(x.ano_empenho,''), nullif(x.empenho,''), nullif(x.nota_fiscal,''), nullif(x.fornecedor,''), coalesce(x.valor,0)\n  FROM jsonb_to_recordset(_itens) AS x(codigo_red text, descricao text, ano_pedido text, pedido text, ano_empenho text, empenho text, nota_fiscal text, fornecedor text, valor numeric)\n  WHERE nullif(btrim(x.codigo_red),'') IS NOT NULL\n    AND NOT EXISTS (SELECT 1 FROM public.bens b WHERE ltrim(b.codigo_red,'0') = ltrim(x.codigo_red,'0'));\n  GET DIAGNOSTICS n = ROW_COUNT;\n  RETURN n;\nEND $function$\n",
       "argumentos": "_itens jsonb"
     },
     {
@@ -331,7 +331,7 @@
     {
       "nome": "vincular_dados_fornecedor",
       "retorno": "TABLE(codigo_red text, vinculados integer)",
-      "definicao": "CREATE OR REPLACE FUNCTION public.vincular_dados_fornecedor(_itens jsonb)\n RETURNS TABLE(codigo_red text, vinculados integer)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\n SET statement_timeout TO '120s'\nAS $function$\nBEGIN\n  IF NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para vincular dados';\n  END IF;\n  RETURN QUERY\n  WITH entrada AS (\n    SELECT DISTINCT ON (ltrim(x.codigo_red,'0')) x.*, ltrim(x.codigo_red,'0') AS chave\n    FROM jsonb_to_recordset(_itens) AS x(codigo_red text, ano_pedido text, pedido text, ano_empenho text, empenho text, nota_fiscal text, fornecedor text)\n    WHERE x.codigo_red IS NOT NULL\n  ), atualizados AS (\n    UPDATE public.bens b SET\n      ano_pedido = NULLIF(e.ano_pedido,''), pedido = NULLIF(e.pedido,''),\n      ano_empenho = NULLIF(e.ano_empenho,''), empenho = NULLIF(e.empenho,''),\n      nota_fiscal = NULLIF(e.nota_fiscal,''), fornecedor = NULLIF(e.fornecedor,'')\n    FROM entrada e\n    WHERE ltrim(b.codigo_red,'0') = e.chave\n    RETURNING e.chave\n  )\n  SELECT e.codigo_red, (SELECT count(*)::int FROM atualizados a WHERE a.chave = e.chave)\n  FROM entrada e;\nEND $function$\n",
+      "definicao": "CREATE OR REPLACE FUNCTION public.vincular_dados_fornecedor(_itens jsonb)\n RETURNS TABLE(codigo_red text, vinculados integer)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\n SET statement_timeout TO '120s'\nAS $function$\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Sem permissão para vincular dados';\n  END IF;\n  RETURN QUERY\n  WITH entrada AS (\n    SELECT DISTINCT ON (ltrim(x.codigo_red,'0')) x.*, ltrim(x.codigo_red,'0') AS chave\n    FROM jsonb_to_recordset(_itens) AS x(codigo_red text, ano_pedido text, pedido text, ano_empenho text, empenho text, nota_fiscal text, fornecedor text, valor numeric)\n    WHERE x.codigo_red IS NOT NULL\n  ), atualizados AS (\n    UPDATE public.bens b SET\n      ano_pedido = NULLIF(e.ano_pedido,''), pedido = NULLIF(e.pedido,''),\n      ano_empenho = NULLIF(e.ano_empenho,''), empenho = NULLIF(e.empenho,''),\n      nota_fiscal = NULLIF(e.nota_fiscal,''), fornecedor = NULLIF(e.fornecedor,''),\n      valor = COALESCE(e.valor, b.valor)\n    FROM entrada e\n    WHERE ltrim(b.codigo_red,'0') = e.chave\n    RETURNING e.chave\n  )\n  SELECT e.codigo_red, (SELECT count(*)::int FROM atualizados a WHERE a.chave = e.chave)\n  FROM entrada e;\nEND $function$\n",
       "argumentos": "_itens jsonb"
     }
   ],
@@ -2254,7 +2254,7 @@
       "trigger": "numerar_recebimento_veiculo_trigger"
     }
   ],
-  "gerado_em": "2026-11-09T12:57:34.502415+00:00",
+  "gerado_em": "2026-11-09T15:13:03.391366+00:00",
   "rls_ativo": {
     "bens": true,
     "salas": true,
@@ -2499,5 +2499,5 @@
       "trigger": "on_auth_user_created"
     }
   ],
-  "geckoai_sincronizado_em": "2026-11-09T12:57:37.721Z"
+  "geckoai_sincronizado_em": "2026-11-09T15:13:06.405Z"
 }
