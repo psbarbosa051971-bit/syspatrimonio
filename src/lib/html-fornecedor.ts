@@ -34,8 +34,12 @@ export function parsearFornecedorHtml(html: string): ItemFornecedor[] {
       tabela = tr.closest("table");
       colunaValor = 8;
     }
-    const cel = Array.from(tr.children).map((c) => t(c.textContent));
-    if (!cel.some(Boolean)) continue;
+    const celulas = Array.from(tr.children).map((c) => t(c.textContent));
+    const inicio = celulas.findIndex(Boolean);
+    if (inicio < 0) continue;
+    // O Sonner inclui células vazias de margem antes do código e dos cabeçalhos.
+    // Remova apenas essa margem: vazios entre os dados ainda representam colunas.
+    const cel = celulas.slice(inicio);
     const cabecalhoValor = cel.findIndex((c) => /^valor(?:\s|$)/.test(k(c)));
     if (cabecalhoValor >= 0 && cel.some((c) => /descri/.test(k(c)))) {
       colunaValor = cabecalhoValor;
