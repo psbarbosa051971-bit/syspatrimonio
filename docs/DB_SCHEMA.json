@@ -97,7 +97,7 @@
     {
       "nome": "dados_responsavel_sala_termo",
       "retorno": "jsonb",
-      "definicao": "CREATE OR REPLACE FUNCTION public.dados_responsavel_sala_termo(_sala_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  _sala public.salas%ROWTYPE;\n  _nome text;\n  _cpf text;\n  _nome_sala text;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Você não tem permissão para consultar o responsável pela sala.';\n  END IF;\n  SELECT * INTO _sala FROM public.salas WHERE id = _sala_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada.'; END IF;\n  _nome_sala := nullif(btrim(_sala.responsavel), '');\n  SELECT p.nome, p.cpf INTO _nome, _cpf\n    FROM public.user_salas us JOIN public.profiles p ON p.id = us.user_id\n    WHERE us.sala_id = _sala_id AND nullif(btrim(p.nome), '') IS NOT NULL\n    ORDER BY (lower(btrim(p.nome)) = lower(coalesce(_nome_sala, ''))) DESC, p.created_at DESC, p.id\n    LIMIT 1;\n  IF _nome_sala IS NOT NULL AND lower(btrim(coalesce(_nome, ''))) <> lower(_nome_sala) THEN\n    _cpf := '';\n  END IF;\n  RETURN jsonb_build_object('responsavel', coalesce(_nome_sala, _nome, ''), 'cpf', coalesce(_cpf, ''));\nEND;\n$function$\n",
+      "definicao": "CREATE OR REPLACE FUNCTION public.dados_responsavel_sala_termo(_sala_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  _sala public.salas%ROWTYPE;\n  _nome text;\n  _cpf text;\n  _nome_sala text;\nBEGIN\n  IF auth.uid() IS NULL OR NOT public.can_edit(auth.uid()) THEN\n    RAISE EXCEPTION 'Você não tem permissão para consultar o responsável pela sala.';\n  END IF;\n  SELECT * INTO _sala FROM public.salas WHERE id = _sala_id;\n  IF NOT FOUND THEN RAISE EXCEPTION 'Sala não encontrada.'; END IF;\n  IF _sala.cpf_responsavel IS NOT NULL THEN\n    RETURN jsonb_build_object('responsavel', coalesce(_sala.responsavel, ''), 'cpf', _sala.cpf_responsavel);\n  END IF;\n  _nome_sala := nullif(btrim(_sala.responsavel), '');\n  SELECT p.nome, p.cpf INTO _nome, _cpf\n    FROM public.user_salas us JOIN public.profiles p ON p.id = us.user_id\n    WHERE us.sala_id = _sala_id AND nullif(btrim(p.nome), '') IS NOT NULL\n    ORDER BY (lower(btrim(p.nome)) = lower(coalesce(_nome_sala, ''))) DESC, p.created_at DESC, p.id\n    LIMIT 1;\n  IF _nome_sala IS NOT NULL AND lower(btrim(coalesce(_nome, ''))) <> lower(_nome_sala) THEN\n    _cpf := '';\n  END IF;\n  RETURN jsonb_build_object('responsavel', coalesce(_nome_sala, _nome, ''), 'cpf', coalesce(_cpf, ''));\nEND;\n$function$\n",
       "argumentos": "_sala_id uuid"
     },
     {
@@ -1277,6 +1277,13 @@
           "tipo": "text",
           "default": null,
           "tipo_udt": "text"
+        },
+        {
+          "nome": "cpf_responsavel",
+          "nulo": "YES",
+          "tipo": "text",
+          "default": null,
+          "tipo_udt": "text"
         }
       ]
     },
@@ -2247,7 +2254,7 @@
       "trigger": "numerar_recebimento_veiculo_trigger"
     }
   ],
-  "gerado_em": "2026-11-09T12:28:54.98665+00:00",
+  "gerado_em": "2026-11-09T12:38:52.806383+00:00",
   "rls_ativo": {
     "bens": true,
     "salas": true,
@@ -2492,5 +2499,5 @@
       "trigger": "on_auth_user_created"
     }
   ],
-  "geckoai_sincronizado_em": "2026-11-09T12:28:58.587Z"
+  "geckoai_sincronizado_em": "2026-11-09T12:38:55.838Z"
 }
