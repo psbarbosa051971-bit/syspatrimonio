@@ -579,6 +579,7 @@ export type Database = {
       }
       salas: {
         Row: {
+          cpf_responsavel: string | null
           created_at: string
           data_termo: string | null
           departamento_id: string | null
@@ -597,10 +598,12 @@ export type Database = {
           id?: string
           nome: string
           responsavel?: string | null
+          cpf_responsavel?: string | null
           unidade?: string | null
           user_id: string
         }
         Update: {
+          cpf_responsavel?: string | null
           created_at?: string
           data_termo?: string | null
           departamento_id?: string | null

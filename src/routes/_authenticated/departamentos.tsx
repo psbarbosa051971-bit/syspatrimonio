@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { responsavelDoLocal } from "@/lib/usuarios.functions";
-import { formatarCpf } from "@/lib/cpf";
+import { ResponsavelSala } from "@/components/ResponsavelSala";
 import { formatarCodigoRed, normalizarCodigoRed } from "@/lib/codigo-red";
 import { statusBem, classeStatusBem } from "@/lib/status-bem";
 import {
@@ -1298,16 +1298,12 @@ function DepartamentosPage() {
                     onBlur={salvarCabecalho}
                   />
                 </div>
-                <div className="flex min-w-0 flex-col gap-1">
-                  <Label htmlFor="cabResp">Responsável pela sala</Label>
-                  <Input id="cabResp" className="h-8" readOnly value={responsavelAtual?.nome ?? salaSel?.responsavel ?? ""}
-                    placeholder="Preenchido pelo usuário vinculado ao local" />
-                </div>
-                <div className="flex min-w-0 flex-col gap-1">
-                  <Label htmlFor="cabCpf">CPF</Label>
-                  <Input id="cabCpf" className="h-8" readOnly value={responsavelAtual?.cpf ? formatarCpf(responsavelAtual.cpf) : ""}
-                    placeholder="CPF do responsável" />
-                </div>
+                <ResponsavelSala key={salaSel?.id ?? "sem-sala"} sala={salaSel} perfil={responsavelAtual}
+                  onSaved={(sala) => {
+                    setSalas((atuais) => atuais.map((atual) => atual.id === sala.id ? sala : atual));
+                    cabecalhoPendente.current = { ...cabecalho };
+                    setSalaSel((atual) => atual?.id === sala.id ? sala : atual);
+                  }} />
                 <div className="flex min-w-0 flex-col gap-1">
                   <Label htmlFor="cabUnidade">Unidade</Label>
                   <div className="flex items-center gap-1">

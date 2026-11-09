@@ -30,7 +30,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
     if (!ehAdmin) throw new Error("Apenas administradores podem cadastrar usuários");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: local, error: erroLocal } = await supabaseAdmin.from("salas")
-      .select("id,unidade").eq("id", data.salas[0]!).single();
+      .select("id,unidade,cpf_responsavel").eq("id", data.salas[0]!).single();
     if (erroLocal || !local) throw new Error("Selecione um Local Físico válido");
     if (local.unidade && local.unidade !== data.unidade) {
       throw new Error("O Local Físico pertence a outra unidade. Atualize a lista e selecione novamente.");
@@ -65,7 +65,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
           .insert(data.salas.map((sala_id) => ({ user_id: id, sala_id })));
         if (erroSalas) throw erroSalas;
         const { error: erroResponsavel } = await supabaseAdmin.from("salas")
-          .update({ responsavel: data.nome, unidade: data.unidade })
+          .update({ ...(local.cpf_responsavel == null ? { responsavel: data.nome } : {}), unidade: data.unidade })
           .eq("id", data.salas[0]!).or(`unidade.is.null,unidade.eq.${data.unidade}`)
           .select("id").single();
         if (erroResponsavel) throw erroResponsavel;
@@ -83,8 +83,13 @@ export const responsavelDoLocal = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: permitido, error: erroPermissao } = await context.supabase.rpc("can_edit", { _user_id: context.userId });
     if (erroPermissao || !permitido) throw new Error("Acesso não autorizado");
-    const { data: sala, error: erroSala } = await context.supabase.from("salas").select("id").eq("id", data.salaId).single();
+    const { data: sala, error: erroSala } = await context.supabase.from("salas").select("id,responsavel,cpf_responsavel").eq("id", data.salaId).single();
     if (erroSala || !sala) throw new Error("Local não encontrado");
+    // O CPF não nulo identifica os dados informados diretamente na sala,
+    // inclusive quando o CPF foi deixado em branco de propósito.
+    if (sala.cpf_responsavel != null) {
+      return { nome: sala.responsavel, cpf: sala.cpf_responsavel, matricula: null };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: vinculos, error } = await supabaseAdmin.from("user_salas").select("user_id").eq("sala_id", sala.id);
     if (error) throw new Error("Não foi possível consultar o responsável");
