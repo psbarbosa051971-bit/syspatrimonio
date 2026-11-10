@@ -1039,6 +1039,9 @@ function DepartamentosPage() {
               <img src="/images/sonner.jpg" alt="" width={32} height={28} className="h-7 w-8 rounded-sm object-contain" />
               <span>Sonner</span>
             </a>
+            <Button asChild variant="ghost" size="sm" className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
+              <Link to="/checklist"><CheckSquare className="mr-2 h-4 w-4" /> Checklist celular</Link>
+            </Button>
             <RecebimentosVeiculos onSaved={() => setTentativaBens((valor) => valor + 1)} />
             <NotasFiscais fornecedorImportado={fornecedorImportado} />
             <Button

@@ -35,8 +35,8 @@ function ChecklistApp() {
   if (loading) return <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground">Carregando...</div>;
   if (!session) return <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
     <h1 className="text-xl font-bold text-primary">Checklist de veículos</h1>
-    <p className="text-sm text-muted-foreground">Entre com sua conta para preencher o checklist. Depois volte a este endereço.</p>
-    <Button asChild><Link to="/entrar">Entrar</Link></Button>
+    <p className="text-sm text-muted-foreground">Entre com sua conta habitual para abrir o formulário no celular. Após entrar, você voltará automaticamente ao checklist.</p>
+    <Button asChild><Link to="/entrar" search={{ retorno: "/checklist" }}>Entrar no checklist</Link></Button>
     <InstalarApp compacto />
   </main>;
 

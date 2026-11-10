@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { entrarComLogin } from "@/lib/login.functions";
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/card";
 
 export const Route = createFileRoute("/entrar")({
+  validateSearch: (search: Record<string, unknown>): { retorno?: "/checklist" } =>
+    search.retorno === "/checklist" ? { retorno: "/checklist" } : {},
   head: () => ({
     meta: [
       { title: "Entrar — SysPatrimônio" },
@@ -33,6 +35,8 @@ export const Route = createFileRoute("/entrar")({
 
 function Entrar() {
   const navigate = useNavigate();
+  const { retorno } = useSearch({ from: "/entrar" });
+  const destino = retorno === "/checklist" ? "/checklist" : "/departamentos";
   const entrarPorLogin = useServerFn(entrarComLogin);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -53,7 +57,7 @@ function Entrar() {
         const { error } = await supabase.auth.setSession(sessao);
         if (error) throw new Error("Não foi possível iniciar a sessão");
       }
-      navigate({ to: "/departamentos" });
+      navigate({ to: destino });
     } catch (err) {
       toast.error("Não foi possível entrar", {
         description: err instanceof Error ? err.message : "Confira seu login e senha",
@@ -65,14 +69,14 @@ function Entrar() {
 
   async function handleGoogle() {
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: retorno === "/checklist" ? new URL("/checklist", window.location.origin).href : window.location.origin,
     });
     if (result.error) {
       toast.error("Erro ao entrar com Google");
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/departamentos" });
+    navigate({ to: destino });
   }
 
   return (
