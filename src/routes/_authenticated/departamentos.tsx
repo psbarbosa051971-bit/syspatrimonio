@@ -27,6 +27,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRole } from "@/hooks/use-role";
 import { extrairTermoDePdf, limparDescricao } from "@/lib/pdf-parse";
 import { extrairTermoDeHtml } from "@/lib/html-parse";
+import type { ItemFornecedor } from "@/lib/html-fornecedor";
 import { pesquisarBensEmTodasAsSalas, type ResultadoPesquisaDinamica } from "@/lib/pesquisa-dinamica";
 import { htmlPesquisaDinamica } from "@/lib/pesquisa-dinamica-impressao";
 import { carregarPlacasRelatorio } from "@/lib/placas-relatorio";
@@ -770,10 +771,67 @@ function DepartamentosPage() {
     toast.success(`${ids.length} bem(ns) excluído(s)`);
   }
 
+  async function importarFornecedorNaSala(itens: ItemFornecedor[], arquivo: string): Promise<boolean> {
+    if (!salaSel || !user || importando || !itens.length) return false;
+    const destino = salaSel;
+    setImportando(true);
+    try {
+      const extraidos = itens.map((item) => ({
+        codigo_red: item.codigo_red, descricao: item.descricao, valor: item.valor ?? 0,
+      }));
+      const { data: existentes, error: erroConsulta } = await supabase.rpc("consultar_bens_importacao", {
+        _bens: extraidos,
+      });
+      if (erroConsulta) throw erroConsulta;
+      const conflitos = (existentes ?? []).filter((bem) => bem.sala_id !== destino.id && bem.sala_id !== null);
+      if (!await confirmarImportacao(destino.nome, itens.length, conflitos)) return false;
+      const gerarTermo = await escolherGeracaoTermo();
+      if (gerarTermo === null) return false;
+      const { data: resultado, error: erroImportacao } = await supabase.rpc("importar_bens_html_com_opcao", {
+        _sala_id: destino.id, _arquivo: arquivo, _bens: extraidos,
+        _cabecalho: { local: destino.nome, endereco: destino.endereco ?? "", data: destino.data_termo ?? "", historico: "" },
+        _existentes: (existentes ?? []).map((bem) => ({ ...bem })), _gerar_termo: gerarTermo,
+      });
+      if (erroImportacao) throw erroImportacao;
+      if (!resultado || typeof resultado !== "object" || Array.isArray(resultado)) {
+        throw new Error("Não foi possível confirmar a importação. Atualize a sala antes de tentar novamente.");
+      }
+      // Atualiza a listagem mesmo se houver falha posterior nos dados fiscais.
+      setResultadoPesquisa(null);
+      setTermoSelecionado(null);
+      setBuscaBens("");
+      setSelecionados([]);
+      setBensParaTransferir([]);
+      setUltimaImportacao(typeof resultado["importacao_id"] === "string" ? resultado["importacao_id"] : "");
+      setTentativaBens((valor) => valor + 1);
+      for (let i = 0; i < itens.length; i += 200) {
+        const { error } = await supabase.rpc("vincular_dados_fornecedor", { _itens: itens.slice(i, i + 200) });
+        if (error) {
+          toast.warning(`Os bens foram importados para ${destino.nome}, mas parte dos dados fiscais não foi atualizada. Use “Vincular aos patrimônios” para tentar novamente: ${error.message}`);
+          setTentativaBens((valor) => valor + 1);
+          return true;
+        }
+      }
+      setTentativaBens((valor) => valor + 1);
+      toast.success(`${itens.length} bem(ns) conferido(s) no destino ${destino.nome}: ${Number(resultado["novos"] ?? 0)} novo(s), ${Number(resultado["transferidos"] ?? 0)} movido(s). ` +
+        (gerarTermo ? `Termo nº ${String(resultado["termo_numero"])} criado.` : "Sem gerar número de termo."));
+      return true;
+    } catch (erro) {
+      toast.error(erro && typeof erro === "object" && "message" in erro ? String(erro.message) : "Não foi possível importar os bens para a sala.");
+      return false;
+    } finally {
+      setImportando(false);
+    }
+  }
+
   async function importarPdf(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !user || !departamentoSel) {
+    if (file) await importarArquivoSonner(file);
+  }
+
+  async function importarArquivoSonner(file: File) {
+    if (!user || !departamentoSel) {
       if (!departamentoSel) toast.error("Selecione ou salve um departamento antes de anexar o relatório");
       return;
     }
@@ -847,7 +905,11 @@ function DepartamentosPage() {
           (gerarTermo ? `${resultados.length} termos criados, um por local. Selecione o local para imprimir seu termo.` : "Sem gerar números de termo."));
         return;
       }
-      let sala = salas.find((s) => norm(s.nome) === norm(nomeLocal)) ?? null;
+      const codigoLocal = nomeLocal.match(/^\d+(?=\s|[-–—])/)?.[0];
+      const candidatasPorLocal = salas.filter((s) => codigoLocal
+        ? s.nome.match(/^\d+/)?.[0] === codigoLocal : norm(s.nome) === norm(nomeLocal));
+      if (candidatasPorLocal.length > 1) throw new Error("Há mais de um cadastro para esse local físico. Corrija os cadastros antes de importar.");
+      let sala = candidatasPorLocal[0] ?? null;
       if (!sala && /^\d+(?:\s|[-–—])/.test(nomeLocal)) {
         // Reaproveita o cadastro antigo sem código e sem os filtros do relatório.
         const candidatas = salas.filter((s) => !/^\d+[-–—]/.test(norm(s.nome)) && semCodigo(s.nome) === semCodigo(nomeLocal));
@@ -902,6 +964,10 @@ function DepartamentosPage() {
       if (gerarTermo && typeof resultado["importacao_id"] === "string") {
         setImpressaoImportacao({ id: resultado["importacao_id"], salaId: salaAlvo.id });
       }
+      setResultadoPesquisa(null);
+      setTermoSelecionado(null);
+      setBuscaBens("");
+      setSelecionados([]);
       setTentativaBens((valor) => valor + 1);
       setBensParaTransferir([]);
       toast.success((gerarTermo
@@ -1188,7 +1254,9 @@ function DepartamentosPage() {
               <Upload className="mr-1 h-4 w-4" />
               {importando ? "Lendo relatório..." : "Anexar HTML ou PDF do Sonner"}
             </Button>
-            <ImportarFornecedorDialog onFornecedorChange={setFornecedorImportado} />
+            <ImportarFornecedorDialog onFornecedorChange={setFornecedorImportado}
+              salaDestino={salaSel} onImportarNaSala={importarFornecedorNaSala}
+              onImportarRelatorio={importarArquivoSonner} />
             <Button variant="outline" size="sm" disabled={importando} onClick={() => setDialogTransferencia(true)}>
               Gerar transferência
             </Button>

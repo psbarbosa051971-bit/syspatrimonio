@@ -46,6 +46,21 @@ describe("Fornecedor compartilhado com Notas Fiscais", () => {
     }));
   });
 
+  it("encaminha um HTML por Local Físico para a importação de salas sem vincular dados fiscais", async () => {
+    const importarRelatorio = vi.fn().mockResolvedValue(undefined);
+    render(<ImportarFornecedorDialog onImportarRelatorio={importarRelatorio} />);
+    fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
+    const arquivo = new File([], "leilao.html", { type: "text/html" });
+    Object.defineProperty(arquivo, "text", { value: async () => '<table><tr><td>Local Físico:</td><td>58536 1º LEILÃO DE INSERVÍVEIS 2026</td></tr><tr><td>181</td><td>Cadeira</td><td>31/12/1994</td><td>Aquisição</td><td>10,00</td></tr></table>' });
+    fireEvent.change(screen.getByLabelText("Arquivo HTML ou PDF por fornecedor"), { target: { files: [arquivo] } });
+    const acao = await screen.findByRole("button", { name: "Importar relatório por Local Físico" });
+    expect(importarRelatorio).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Vincular aos patrimônios" })).not.toBeInTheDocument();
+    fireEvent.click(acao);
+    await waitFor(() => expect(importarRelatorio).toHaveBeenCalledWith(arquivo));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it("envia o valor revisado também ao incluir um bem que ainda não existe", async () => {
     await abrirImportacao(vi.fn());
     fireEvent.change(screen.getByLabelText("Valor do bem (R$)"), { target: { value: "R$ 995,97" } });
@@ -60,6 +75,40 @@ describe("Fornecedor compartilhado com Notas Fiscais", () => {
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("incluir_bens_fornecedor", {
       _itens: [expect.objectContaining({ codigo_red: "123", valor: 995.97 })],
     }));
+  });
+
+  it("importa para a sala selecionada somente ao clicar na ação explícita", async () => {
+    const importar = vi.fn().mockResolvedValue(true);
+    render(<ImportarFornecedorDialog salaDestino={{ id: "sala-58536", nome: "58536 1º LEILÃO DE INSERVÍVEIS 2026" }} onImportarNaSala={importar} />);
+    fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
+    fireEvent.change(screen.getByLabelText("Arquivo HTML ou PDF por fornecedor"), {
+      target: { files: [new File(["%PDF-"], "fornecedores.pdf", { type: "application/pdf" })] },
+    });
+    await screen.findByLabelText("Fornecedor");
+    expect(screen.getByText(/Destino: 58536/)).toBeInTheDocument();
+    expect(importar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Importar bens para a sala selecionada" }));
+    await waitFor(() => expect(importar).toHaveBeenCalledWith([
+      expect.objectContaining({ codigo_red: "123" }), expect.objectContaining({ codigo_red: "456" }),
+    ], "fornecedores.pdf"));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Arquivo HTML ou PDF por fornecedor")).not.toBeInTheDocument();
+  });
+
+  it("exige uma sala de destino e permite reabrir após cancelar a confirmação", async () => {
+    const importar = vi.fn().mockResolvedValue(false);
+    const { rerender } = render(<ImportarFornecedorDialog onImportarNaSala={importar} />);
+    fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
+    fireEvent.change(screen.getByLabelText("Arquivo HTML ou PDF por fornecedor"), {
+      target: { files: [new File(["%PDF-"], "fornecedores.pdf", { type: "application/pdf" })] },
+    });
+    await screen.findByLabelText("Fornecedor");
+    expect(screen.getByRole("button", { name: "Importar bens para a sala selecionada" })).toBeDisabled();
+    rerender(<ImportarFornecedorDialog salaDestino={{ id: "sala-58536", nome: "Leilão" }} onImportarNaSala={importar} />);
+    fireEvent.click(screen.getByRole("button", { name: "Importar bens para a sala selecionada" }));
+    await screen.findByLabelText("Arquivo HTML ou PDF por fornecedor");
+    expect(importar).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Fornecedor")).toHaveValue("Fornecedor A");
   });
 
   it("envia o fornecedor do bem carregado sem exigir a vinculação aos patrimônios", async () => {

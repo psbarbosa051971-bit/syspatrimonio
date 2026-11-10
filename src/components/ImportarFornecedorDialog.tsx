@@ -10,8 +10,17 @@ import { Label } from "@/components/ui/label";
 import { CampoValorReais } from "@/components/CampoValorReais";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorChange?: (fornecedor: string) => void }) {
+type ImportarFornecedorProps = {
+  onFornecedorChange?: (fornecedor: string) => void;
+  salaDestino?: { id: string; nome: string } | null;
+  onImportarNaSala?: (itens: ItemFornecedor[], arquivo: string) => Promise<boolean>;
+  onImportarRelatorio?: (arquivo: File) => Promise<void>;
+};
+
+export function ImportarFornecedorDialog({ onFornecedorChange, salaDestino, onImportarNaSala, onImportarRelatorio }: ImportarFornecedorProps) {
   const [aberto, setAberto] = useState(false);
+  const [arquivo, setArquivo] = useState("");
+  const [relatorioLocal, setRelatorioLocal] = useState<File | null>(null);
   const [itens, setItens] = useState<ItemFornecedor[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [sel, setSel] = useState(0);
@@ -19,16 +28,32 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
 
   const ler = async (f?: File) => {
     if (!f) return;
-    setItens([]); setFaltantes([]); setSel(0);
+    setItens([]); setFaltantes([]); setSel(0); setArquivo(f.name); setRelatorioLocal(null);
     if (!/\.(pdf|html?)$/i.test(f.name)) {
       toast.error("Selecione um arquivo HTML ou PDF do Sonner.");
       return;
     }
     setLendo(true);
     try {
+      let html = "";
+      if (!/\.pdf$/i.test(f.name)) {
+        if (typeof f.arrayBuffer === "function") {
+          const bytes = await f.arrayBuffer();
+          const utf8 = new TextDecoder("utf-8").decode(bytes);
+          html = /charset\s*=\s*["']?(?:windows-1252|iso-8859-1)/i.test(utf8.slice(0, 4096)) || utf8.includes("\uFFFD")
+            ? new TextDecoder("windows-1252").decode(bytes) : utf8;
+        } else {
+          html = await f.text();
+        }
+        const conteudo = new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+        if (onImportarRelatorio && /Local\s+F[ií]sico\s*:/i.test(conteudo) && !/Ano\s+(?:do\s+)?(?:Pedido|Empenho)/i.test(conteudo)) {
+          setRelatorioLocal(f);
+          return;
+        }
+      }
       const lidos = /\.pdf$/i.test(f.name)
         ? await extrairFornecedorPdf(f)
-        : parsearFornecedorHtml(await f.text());
+        : parsearFornecedorHtml(html);
       if (!lidos.length) toast.error("Nenhum bem encontrado no relatório por fornecedor. Use HTML ou PDF com texto selecionável do Sonner.");
       setItens(lidos);
     } catch (erro) {
@@ -64,8 +89,23 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
     const r = await supabase.rpc("incluir_bens_fornecedor", { _itens: faltantes });
     setSalvando(false);
     if (r.error) { toast.error(`Não foi possível incluir: ${r.error.message}`); return; }
-    toast.success(`${r.data ?? 0} bem(ns) incluído(s) no sistema.`);
+    toast.success(`${r.data ?? 0} bem(ns) incluído(s) no sistema, ainda sem sala. Para colocá-los no destino, use “Importar bens para a sala selecionada”.`);
     setFaltantes([]);
+  };
+
+  const importarNaSala = async () => {
+    if (!onImportarNaSala || !salaDestino) return;
+    setSalvando(true);
+    setAberto(false);
+    setFaltantes([]);
+    try {
+      if (!await onImportarNaSala(itens, arquivo)) setAberto(true);
+    } catch (erro) {
+      setAberto(true);
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível importar os bens para a sala.");
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const atual = itens[sel];
@@ -80,7 +120,7 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => { setItens([]); setAberto(true); }}>
+      <Button variant="outline" size="sm" disabled={salvando} onClick={() => { setItens([]); setFaltantes([]); setRelatorioLocal(null); setAberto(true); }}>
         <Truck className="mr-1 h-4 w-4" /> Importar por fornecedor
       </Button>
       <Dialog open={aberto} onOpenChange={setAberto}>
@@ -89,6 +129,21 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
           <Input type="file" accept=".html,.htm,text/html,.pdf,application/pdf" aria-label="Arquivo HTML ou PDF por fornecedor" disabled={lendo || salvando}
             onChange={(e) => { const arquivo = e.target.files?.[0]; e.target.value = ""; void ler(arquivo); }} />
           <p className="text-sm text-muted-foreground">{lendo ? "Lendo relatório..." : "Anexe o relatório do Sonner em HTML ou PDF com texto selecionável."}</p>
+          <p className="rounded border p-2 text-sm">“Vincular aos patrimônios” atualiza os dados de fornecedor, mas não coloca os bens em uma sala. Para um relatório por Local Físico, use “Anexar HTML ou PDF do Sonner” na tela de salas.</p>
+          {relatorioLocal && onImportarRelatorio && <div className="space-y-2 rounded border p-3 text-sm">
+            <p>Este arquivo é um relatório por Local Físico. Use a importação abaixo para colocar os bens na sala indicada no próprio HTML, preservando os valores e sem duplicar códigos RED.</p>
+            <Button disabled={salvando || lendo} onClick={async () => {
+              setSalvando(true);
+              setAberto(false);
+              try {
+                await onImportarRelatorio(relatorioLocal);
+              } catch (erro) {
+                toast.error(erro instanceof Error ? erro.message : "Não foi possível importar o relatório.");
+              } finally {
+                setSalvando(false);
+              }
+            }}>Importar relatório por Local Físico</Button>
+          </div>}
           {atual && <>
             <div className="grid gap-2 rounded border p-3 sm:grid-cols-3">
               <p className="sm:col-span-3 text-sm font-semibold">Código RED. {atual.codigo_red} — {atual.descricao}</p>
@@ -123,9 +178,13 @@ export function ImportarFornecedorDialog({ onFornecedorChange }: { onFornecedorC
                 ))}</tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">{itens.length} bem(ns) lido(s)</span>
-              <Button onClick={vincular} disabled={salvando}>{salvando ? "Vinculando..." : "Vincular aos patrimônios"}</Button>
+              <Button variant="outline" onClick={vincular} disabled={salvando}>{salvando ? "Aguarde..." : "Vincular aos patrimônios"}</Button>
+              {onImportarNaSala && <div className="w-full rounded border p-3 text-sm">
+                <p className="mb-2">{salaDestino ? `Destino: ${salaDestino.nome}. Confira se todos os itens do arquivo pertencem a esta sala. Bens em outro local só serão movidos após sua confirmação.` : "Selecione uma sala na tela principal para importar os bens para ela."}</p>
+                <Button onClick={importarNaSala} disabled={salvando || !salaDestino}>Importar bens para a sala selecionada</Button>
+              </div>}
             </div>
           </>}
         </DialogContent>

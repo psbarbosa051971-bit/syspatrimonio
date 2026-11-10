@@ -149,6 +149,40 @@ async function importarParaLiberarUnidade() {
 }
 
 describe("Carregamento dos registros em Departamentos", () => {
+  it("coloca os bens importados por fornecedor na sala e recarrega a listagem", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    fireEvent.click(screen.getByRole("button", { name: "Importar por fornecedor" }));
+    const arquivo = new File([], "fornecedor.html", { type: "text/html" });
+    Object.defineProperty(arquivo, "text", { value: async () => '<table><tr><td>Fornecedor: Empresa A</td></tr><tr><td>789</td><td>Armário do leilão</td><td>2026</td><td>1</td><td>2026</td><td>2</td><td>01/01/2026</td><td>Aquisição</td><td>150,00</td></tr></table>' });
+    fireEvent.change(screen.getByLabelText("Arquivo HTML ou PDF por fornecedor"), { target: { files: [arquivo] } });
+    await screen.findByLabelText("Fornecedor");
+    mocks.consultarImportacao.mockResolvedValueOnce({ data: [{ id: "sem-sala", sala_id: null, codigo_red: "789", sala_nome: "Sem sala" }], error: null });
+    mocks.rpc.mockImplementation(async (funcao: string) => {
+      if (funcao === "importar_bens_html_com_opcao") {
+        mocks.bens = [...mocks.bens, { ...bem, id: "sem-sala", codigo_red: "789", descricao: "Armário do leilão", valor: 150 }];
+        return { data: { importacao_id: null, novos: 0, transferidos: 1, repetidos: 1 }, error: null };
+      }
+      return { data: [{ codigo_red: "789", vinculados: 1 }], error: null };
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Importar bens para a sala selecionada" }));
+    const confirmacao = await screen.findByRole("alertdialog");
+    expect(within(confirmacao).getByText("Sala existente")).toBeInTheDocument();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    fireEvent.click(within(confirmacao).getByRole("button", { name: "Sim" }));
+    const numeracao = await screen.findByRole("alertdialog", { name: "Deseja gerar um número de termo?" });
+    fireEvent.click(within(numeracao).getByRole("button", { name: "Não" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("importar_bens_html_com_opcao", expect.objectContaining({
+      _sala_id: "sala", _arquivo: "fornecedor.html", _gerar_termo: false,
+      _bens: [{ codigo_red: "789", descricao: "Armário do leilão", valor: 150 }],
+      _existentes: [{ id: "sem-sala", sala_id: null, codigo_red: "789", sala_nome: "Sem sala" }],
+    })));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("vincular_dados_fornecedor", {
+      _itens: [expect.objectContaining({ codigo_red: "789", fornecedor: "Empresa A", valor: 150 })],
+    }));
+    await screen.findByText("Armário do leilão");
+  });
+
   it("restaura HTML junto com PDF e encaminha o HTML para leitura", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
