@@ -2254,7 +2254,7 @@
       "trigger": "numerar_recebimento_veiculo_trigger"
     }
   ],
-  "gerado_em": "2026-11-09T16:25:13.664061+00:00",
+  "gerado_em": "2026-11-10T15:45:02.338547+00:00",
   "rls_ativo": {
     "bens": true,
     "salas": true,
@@ -2283,7 +2283,7 @@
     "transferencias_numeros_reservados": true
   },
   "contagem_linhas": {
-    "bens": 31942,
+    "bens": 31961,
     "salas": 110,
     "profiles": 29,
     "user_roles": 29,
@@ -2499,5 +2499,5 @@
       "trigger": "on_auth_user_created"
     }
   ],
-  "geckoai_sincronizado_em": "2026-11-09T16:25:17.197Z"
+  "geckoai_sincronizado_em": "2026-11-10T15:45:05.951Z"
 }
