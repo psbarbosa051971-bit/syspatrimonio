@@ -1001,11 +1001,11 @@ function DepartamentosPage() {
               </span>
             </div>
             <form onSubmit={localizarOuAtualizar} autoComplete="off" className="min-w-0 flex-1 space-y-1.5 text-primary-foreground xl:max-w-[40rem]">
-              <Label htmlFor="pesquisaDinamica">PESQUISA DINÂMICA</Label>
+              <Label htmlFor="pesquisaDinamica" hidden={!!resultadoPesquisa} className={resultadoPesquisa ? "hidden" : undefined}>PESQUISA DINÂMICA</Label>
               <div className="flex items-center gap-2">
-                <Input id="pesquisaDinamica" type="search" autoComplete="off"
+                <Input id="pesquisaDinamica" type="search" autoComplete="off" hidden={!!resultadoPesquisa}
                   autoCorrect="off" autoCapitalize="none" spellCheck={false}
-                  className="min-w-0 bg-background text-foreground dark:bg-background"
+                  className={resultadoPesquisa ? "hidden" : "min-w-0 bg-background text-foreground dark:bg-background"}
                   placeholder="RED: 60.651, 60.785 ou descrição/valor..."
                   value={pesquisaDinamica} disabled={localizando || !!resultadoPesquisa}
                   onChange={(e) => setPesquisaDinamica(e.target.value)} />

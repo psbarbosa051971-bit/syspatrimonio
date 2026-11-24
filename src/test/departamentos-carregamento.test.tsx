@@ -611,7 +611,7 @@ describe("Carregamento dos registros em Departamentos", () => {
   });
 
   it.each(["987", "dulo de a", "1250,75", "1.250,75"])(
-    "pesquisa em outros departamentos por %s e restaura a sala com o mesmo botão",
+    "pesquisa ao enviar o formulário por %s, oculta o campo e restaura com Atualizar",
     async (termo) => {
       mocks.salas = [sala, { ...sala, id: "outra-sala", departamento_id: "outro-dep", nome: "Arquivo central" }];
       mocks.bens = [bem, outroBem, {
@@ -624,11 +624,14 @@ describe("Carregamento dos registros em Departamentos", () => {
       const campo = screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" });
       fireEvent.change(campo, { target: { value: termo } });
       expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Localizar" }));
+      fireEvent.submit(campo.closest("form")!);
       expect(await screen.findByText("Módulo de aço")).toBeInTheDocument();
       expect(screen.getByText("Local Físico: Arquivo central")).toBeInTheDocument();
       expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
       expect(screen.getByText("Quantidade de bens: 1")).toBeInTheDocument();
+      expect(campo).not.toBeVisible();
+      expect(screen.getByText("PESQUISA DINÂMICA")).not.toBeVisible();
+      expect(screen.queryByRole("searchbox", { name: "PESQUISA DINÂMICA" })).not.toBeInTheDocument();
       expect(campo).toBeDisabled();
       expect(campo).toHaveValue("");
       expect(campo).toHaveAttribute("autocomplete", "off");
@@ -653,6 +656,8 @@ describe("Carregamento dos registros em Departamentos", () => {
       expect(screen.queryByText("Módulo de aço")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Imprimir resultado em A4" })).not.toBeInTheDocument();
       expect(screen.getByLabelText("Local Físico")).toHaveValue("Sala existente");
+      expect(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" })).toBeVisible();
+      expect(screen.getByText("PESQUISA DINÂMICA")).toBeVisible();
       expect(campo).toHaveValue("");
       expect(campo).toBeEnabled();
       expect(screen.getByRole("button", { name: "Localizar" })).toBeDisabled();
@@ -743,9 +748,11 @@ describe("Carregamento dos registros em Departamentos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Localizar" }));
     expect(await screen.findByText("Nenhum bem encontrado para esta pesquisa em todas as salas.")).toBeInTheDocument();
     expect(screen.getByText("Quantidade de bens: 0")).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox", { name: "PESQUISA DINÂMICA" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Imprimir resultado em A4" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(await screen.findByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "PESQUISA DINÂMICA" })).toBeVisible();
   });
 
   it("preserva os bens da sala se a pesquisa em todas as salas falhar", async () => {
