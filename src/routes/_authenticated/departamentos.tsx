@@ -1291,7 +1291,7 @@ function DepartamentosPage() {
 
           {/* Subformulário de bens */}
           <Card id="bens-da-sala" className="bens-sala-form min-w-0 scroll-mt-4">
-            <CardHeader className="gap-2 space-y-0 p-4 pb-3">
+            <CardHeader hidden className="hidden">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle>Bens da sala {salaSel ? `— ${salaSel.nome}` : ""}</CardTitle>
                 <div className="bens-sala-acoes flex flex-wrap items-center gap-2">
@@ -1402,7 +1402,7 @@ function DepartamentosPage() {
                 </div>
               </div>}
               {bensExibidos.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div hidden className="hidden">
                   <span className="mr-auto text-sm text-muted-foreground" role="status">
                     {selecionados.length} selecionado(s) · Exibindo {bensFiltrados.length} de {bensExibidos.length}
                   </span>
