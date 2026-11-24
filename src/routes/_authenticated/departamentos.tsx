@@ -5,6 +5,8 @@ import { responsavelDoLocal } from "@/lib/usuarios.functions";
 import { ResponsavelSala } from "@/components/ResponsavelSala";
 import { formatarCodigoRed, normalizarCodigoRed } from "@/lib/codigo-red";
 import { statusBem, classeStatusBem } from "@/lib/status-bem";
+import { ehVeiculo } from "@/lib/recebimento-veiculos";
+import { carregarStatusTermosRelatorio } from "@/lib/status-termos-relatorio";
 import {
   ArrowDown,
   ArrowUp,
@@ -194,6 +196,18 @@ function DepartamentosPage() {
   const bensDoTermo = useMemo(() => termoSelecionado
     ? bensAtuaisDoTermo(bens, termoSelecionado) : bens, [bens, termoSelecionado]);
   const bensExibidos = resultadoPesquisa?.bens ?? bensDoTermo;
+  const [statusEntregaVeiculos, setStatusEntregaVeiculos] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let ativo = true;
+    setStatusEntregaVeiculos({});
+    const veiculos = bensExibidos.filter(ehVeiculo);
+    if (veiculos.length) {
+      void carregarStatusTermosRelatorio(veiculos, resultadoPesquisa ? null : termoSelecionado)
+        .then((status) => { if (ativo) setStatusEntregaVeiculos(status); })
+        .catch(() => { if (ativo) toast.error("Não foi possível atualizar as cores de entrega dos veículos. Tente atualizar os registros."); });
+    }
+    return () => { ativo = false; };
+  }, [bensExibidos, termoSelecionado, resultadoPesquisa, tentativaBens]);
   const anosIncorporacao = useMemo(() => [...new Set(bensExibidos.map(anoIncorporacao).filter(Boolean))]
     .sort((a, b) => Number(b) - Number(a)), [bensExibidos]);
   useEffect(() => { setFiltroAnoIncorporacao(""); }, [salaSel?.id, !!resultadoPesquisa, termoSelecionado?.id]);
@@ -1429,20 +1443,6 @@ function DepartamentosPage() {
                     />
                     Todos para transferência
                   </label>
-                  <div className="relative min-w-0 flex-1 basis-64 sm:max-w-md">
-                    <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="search"
-                      className="pl-8"
-                      aria-label="Pesquisar bens da sala"
-                      placeholder="Pesquisar em qualquer campo dos bens..."
-                      value={buscaBens}
-                      onChange={(e) => {
-                        setBuscaBens(e.target.value);
-                        setSelecionados([]);
-                      }}
-                    />
-                  </div>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1465,6 +1465,20 @@ function DepartamentosPage() {
                   </Button>
                 </div>
               )}
+              <div className="relative min-w-0 w-full sm:max-w-md">
+                <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  className="pl-8"
+                  aria-label="Pesquisar bens da sala"
+                  placeholder="Pesquisar em qualquer campo dos bens..."
+                  value={buscaBens}
+                  onChange={(e) => {
+                    setBuscaBens(e.target.value);
+                    setSelecionados([]);
+                  }}
+                />
+              </div>
               {bensParaTransferir.length > 0 && <div className="space-y-2 rounded-md border bg-accent p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label htmlFor="codigos-selecionados-transferencia">Códigos RED para transferência ({bensParaTransferir.length} bens)</Label>
@@ -1537,7 +1551,7 @@ function DepartamentosPage() {
                     </TableRow>
                   )}
                   {bensOrdenados.map((b) => (
-                    <TableRow key={b.id} className={classeStatusBem(b)}>
+                    <TableRow key={b.id} className={statusEntregaVeiculos[b.id] === "Entregue" ? "bem-entregue" : classeStatusBem(b)}>
                       <TableCell className="py-1 text-center">
                         <input
                           type="checkbox"

@@ -16,9 +16,10 @@ type Props = {
   carregandoBens: boolean;
   erroBens: boolean;
   onAtualizar: () => void;
+  statusEntregaPorBem?: Record<string, string>;
 };
 
-export function TermosVeiculosDaSala({ salaId, bensDaSala, atualizar, carregandoBens, erroBens, onAtualizar }: Props) {
+export function TermosVeiculosDaSala({ salaId, bensDaSala, atualizar, carregandoBens, erroBens, onAtualizar, statusEntregaPorBem = {} }: Props) {
   const [termos, setTermos] = useState<Tables<"recebimentos_veiculos">[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(false);
@@ -75,7 +76,7 @@ export function TermosVeiculosDaSala({ salaId, bensDaSala, atualizar, carregando
               const bem = bensPorId.get(termo.bem_id);
               if (!bem) return null;
               const dados = lerDadosRecebimento(termo.dados);
-              return <tr key={termo.bem_id} className="border-b last:border-0 [&_td]:px-3 [&_td]:py-2">
+              return <tr key={termo.bem_id} className={`border-b last:border-0 [&_td]:px-3 [&_td]:py-2 ${statusEntregaPorBem[bem.id] === "Entregue" ? "bem-entregue" : ""}`}>
                 <td className="whitespace-nowrap font-bold">{numeroTermoVeiculo(termo)}</td>
                 <td>{formatarCodigoRed(bem.codigo_red)}</td><td className="whitespace-nowrap">{dados.placa || "—"}</td>
                 <td>{dados.secretaria || "Não informada"}</td>

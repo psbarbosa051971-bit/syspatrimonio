@@ -272,6 +272,40 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(screen.queryByText(/Vermelho: Aguardando Entrega/)).not.toBeInTheDocument();
   });
 
+  it("mantém a pesquisa comum visível sem reexibir a barra de exclusão", async () => {
+    render(<Page />);
+    await screen.findByText("Mesa cadastrada");
+    const pesquisa = screen.getByRole("searchbox", { name: "Pesquisar bens da sala" });
+    expect(pesquisa).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Excluir selecionados" })).not.toBeInTheDocument();
+    fireEvent.change(pesquisa, { target: { value: "cadeira" } });
+    expect(screen.getByText("Cadeira azul")).toBeVisible();
+    expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
+    fireEvent.change(pesquisa, { target: { value: "" } });
+    expect(screen.getByText("Mesa cadastrada")).toBeVisible();
+  });
+
+  it("destaca veículos entregues sem mudar a localização ou as cores dos outros bens", async () => {
+    mocks.termos = [{
+      id: "termo-entregue", sala_id: "sala", numero: 29, termo_ano: 2026,
+      created_at: "2026-10-17T12:00:00Z", arquivo: "termo.html",
+      termo_snapshot: { local: "Sala existente", bens: [
+        { codigo_red: "789", descricao: "Veículo entregue", valor: 500 },
+        { codigo_red: "123", descricao: "Mesa cadastrada", valor: 10 },
+      ] },
+    }];
+    mocks.entregas = [{ importacao_id: "termo-entregue", status: "Entregue" }];
+    mocks.bens = [
+      { ...bem, importacao_id: "termo-entregue", status: "NÃO LOCALIZADO" },
+      { ...outroBem, id: "veiculo-entregue", codigo_red: "789", descricao: "Veículo entregue", tipo: "Veículo", importacao_id: "termo-entregue", status: "NÃO LOCALIZADO" },
+      { ...outroBem, descricao: "Veículo pendente", tipo: "Veículo", importacao_id: null, status: "NÃO LOCALIZADO" },
+    ];
+    render(<Page />);
+    await waitFor(() => expect(screen.getByText("Veículo entregue").closest("tr")).toHaveClass("bem-entregue"));
+    expect(screen.getByText("Veículo pendente").closest("tr")).toHaveClass("bem-nao-localizado");
+    expect(screen.getByText("Mesa cadastrada").closest("tr")).toHaveClass("bem-nao-localizado");
+  });
+
   it("oculta termos sem bens na sala mesmo com bens no documento salvo", async () => {
     mocks.termos = [
       { id: "termo-vazio", numero: 34, termo_ano: 2026, created_at: "2026-10-17T12:00:00Z", arquivo: "termo34.html",

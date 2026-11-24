@@ -128,6 +128,12 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
   }, [salaId, atualizar, tentativa]);
   const termosComBens = termos.map((termo) => ({ termo, quantidade: bensAtuaisDoTermo(bensDaSala, termo).length }))
     .filter(({ quantidade }) => quantidade > 0);
+  const statusEntregaPorBem: Record<string, string> = {};
+  for (const { termo } of termosComBens) {
+    for (const bem of bensAtuaisDoTermo(bensDaSala, termo)) {
+      if (!statusEntregaPorBem[bem.id]) statusEntregaPorBem[bem.id] = entregas[termo.id]?.status ?? "Aguardando Entrega";
+    }
+  }
   const aguardandoDados = carregando || carregandoBens;
   const falhaCarga = erro || erroBens;
   return <Card className="min-w-0 lg:col-span-2">
@@ -200,12 +206,15 @@ export function TermosDaSala({ salaId, atualizar, selecionado, quantidadeBens, v
         <div><p className="text-xs font-bold uppercase">Valor total na sala</p><p className="mt-1 rounded border border-border bg-background p-1 font-semibold">{moeda(valorSala)}</p></div>
       </div>
       <TermosVeiculosDaSala salaId={salaId} bensDaSala={bensDaSala} atualizar={atualizar}
-        carregandoBens={carregandoBens} erroBens={erroBens} onAtualizar={onAtualizar} />
+        carregandoBens={carregandoBens} erroBens={erroBens} onAtualizar={onAtualizar} statusEntregaPorBem={statusEntregaPorBem} />
     </CardContent>
     {termoEntrega && <EntregaTermoDialog
       key={termoEntrega.id} termo={termoEntrega} entrega={entregas[termoEntrega.id] ?? null} baixa={baixa}
       onFechar={() => setTermoEntrega(null)}
-      onSalvar={(entrega) => setEntregas((atuais) => ({ ...atuais, [entrega.importacao_id]: entrega }))} />}
+      onSalvar={(entrega) => {
+        setEntregas((atuais) => ({ ...atuais, [entrega.importacao_id]: entrega }));
+        onAtualizar();
+      }} />}
     {termoImpressao && salaId && <TermosResponsabilidadeDialog
       key={`${salaId}:${termoImpressao}`} open onOpenChange={(aberto) => { if (!aberto) setTermoImpressao(""); }}
       salaId={salaId} ultimaImportacao={termoImpressao} />}

@@ -44,6 +44,13 @@ describe("recebimentos de veículos em Termos criados da sala", () => {
     expect(mocks.imprimir).toHaveBeenCalledWith(bem, termo, "Garagem");
   });
 
+  it("destaca em azul somente o veículo com entrega concluída", async () => {
+    const { rerender } = render(<TermosVeiculosDaSala {...props} statusEntregaPorBem={{ [bem.id]: "Entregue" }} />);
+    expect((await screen.findByText("007/2026")).closest("tr")).toHaveClass("bem-entregue");
+    rerender(<TermosVeiculosDaSala {...props} statusEntregaPorBem={{ [bem.id]: "Aguardando Entrega" }} />);
+    expect(screen.getByText("007/2026").closest("tr")).not.toHaveClass("bem-entregue");
+  });
+
   it("abre o formulário existente e atualiza a lista depois de salvar", async () => {
     render(<TermosVeiculosDaSala {...props} />);
     fireEvent.click(await screen.findByRole("button", { name: "Editar recebimento de veículos 007/2026" }));

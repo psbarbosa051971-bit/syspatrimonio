@@ -165,6 +165,13 @@
 .termo-aguardando { color: var(--entrega-pendente); }
 .termo-entregue { color: var(--entrega-concluida); }
 
+/* A entrega concluída prevalece sobre a cor de localização do veículo. */
+.bem-entregue { color: var(--entrega-concluida); }
+.bem-entregue :is(td, span, button, svg, label),
+.bens-sala-form .bem-entregue button.inline-flex,
+.bens-sala-form .bem-entregue button.inline-flex:hover:not(:disabled) { color: var(--entrega-concluida); }
+.bem-entregue input[type="checkbox"] { accent-color: var(--entrega-concluida); }
+
 /* Cores fixas do modelo de cadastro e do resumo do Local Físico. */
 .cadastro-usuario {
   --cadastro-campo: oklch(0.985 0.06 106);
