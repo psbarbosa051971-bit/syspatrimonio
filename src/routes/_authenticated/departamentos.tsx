@@ -1316,17 +1316,7 @@ function DepartamentosPage() {
                     onClick={abrirNovoTermo}>
                     <Plus className="mr-1 h-4 w-4" /> {abrindoNovoTermo ? "Abrindo..." : "Novo termo"}
                   </Button>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <Label htmlFor="ano-incorporacao-sala">Ano de incorporação</Label>
-                    <select id="ano-incorporacao-sala"
-                      className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                      value={filtroAnoIncorporacao}
-                      disabled={(!salaSel && !resultadoPesquisa) || carregandoBens || importando || localizando}
-                      onChange={(e) => { setFiltroAnoIncorporacao(e.target.value); setSelecionados([]); }}>
-                      <option value="">Todos os anos</option>
-                      {anosIncorporacao.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
-                    </select>
-                  </div>
+
                 </div>
               </div>
               <div>
@@ -1371,7 +1361,7 @@ function DepartamentosPage() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 px-4 pb-4 [&_input:not([type=checkbox])]:text-base [&_label]:text-base [&_select]:text-base [&_table]:text-base [&_td_button]:text-base">
-              {!resultadoPesquisa && <div className="resumo-local grid gap-x-3 gap-y-2 p-3 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)] [&_input]:!text-xs [&_label]:!text-xs [&_select]:!text-xs">
+              {!resultadoPesquisa && <div className="resumo-local grid gap-x-3 gap-y-2 p-3 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,0.9fr)] [&_input]:!text-xs [&_label]:!text-xs [&_select]:!text-xs">
                 <div className="flex min-w-0 flex-col gap-1">
                   <Label htmlFor="cabLocal">Local Físico</Label>
                   <Input
@@ -1414,17 +1404,7 @@ function DepartamentosPage() {
                   </div>
                   {salvandoUnidade && <span className="sr-only" role="status">Salvando unidade...</span>}
                 </div>
-                <div className="flex min-w-0 flex-col gap-1">
-                  <Label htmlFor="cabData">Data</Label>
-                  <Input
-                    id="cabData"
-                    className="h-8"
-                    disabled={!salaSel}
-                    value={cabecalho.data}
-                    onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
-                    onBlur={salvarCabecalho}
-                  />
-                </div>
+
               </div>}
               {bensExibidos.length > 0 && (
                 <div hidden className="hidden">
@@ -1476,19 +1456,33 @@ function DepartamentosPage() {
                   </Button>
                 </div>
               )}
-              <div className="relative min-w-0 w-full sm:max-w-md">
-                <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  className="pl-8"
-                  aria-label="Pesquisar bens da sala"
-                  placeholder="Pesquisar em qualquer campo dos bens..."
-                  value={buscaBens}
-                  onChange={(e) => {
-                    setBuscaBens(e.target.value);
-                    setSelecionados([]);
-                  }}
-                />
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="relative min-w-0 w-full sm:max-w-md">
+                  <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    className="pl-8"
+                    aria-label="Pesquisar bens da sala"
+                    placeholder="Pesquisar em qualquer campo dos bens..."
+                    value={buscaBens}
+                    onChange={(e) => {
+                      setBuscaBens(e.target.value);
+                      setSelecionados([]);
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="ano-incorporacao-sala">Exercício</Label>
+                  <select id="ano-incorporacao-sala"
+                    title="Ano de incorporação dos bens"
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    value={filtroAnoIncorporacao}
+                    disabled={(!salaSel && !resultadoPesquisa) || carregandoBens || importando || localizando}
+                    onChange={(e) => { setFiltroAnoIncorporacao(e.target.value); setSelecionados([]); }}>
+                    <option value="">Todos os anos</option>
+                    {anosIncorporacao.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+                  </select>
+                </div>
               </div>
               {bensParaTransferir.length > 0 && <div className="space-y-2 rounded-md border bg-accent p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">

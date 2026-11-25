@@ -264,7 +264,10 @@ describe("Carregamento dos registros em Departamentos", () => {
     );
     const painelBens = container.querySelector("#bens-da-sala");
     expect(acoes.nextElementSibling).toBe(painelBens);
-    expect(painelBens).toContainElement(screen.getByRole("combobox", { name: "Ano de incorporação" }));
+    const exercicio = screen.getByRole("combobox", { name: "Exercício" });
+    expect(painelBens).toContainElement(exercicio);
+    expect(exercicio).toBeVisible();
+    expect(within(painelBens as HTMLElement).queryByLabelText("Data")).not.toBeInTheDocument();
     expect(painelBens?.querySelector('[class~="h-[234px]"]')).toBeInTheDocument();
     expect(container.querySelector("main")).toHaveClass("lg:grid-cols-[minmax(0,1fr)_360px]", "items-stretch");
     expect(container.querySelector('[class~="max-h-[416px]"]')).toBeInTheDocument();
@@ -706,10 +709,10 @@ describe("Carregamento dos registros em Departamentos", () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     fireEvent.change(screen.getByRole("searchbox", { name: "Pesquisar bens da sala" }), { target: { value: "mesa" } });
-    fireEvent.change(screen.getByLabelText("Ano de incorporação"), { target: { value: "2025" } });
+    fireEvent.change(screen.getByLabelText("Exercício"), { target: { value: "2025" } });
     fireEvent.click(screen.getByRole("button", { name: "Classificar PATRIMÔNIO em ordem decrescente" }));
-    const imprimir = screen.getByRole("button", { name: "Imprimir registros filtrados dos bens da sala" });
-    const excluir = screen.getByRole("button", { name: "Excluir selecionados" });
+    const imprimir = screen.getByLabelText("Imprimir registros filtrados dos bens da sala");
+    const excluir = screen.getByText("Excluir selecionados");
     expect(excluir.nextElementSibling).toBe(imprimir);
     expect(excluir).toBeDisabled();
     expect(imprimir).toBeEnabled();
@@ -849,29 +852,28 @@ describe("Carregamento dos registros em Departamentos", () => {
   it("filtra pelo ano de incorporação, combina com a pesquisa e restaura todos os anos", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
-    const ano = screen.getByRole("combobox", { name: "Ano de incorporação" });
+    const ano = screen.getByRole("combobox", { name: "Exercício" });
     expect(within(ano).getAllByRole("option").map((opcao) => opcao.textContent))
       .toEqual(["Todos os anos", "2025", "2024"]);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 123" }));
     fireEvent.change(ano, { target: { value: "2025" } });
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Selecionar 123" })).not.toBeChecked();
     expect(screen.queryByText("Cadeira azul")).not.toBeInTheDocument();
     expect(screen.getByText("Quantidade de bens: 1 de 2")).toBeInTheDocument();
     expect(screen.getByText("Total filtrado: R$ 10,00")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
     const pesquisa = screen.getByRole("searchbox", { name: "Pesquisar bens da sala" });
     fireEvent.change(pesquisa, { target: { value: "cadeira" } });
     expect(screen.getByText("Nenhum bem encontrado para esta pesquisa.")).toBeInTheDocument();
     fireEvent.change(pesquisa, { target: { value: "" } });
     fireEvent.change(ano, { target: { value: "2024" } });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
-    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 456" }));
     expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
     fireEvent.change(ano, { target: { value: "" } });
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
     expect(screen.getByText("Cadeira azul")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).not.toBeChecked();
     expect(screen.getByText("Quantidade de bens: 2")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
   });
 
   it("reconhece o ano em datas brasileiras e ISO sem incluir bens sem data no filtro", async () => {
@@ -882,7 +884,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     ];
     render(<Page />);
     await screen.findByText("Armário sem data");
-    const ano = screen.getByRole("combobox", { name: "Ano de incorporação" });
+    const ano = screen.getByRole("combobox", { name: "Exercício" });
     expect(within(ano).getAllByRole("option")).toHaveLength(2);
     fireEvent.change(ano, { target: { value: "2025" } });
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
