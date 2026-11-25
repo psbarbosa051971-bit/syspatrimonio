@@ -208,7 +208,7 @@ function DepartamentosPage() {
     }
     return () => { ativo = false; };
   }, [bensExibidos, termoSelecionado, resultadoPesquisa, tentativaBens]);
-  const anosIncorporacao = useMemo(() => [...new Set(bensExibidos.map(anoIncorporacao).filter(Boolean))]
+  const anosIncorporacao = useMemo(() => [...new Set(["2026", ...bensExibidos.map(anoIncorporacao).filter(Boolean)])]
     .sort((a, b) => Number(b) - Number(a)), [bensExibidos]);
   useEffect(() => { setFiltroAnoIncorporacao(""); }, [salaSel?.id, !!resultadoPesquisa, termoSelecionado?.id]);
   const dadosRelatorioSala = useMemo(() => salaSel ? {

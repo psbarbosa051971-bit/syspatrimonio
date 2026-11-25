@@ -854,7 +854,10 @@ describe("Carregamento dos registros em Departamentos", () => {
     await screen.findByText("Mesa cadastrada");
     const ano = screen.getByRole("combobox", { name: "Exercício" });
     expect(within(ano).getAllByRole("option").map((opcao) => opcao.textContent))
-      .toEqual(["Todos os anos", "2025", "2024"]);
+      .toEqual(["Todos os anos", "2026", "2025", "2024"]);
+    fireEvent.change(ano, { target: { value: "2026" } });
+    expect(screen.getByText("Nenhum bem encontrado para esta pesquisa.")).toBeInTheDocument();
+    fireEvent.change(ano, { target: { value: "" } });
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar 123" }));
     fireEvent.change(ano, { target: { value: "2025" } });
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
@@ -878,15 +881,16 @@ describe("Carregamento dos registros em Departamentos", () => {
 
   it("reconhece o ano em datas brasileiras e ISO sem incluir bens sem data no filtro", async () => {
     mocks.bens = [
-      { ...bem, incorporacao: "15/03/2025" },
-      { ...outroBem, incorporacao: "2025-09-20" },
+      { ...bem, incorporacao: "15/03/2026" },
+      { ...outroBem, incorporacao: "2026-09-20" },
       { ...bem, id: "sem-data", codigo_red: "789", descricao: "Armário sem data", incorporacao: null },
     ];
     render(<Page />);
     await screen.findByText("Armário sem data");
     const ano = screen.getByRole("combobox", { name: "Exercício" });
-    expect(within(ano).getAllByRole("option")).toHaveLength(2);
-    fireEvent.change(ano, { target: { value: "2025" } });
+    expect(within(ano).getAllByRole("option").map((opcao) => opcao.textContent))
+      .toEqual(["Todos os anos", "2026"]);
+    fireEvent.change(ano, { target: { value: "2026" } });
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
     expect(screen.getByText("Cadeira azul")).toBeInTheDocument();
     expect(screen.queryByText("Armário sem data")).not.toBeInTheDocument();
