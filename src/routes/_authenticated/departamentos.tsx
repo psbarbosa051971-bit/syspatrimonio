@@ -1414,6 +1414,17 @@ function DepartamentosPage() {
                   </div>
                   {salvandoUnidade && <span className="sr-only" role="status">Salvando unidade...</span>}
                 </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Label htmlFor="cabData">Data</Label>
+                  <Input
+                    id="cabData"
+                    className="h-8"
+                    disabled={!salaSel}
+                    value={cabecalho.data}
+                    onChange={(e) => setCabecalho({ ...cabecalho, data: e.target.value })}
+                    onBlur={salvarCabecalho}
+                  />
+                </div>
               </div>}
               {bensExibidos.length > 0 && (
                 <div hidden className="hidden">
