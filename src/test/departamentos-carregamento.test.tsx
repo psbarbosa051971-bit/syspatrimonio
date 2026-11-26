@@ -275,15 +275,30 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(screen.queryByText(/Vermelho: Aguardando Entrega/)).not.toBeInTheDocument();
   });
 
-  it("mantém a pesquisa comum visível sem reexibir a barra de exclusão", async () => {
+  it("exibe as duas seleções em lote sem reexibir as ações ocultas", async () => {
     render(<Page />);
     await screen.findByText("Mesa cadastrada");
     const pesquisa = screen.getByRole("searchbox", { name: "Pesquisar bens da sala" });
+    const selecionar = screen.getByRole("checkbox", { name: "Selecionar todos" });
+    const transferir = screen.getByRole("checkbox", { name: "Selecionar todos para transferência" });
     expect(pesquisa).toBeVisible();
+    expect(selecionar).toBeVisible();
+    expect(transferir).toBeVisible();
     expect(screen.queryByRole("button", { name: "Excluir selecionados" })).not.toBeInTheDocument();
     fireEvent.change(pesquisa, { target: { value: "cadeira" } });
     expect(screen.getByText("Cadeira azul")).toBeVisible();
     expect(screen.queryByText("Mesa cadastrada")).not.toBeInTheDocument();
+    fireEvent.click(selecionar);
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Copiar RED 456 para transferência" })).not.toBeChecked();
+    fireEvent.click(transferir);
+    expect(screen.getByLabelText("Códigos RED para transferência (1 bens)")).toHaveValue("456, ");
+    fireEvent.click(transferir);
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Copiar RED 456 para transferência" })).not.toBeChecked();
+    fireEvent.change(pesquisa, { target: { value: "inexistente" } });
+    expect(selecionar).toBeDisabled();
+    expect(transferir).toBeDisabled();
     fireEvent.change(pesquisa, { target: { value: "" } });
     expect(screen.getByText("Mesa cadastrada")).toBeVisible();
   });
@@ -366,14 +381,15 @@ describe("Carregamento dos registros em Departamentos", () => {
     expect(cabecalho).toHaveClass("bg-room-assets-header", "[&_th]:text-[10px]");
     expect(cabecalho.closest("table")).toHaveClass("text-xs", "[&_td]:text-xs");
     expect(within(cabecalho).queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Novo termo" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
-    expect(screen.getByRole("button", { name: "Novo termo" })).toBeEnabled();
     expect(screen.getByRole("checkbox", { name: "Selecionar 123" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeEnabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos para transferência" }));
     expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("123, 456, ");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    expect(screen.getByRole("checkbox", { name: "Selecionar 123" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Selecionar todos para transferência" })).toBeChecked();
   });
 
   it("libera Novo termo ao marcar um item em SEL. e usa somente o item selecionado", async () => {
@@ -478,7 +494,7 @@ describe("Carregamento dos registros em Departamentos", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.785 para transferência" }));
     expect(screen.getByLabelText("Códigos RED para transferência (2 bens)")).toHaveValue("60.651, 60.785, ");
     expect(screen.getByRole("checkbox", { name: "Selecionar 60651" })).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
+    expect(screen.getByText("Excluir selecionados")).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Copiar RED 60.651 para transferência" }));
     expect(screen.getByLabelText("Códigos RED para transferência (1 bens)")).toHaveValue("60.785, ");
     fireEvent.click(screen.getByRole("button", { name: "Gerar transferência" }));
@@ -902,13 +918,14 @@ describe("Carregamento dos registros em Departamentos", () => {
     await screen.findByText("Mesa cadastrada");
     const pesquisa = screen.getByRole("searchbox", { name: "Pesquisar bens da sala" });
     fireEvent.change(pesquisa, { target: { value: "cadeira" } });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar todos" }));
+    const selecionar = screen.getByRole("checkbox", { name: "Selecionar todos" });
+    fireEvent.click(selecionar);
     expect(screen.getByRole("checkbox", { name: "Selecionar 456" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeEnabled();
+    expect(selecionar).toBeChecked();
     expect(screen.getByRole("status")).toHaveTextContent("1 selecionado(s)");
     fireEvent.change(pesquisa, { target: { value: "inexistente" } });
     expect(screen.getByText("Nenhum bem encontrado para esta pesquisa.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Excluir selecionados" })).toBeDisabled();
+    expect(selecionar).not.toBeChecked();
     fireEvent.change(pesquisa, { target: { value: "" } });
     expect(screen.getByText("Mesa cadastrada")).toBeInTheDocument();
     expect(screen.getByText("Cadeira azul")).toBeInTheDocument();

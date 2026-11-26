@@ -1407,7 +1407,7 @@ function DepartamentosPage() {
 
               </div>}
               {bensExibidos.length > 0 && (
-                <div hidden className="hidden">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span className="mr-auto text-sm text-muted-foreground" role="status">
                     {selecionados.length} selecionado(s) · Exibindo {bensFiltrados.length} de {bensExibidos.length}
                   </span>
@@ -1417,9 +1417,10 @@ function DepartamentosPage() {
                       aria-label="Selecionar todos"
                       className="h-4 w-4 accent-primary"
                       checked={todosFiltradosSelecionados}
+                      disabled={bensFiltrados.length === 0}
                       onChange={(e) => setSelecionados(e.target.checked ? idsBensFiltrados : [])}
                     />
-                    Todos para novo termo / exclusão
+                    SEL. — Selecionar todos
                   </label>
                   <label className="flex items-center gap-1.5 text-sm">
                     <input
@@ -1432,28 +1433,30 @@ function DepartamentosPage() {
                         ? [...atuais, ...bensFiltrados.filter((b) => !atuais.some((item) => item.id === b.id))]
                         : atuais.filter((b) => !idsBensFiltrados.includes(b.id)))}
                     />
-                    Todos para transferência
+                    TRAN — Todos para transferência
                   </label>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={selecionados.length === 0}
-                    onClick={removerSelecionados}
-                  >
-                    <Trash2 className="mr-1 h-4 w-4" /> Excluir selecionados
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    aria-label="Imprimir registros filtrados dos bens da sala"
-                    title="Imprimir registros filtrados dos bens da sala"
-                    disabled={preparandoImpressao || carregandoBens || importando || localizando || !bensFiltrados.length}
-                    onClick={imprimirPesquisa}
-                  >
-                    <Printer className="h-4 w-4" />
-                  </Button>
+                  <div hidden className="hidden">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={selecionados.length === 0}
+                      onClick={removerSelecionados}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4" /> Excluir selecionados
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      aria-label="Imprimir registros filtrados dos bens da sala"
+                      title="Imprimir registros filtrados dos bens da sala"
+                      disabled={preparandoImpressao || carregandoBens || importando || localizando || !bensFiltrados.length}
+                      onClick={imprimirPesquisa}
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
               <div className="flex flex-wrap items-end gap-2">
